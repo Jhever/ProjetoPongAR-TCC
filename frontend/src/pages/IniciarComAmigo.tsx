@@ -9,7 +9,6 @@ const IniciarComAmigo = () => {
   const [idAmigo, setIdAmigo] = useState('');
   const [idAssistir, setIdAssistir] = useState('');
 
-  // Gera um ID randômico de 8 dígitos ao carregar a tela
   useEffect(() => {
     const gerarId = () => {
       // Gera número entre 10000000 e 99999999
@@ -49,11 +48,6 @@ const IniciarComAmigo = () => {
       fontStyle: 'italic',
       textTransform: 'uppercase' as const,
       margin: 0,
-    },
-    subTitleBox: {
-      border: '2px solid #9333ea',
-      padding: '10px 40px',
-      marginTop: '10px',
     },
     subTitle: {
       color: '#9333ea',
@@ -124,7 +118,7 @@ const IniciarComAmigo = () => {
     <div style={styles.screen}>
       <div style={styles.titleSection}>
         <h1 style={styles.mainTitle}>PONG COM AR</h1>
-        <div style={styles.subTitleBox}>
+        <div>
           <h2 style={styles.subTitle}>INICIANDO PARTIDA COM AMIGO</h2>
         </div>
       </div>

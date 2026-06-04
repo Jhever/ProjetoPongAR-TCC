@@ -107,11 +107,13 @@ const Home = () => {
     switch (item) {
       case "INICIAR PARTIDA ONLINE": navigate('/procurar-partida'); break;
       case "INICIAR PARTIDA COM AMIGO": navigate('/iniciar-com-amigo'); break;
+      case "TESTAR CAMERA (AR)": navigate('/testar-camera'); break;
+      case "PARTIDA TREINO": navigate('/game-treino'); break;
       case "RANKING GLOBAL": navigate('/ranking'); break;
+      case "CONFIGURAÇÃO": navigate('/configuracao'); break;
       case "INFORMAÇÕES": navigate('/informacoes'); break;
       case "SUPORTE E AJUDA": navigate('/suporte'); break;
-      case "CONFIGURAÇÃO": navigate('/configuracao'); break;
-      case "TESTAR CAMERA (AR)": navigate('/testar-camera'); break;
+      case "DESAFIOS": navigate('/desafios'); break;
       case "SAIR DO JOGO": navigate('/'); break;
       default: console.log(`${item} em breve.`);
     }

@@ -1,9 +1,19 @@
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const EsperarPartida = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { modo, codigoId } = location.state || { modo: 'criar', codigoId: '000000' };
+
+  // Efeito para navegar para o jogo após a "conexão" (simulada em 3s)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      navigate('/game', { state: { modo } });
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [navigate, modo]);
 
   // Define o texto com base no modo que veio da tela anterior
   const getTextoEspera = () => {

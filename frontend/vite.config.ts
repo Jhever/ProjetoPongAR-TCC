@@ -3,10 +3,15 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // Configurações de segurança obrigatórias para o MediaPipe acessar a GPU
+    headers: {
+      "Cross-Origin-Embedder-Policy": "require-corp",
+      "Cross-Origin-Opener-Policy": "same-origin",
+    },
+  },
   optimizeDeps: {
-    // REMOVA as bibliotecas do exclude
-    // COLOQUE-AS no include para o Vite processar corretamente
-    // include: ['@mediapipe/hands', '@mediapipe/drawing_utils']
-    include: []
+    // Exclua a biblioteca do processamento do Vite para evitar erros de exportação
+    exclude: ['@mediapipe/tasks-vision']
   }
 })

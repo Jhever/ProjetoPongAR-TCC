@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as Vision from "@mediapipe/tasks-vision";
 import { useConfig } from '../context/ConfigContext';
 
 const TestarCamera = () => {
@@ -8,132 +9,127 @@ const TestarCamera = () => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const handsRef = useRef<any>(null);
-  const [testando, setTestando] = useState(false);
+  const animationFrameRef = useRef<number>(0);
+  const [landmarker, setLandmarker] = useState<Vision.HandLandmarker | null>(null);
   const [status, setStatus] = useState("CARREGANDO MODELO...");
   const [pontos, setPontos] = useState(0);
 
+  // Estilo solicitado
+  const btnGreen = { 
+    background: 'linear-gradient(to right, #059669, #a3e635)', 
+    border: 'none', 
+    color: 'white', 
+    padding: '12px 25px', 
+    borderRadius: '25px', 
+    cursor: 'pointer', 
+    fontWeight: 'bold' as const,
+    fontSize: '16px',
+    boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
+    transition: 'transform 0.2s'
+  };
+
   useEffect(() => {
-    // 1. Carregamento sequencial seguro
-    const loadScript = (src: string) => new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      document.body.appendChild(s);
-    });
+    const initVision = async () => {
+      const vision = await Vision.FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
 
-    const setup = async () => {
-      await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
-      await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js");
-
-      // @ts-ignore
-      const { Hands, HAND_CONNECTIONS } = window;
-      // @ts-ignore
-      const { drawConnectors, drawLandmarks } = window;
-
-      const hands = new Hands({
-        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      const l = await Vision.HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numHands: 1
       });
-
-      hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-
-hands.onResults((results: any) => {
-  const canvas = canvasRef.current;
-  const ctx = canvas?.getContext('2d');
-  if (!canvas || !ctx) return;
-  
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 1. Verifica se detectou alguma mão
-  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-    const landmarks = results.multiHandLandmarks[0];
-    
-    // Atualiza status e pontos (agora exibimos 21 fixos para manter a estabilidade)
-    setStatus("MÃO DETECTADA!");
-    setPontos(21); 
-
-    // @ts-ignore
-    const { HAND_CONNECTIONS } = window;
-    ctx.strokeStyle = "#00FF00";
-    ctx.lineWidth = 5; // Linhas mais grossas facilitam a visualização
-
-    // 2. Desenho das conexões
-    for (const [start, end] of HAND_CONNECTIONS) {
-      const p1 = landmarks[start];
-      const p2 = landmarks[end];
-      ctx.beginPath();
-      ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
-      ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
-      ctx.stroke();
-    }
-
-    // 3. Desenho dos pontos
-    ctx.fillStyle = "#FF0000";
-    landmarks.forEach((lm: any) => {
-      ctx.beginPath();
-      ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 6, 0, 2 * Math.PI);
-      ctx.fill();
-    });
-  } else {
-    // Caso a mão saia da câmera
-    setStatus("PROCESSANDO...");
-    setPontos(0);
-  }
-});
-
-      handsRef.current = hands;
+      
+      setLandmarker(l);
       setStatus("PRONTO PARA INICIAR");
     };
 
-    setup();
+    initVision();
+
+    return () => {
+      cancelAnimationFrame(animationFrameRef.current);
+      if (landmarker) landmarker.close();
+    };
   }, []);
 
   const iniciarTeste = async () => {
+    if (!landmarker || !canvasRef.current || !videoRef.current) return;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setTestando(true);
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
 
-      const loop = async () => {
-        // Verifica se o vídeo está pronto (HAVE_ENOUGH_DATA) antes de enviar
-        if (videoRef.current && handsRef.current && videoRef.current.readyState === 4) {
-          await handsRef.current.send({ image: videoRef.current });
+      const canvas = canvasRef.current;
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+
+      const ctx = canvas.getContext('2d')!;
+      const drawingUtils = new Vision.DrawingUtils(ctx);
+
+      const predict = () => {
+        if (videoRef.current && videoRef.current.readyState >= 2) {
+          const results = landmarker.detectForVideo(videoRef.current, performance.now());
+          
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (results.landmarks.length > 0) {
+            setStatus("MÃO DETECTADA!");
+            setPontos(21);
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#ff0055";
+            
+            for (const landmarks of results.landmarks) {
+              drawingUtils.drawConnectors(landmarks, Vision.HandLandmarker.HAND_CONNECTIONS, { 
+                color: '#ff0055', lineWidth: 4 
+              });
+              drawingUtils.drawLandmarks(landmarks, { 
+                color: '#ffffff', lineWidth: 1, radius: 6 
+              });
+            }
+            ctx.shadowBlur = 0;
+          } else {
+            setStatus("PROCESSANDO...");
+            setPontos(0);
+          }
         }
-        requestAnimationFrame(loop);
+        animationFrameRef.current = requestAnimationFrame(predict);
       };
-      loop();
+      predict();
     } catch (err) {
       alert("Erro ao acessar câmera: " + err);
     }
   };
 
   return (
-    <div style={{ background: isDark ? '#000' : '#fff', color: isDark ? '#fff' : '#000', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
-      <div style={{ position: 'relative', width: 400, height: 400, border: '2px solid #555' }}>
-        <video ref={videoRef} style={{ width: 400, height: 400, transform: 'scaleX(-1)' }} autoPlay playsInline muted />
-        <canvas ref={canvasRef} width="400" height="400" style={{ position: 'absolute', top: 0, left: 0, transform: 'scaleX(-1)' }} />
-      </div>
-      <div style={{ marginTop: '20px' }}>
-        <p>Status: {status}</p>
-        <p>Pontos Detectados: {pontos} / 21</p>
+    <div style={{ background: isDark ? '#0a0a0a' : '#f0f0f0', color: isDark ? '#fff' : '#000', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px', fontFamily: 'Arial, sans-serif' }}>
+      <h2 style={{ marginBottom: '10px' }}>TESTE DE CÂMERA</h2>
+      <p style={{ color: '#059669', fontWeight: 'bold' }}>{status} - Pontos: {pontos} / 21</p>
+      
+      <div style={{ position: 'relative', width: 640, height: 480, border: '4px solid #333', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 0 30px rgba(0,0,0,0.5)' }}>
+        <video ref={videoRef} style={{ width: '100%', height: '100%', transform: 'scaleX(-1)', objectFit: 'cover' }} autoPlay playsInline muted />
+        <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: 'scaleX(-1)' }} />
       </div>
 
-      <button 
-        onClick={iniciarTeste} 
-        disabled={testando || status === "CARREGANDO MODELO..."}
-        style={{ padding: '10px 20px', cursor: 'pointer' }}
-      >
-        {testando ? "TESTE EM ANDAMENTO" : "HABILITAR CÂMERA"}
-      </button>
-      <button onClick={() => navigate('/home')} style={{ marginTop: '10px' }}>VOLTAR</button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', marginTop: '20px' }}>
+        <button 
+          onClick={iniciarTeste} 
+          disabled={!landmarker} 
+          style={landmarker ? btnGreen : { ...btnGreen, opacity: 0.5, cursor: 'not-allowed' }}
+        >
+          HABILITAR CÂMERA
+        </button>
+
+        <button 
+          onClick={() => navigate('/home')} 
+          style={{ background: 'transparent', color: isDark ? '#fff' : '#333', border: '2px solid #555', padding: '10px 30px', borderRadius: '30px', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          VOLTAR PARA O INICIO
+        </button>
+      </div>
     </div>
   );
 };
