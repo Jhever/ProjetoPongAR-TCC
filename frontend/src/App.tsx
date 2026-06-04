@@ -12,6 +12,7 @@ import Ranking from './pages/Ranking';
 import Suporte from './pages/Suporte';
 import Configuracao from './pages/Configuracao';
 import TestarCamera from './pages/TestarCamera';
+import Game from './pages/Game';
 
 // Componente auxiliar com tipagem corrigida
 const AppContainer = ({ children }: { children: ReactNode }) => {
@@ -47,6 +48,7 @@ function App() {
             <Route path="/suporte" element={<Suporte />} />
             <Route path="/configuracao" element={<Configuracao />} />
             <Route path="/testar-camera" element={<TestarCamera />} />
+            <Route path="/game" element={<Game />} />
           </Routes>
         </AppContainer>
       </Router>

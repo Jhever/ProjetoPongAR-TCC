@@ -1,4 +1,3 @@
-// src/pages/EsperarPartida.tsx
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const EsperarPartida = () => {
