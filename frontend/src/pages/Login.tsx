@@ -1,21 +1,30 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useConfig } from '../context/ConfigContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { loginUser } = useConfig(); // Pegamos a função que criamos no contexto
   const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState(''); // Adicione estado de erro
   const [showPassword, setShowPassword] = useState(false);
 
-  // Função para lidar com o login
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // No futuro, aqui você valida o usuário (Firebase/API)
-    // Por enquanto, redireciona para a Home do seu TCC
-    navigate('/home'); 
-  };
+    setError('');
 
+    // Chamamos a função do contexto. 
+    // Nota: você pode adaptar o login para aceitar email ou user.
+    const success = await loginUser(user, password); 
+
+    if (success) {
+      navigate('/home');
+    } else {
+      setError('E-mail ou senha incorretos!');
+    }
+  };
   const styles = {
     screen: {
       width: '100vw',

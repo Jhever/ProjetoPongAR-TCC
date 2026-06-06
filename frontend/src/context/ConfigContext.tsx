@@ -1,47 +1,99 @@
 import { createContext, useState, useContext, useEffect, type ReactNode } from 'react';
+
+interface UserData {
+  id: string;
+  usuario: string;
+  email: string;
+  senha?: string;
+  currentPassword?: string;
+}
+
 interface ConfigContextData {
   isDark: boolean;
   isAnonimo: boolean;
-  userData: { id: string; usuario: string; email: string };
+  userData: UserData | null;
   toggleTheme: () => void;
   toggleAnonimo: () => void;
+  updateUserData: (newData: UserData) => Promise<void>;
+  loginUser: (user: string, senha: string) => Promise<boolean>;
+  logoutUser: () => void; // Adicionado para limpar a sessão
+  isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
 }
 
 const ConfigContext = createContext<ConfigContextData>({} as ConfigContextData);
 
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
-  // 1. O segredo está aqui: ao carregar, ele busca se existe algo salvo no "disco" do navegador
-  const [isDark, setIsDark] = useState(() => {
-    const savedTheme = localStorage.getItem('@PongAR:isDark');
-    return savedTheme !== null ? JSON.parse(savedTheme) : true; // Se não tiver nada, começa no Dark (true)
+  // Inicializa estados lendo do localStorage
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('isDark') !== 'false');
+  const [isAnonimo, setIsAnonimo] = useState(() => localStorage.getItem('isAnonimo') === 'true');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [userData, setUserData] = useState<UserData | null>(() => {
+    const saved = localStorage.getItem('userData');
+    return saved ? JSON.parse(saved) : null;
   });
 
-  const [isAnonimo, setIsAnonimo] = useState(() => {
-    const savedAnonimo = localStorage.getItem('@PongAR:isAnonimo');
-    return savedAnonimo !== null ? JSON.parse(savedAnonimo) : false;
-  });
-
-  // Dados fixos do seu perfil (conforme as imagens que você mandou)
-  const userData = {
-    id: "1234567",
-    usuario: "ANONIMO",
-    email: "alvesdasilvajheverson@gmail.com",
-  };
-
-  // 2. Sempre que você mudar o tema, esse código salva a nova escolha automaticamente
+  // Efeitos para sincronizar com localStorage quando os estados mudarem
+  useEffect(() => { localStorage.setItem('isDark', String(isDark)); }, [isDark]);
+  useEffect(() => { localStorage.setItem('isAnonimo', String(isAnonimo)); }, [isAnonimo]);
   useEffect(() => {
-    localStorage.setItem('@PongAR:isDark', JSON.stringify(isDark));
-  }, [isDark]);
-
-  useEffect(() => {
-    localStorage.setItem('@PongAR:isAnonimo', JSON.stringify(isAnonimo));
-  }, [isAnonimo]);
+    if (userData) {
+      localStorage.setItem('userData', JSON.stringify(userData));
+    } else {
+      localStorage.removeItem('userData');
+    }
+  }, [userData]);
 
   const toggleTheme = () => setIsDark(!isDark);
   const toggleAnonimo = () => setIsAnonimo(!isAnonimo);
 
+  const loginUser = async (email: string, senha: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://localhost:3001/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserData(data); // O useEffect acima salvará no localStorage automaticamente
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Erro no login:", err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logoutUser = () => {
+    setUserData(null);
+  };
+
+  const updateUserData = async (newData: UserData) => {
+    try {
+      await fetch('http://localhost:3001/update-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      setUserData(newData);
+    } catch (err) {
+      console.error("Erro ao atualizar:", err);
+    }
+  };
+
   return (
-    <ConfigContext.Provider value={{ isDark, isAnonimo, userData, toggleTheme, toggleAnonimo }}>
+    <ConfigContext.Provider value={{ 
+      isDark, isAnonimo, userData, toggleTheme, 
+      toggleAnonimo, updateUserData, loginUser, logoutUser,
+      isLoading, setIsLoading 
+    }}>
       {children}
     </ConfigContext.Provider>
   );

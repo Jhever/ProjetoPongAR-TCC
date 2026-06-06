@@ -12,19 +12,35 @@ const Register = () => {
   const [error, setError] = useState('');
 
   // Função para validar e criar conta
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
     if (email === '' || user === '' || password === '') {
       setError('PREENCHA TODOS OS CAMPOS!');
-    } else if (email !== confirmEmail) {
+      return;
+    } 
+    if (email !== confirmEmail) {
       setError('OS EMAILS NÃO SÃO IGUAIS!');
-    } else {
-      setError('');
-      // No futuro, aqui você integra com Firebase ou sua API
-      alert('Conta criada com sucesso!');
-      navigate('/'); // Redireciona para o login após o sucesso
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario: user, email, senha: password })
+      });
+
+      if (response.ok) {
+        alert('Conta criada com sucesso!');
+        navigate('/');
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Erro ao criar conta.');
+      }
+    } catch (err) {
+      setError('Servidor indisponível.');
     }
   };
-
+  
   const styles = {
     screen: {
       width: '100vw',

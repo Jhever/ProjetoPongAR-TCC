@@ -8,15 +8,26 @@ const GameTreino = () => {
   const navigate = useNavigate();
   
   const [placar, setPlacar] = useState({ voce: 0, robo: 0 });
-  const [dificuldade, setDificuldade] = useState('medio'); // Estado da dificuldade
+  const [dificuldade, setDificuldade] = useState('medio');
   const game = useRef({ ball: { x: 400, y: 225, dx: 6, dy: 6 }, playerY: 175, robotY: 175 });
 
-  // Configuração da IA baseada na dificuldade
+  const resetGame = () => {
+    setPlacar({ voce: 0, robo: 0 });
+    game.current.ball = { x: 400, y: 225, dx: 6, dy: 6 };
+    game.current.playerY = 175;
+    game.current.robotY = 175;
+  };
+
+  // Reseta o jogo sempre que a dificuldade mudar
+  useEffect(() => {
+    resetGame();
+  }, [dificuldade]);
+
   const configIA = {
-    facil: { speed: 0.04, error: 20 },
-    medio: { speed: 0.08, error: 10 },
-    dificil: { speed: 0.12, error: 5 },
-    expert: { speed: 0.18, error: 0 }
+    facil: { speed: 0.10, error: 10 },
+    medio: { speed: 0.15, error: 7 },
+    dificil: { speed: 0.20, error: 3 },
+    impossivel: { speed: 0.25, error: 1 }
   };
 
   useEffect(() => {
@@ -62,19 +73,41 @@ const GameTreino = () => {
               game.current.ball.x += game.current.ball.dx; 
               game.current.ball.y += game.current.ball.dy;
               
+              // Colisão Paredes
               if (game.current.ball.y <= 0 || game.current.ball.y >= 440) game.current.ball.dy *= -1;
-              if (game.current.ball.x <= 35 && game.current.ball.y > game.current.playerY && game.current.ball.y < game.current.playerY + 100) game.current.ball.dx *= -1;
-              if (game.current.ball.x >= 765 && game.current.ball.y > game.current.robotY && game.current.ball.y < game.current.robotY + 100) game.current.ball.dx *= -1;
               
-              if (game.current.ball.x < 0) { setPlacar(p => ({...p, robo: p.robo + 1})); game.current.ball.x = 400; }
-              else if (game.current.ball.x > 800) { setPlacar(p => ({...p, voce: p.voce + 1})); game.current.ball.x = 400; }
-              
-              // Lógica de IA aplicada
-              const level = configIA[dificuldade as keyof typeof configIA];
-              const targetY = game.current.ball.y - 50 + (Math.random() - 0.5) * level.error;
-              game.current.robotY += (targetY - game.current.robotY) * level.speed;
+              // Colisão Raquetes (com aceleração)
+              const hitPaddle = (game.current.ball.x <= 35 && game.current.ball.y > game.current.playerY && game.current.ball.y < game.current.playerY + 100) ||
+                                (game.current.ball.x >= 765 && game.current.ball.y > game.current.robotY && game.current.ball.y < game.current.robotY + 100);
 
-              // DESENHO
+              if (hitPaddle) {
+                game.current.ball.dx *= -1.1; // Aumenta 10% a velocidade
+                // Limite de velocidade para não bugar o jogo
+                if (Math.abs(game.current.ball.dx) > 20) game.current.ball.dx = 20 * Math.sign(game.current.ball.dx);
+              }
+              
+              if (game.current.ball.x < 0) 
+                { 
+                    setPlacar(p => ({...p, robo: p.robo + 1})); 
+                    game.current.ball.x = 400; 
+                    game.current.ball.dx = 6; 
+                }
+              
+                else if (game.current.ball.x > 800) 
+                    { 
+                        setPlacar(p => ({...p, voce: p.voce + 1}));
+                        game.current.ball.x = 400; 
+                        game.current.ball.dx = -6; 
+                    }
+                
+              const level = configIA[dificuldade as keyof typeof configIA];
+              if (game.current.ball.dx > 0) {
+                const targetY = game.current.ball.y - 50 + (Math.random() - 0.5) * level.error;
+                game.current.robotY += (targetY - game.current.robotY) * level.speed;
+              } else {
+                game.current.robotY += (175 - game.current.robotY) * 0.05;
+              }
+
               ctx.clearRect(0, 0, 800, 450);
               ctx.fillStyle = "#4eac4e"; ctx.fillRect(400, 0, 400, 450);
               ctx.strokeStyle = "white"; ctx.lineWidth = 3;
@@ -99,17 +132,17 @@ const GameTreino = () => {
     };
     initVision();
     return () => { cancelAnimationFrame(animationFrameId); landmarker?.close(); };
-  }, [dificuldade]); // Re-executa se a dificuldade mudar
+  }, [dificuldade]); // Agora o reset ocorre via useEffect lá em cima
 
   return (
     <div style={{ background: '#000', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
       <div style={{ width: '800px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <span>ROBÔ: {placar.robo}</span>
-        <select onChange={(e) => setDificuldade(e.target.value)} value={dificuldade} style={{ padding: '5px' }}>
+        <select onChange={(e) => setDificuldade(e.target.value)} value={dificuldade} style={{ padding: '5px', borderRadius: '5px' }}>
           <option value="facil">Fácil</option>
           <option value="medio">Médio</option>
           <option value="dificil">Difícil</option>
-          <option value="expert">Expert</option>
+          <option value="impossivel">impossivel</option>
         </select>
         <span>VOCÊ: {placar.voce}</span>
       </div>
@@ -119,7 +152,7 @@ const GameTreino = () => {
         <canvas ref={canvasRef} width={800} height={450} style={{ position: 'absolute', top: 0, left: 0, transform: 'scaleX(-1)' }} />
       </div>
       
-      <button onClick={() => navigate(-1)} style={{ marginTop: '20px', padding: '10px 20px', cursor: 'pointer' }}>VOLTAR</button>
+      <button onClick={() => navigate(-1)} style={{ marginTop: '20px', padding: '10px 20px', cursor: 'pointer', borderRadius: '5px' }}>VOLTAR</button>
     </div>
   );
 };

@@ -14,6 +14,7 @@ import Configuracao from './pages/Configuracao';
 import TestarCamera from './pages/TestarCamera';
 import Game from './pages/Game';
 import GameTreino from './pages/GameTreino';
+import Desafios from './pages/Desafios';
 
 // Componente auxiliar com tipagem corrigida
 const AppContainer = ({ children }: { children: ReactNode }) => {
@@ -51,6 +52,7 @@ function App() {
             <Route path="/testar-camera" element={<TestarCamera />} />
             <Route path="/game" element={<Game />} />
             <Route path="/game-treino" element={<GameTreino />} />
+            <Route path="/desafios" element={<Desafios />} />
           </Routes>
         </AppContainer>
       </Router>

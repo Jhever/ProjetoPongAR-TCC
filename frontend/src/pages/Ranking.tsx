@@ -54,7 +54,7 @@ const Ranking = () => {
     <div style={styles.screen}>
       <h1 style={styles.mainTitle}>PONG COM AR</h1>
       <div><h2 style={styles.rankTitle}>RANKING GLOBAL</h2></div>
-      <div style={{ alignSelf: 'flex-start', marginLeft: '5%', marginBottom: '10px' }}>DO 1 ATÉ 100</div>
+      <div style={{alignSelf: 'flex-start', marginLeft: '5%', marginBottom: '10px' }}>DO 1°  AO 10°</div>
 
       <div style={styles.tableContainer}>
         <div style={styles.headerRow}>

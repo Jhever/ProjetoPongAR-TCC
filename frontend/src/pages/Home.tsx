@@ -132,19 +132,28 @@ const Home = () => {
           <UserCircle size={80} color={theme.text} strokeWidth={1} />
           
           <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
-            <p style={styles.menuItemText}>USUÁRIO: {userData.usuario}</p>
-            <p style={styles.menuItemText}>ID: {userData.id}</p>
-            <p style={{...styles.menuItemText, border: 'none'}}>MODO ANÔNIMO:</p>
-            <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-              <label style={styles.labelStyle}>
-                <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
-              </label>
-              <label style={styles.labelStyle}>
-                <input type="radio" name="anonimo" checked={!isAnonimo} onChange={toggleAnonimo} /> NÃO
-              </label>
-            </div>
-          </div>
-        </div>
+  {/* Se for anônimo, exibe "ANÔNIMO", senão exibe o usuário do banco */}
+  <p style={styles.menuItemText}>
+    USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
+  </p>
+
+  {/* Se for anônimo, esconde o ID, senão exibe o ID formatado */}
+  <p style={styles.menuItemText}>
+    ID: {isAnonimo ? "########" : (userData?.id ? String(userData.id).padStart(8, '0') : "00000000")}
+  </p>
+
+  <p style={{...styles.menuItemText, border: 'none'}}>MODO ANÔNIMO:</p>
+  
+  <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+    <label style={styles.labelStyle}>
+      <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
+    </label>
+    <label style={styles.labelStyle}>
+      <input type="radio" name="anonimo" checked={!isAnonimo} onChange={toggleAnonimo} /> NÃO
+    </label>
+      </div>
+    </div>
+  </div>
 
         <h1 style={styles.title}>PONG COM AR</h1>
       </header>
@@ -164,7 +173,7 @@ const Home = () => {
       </main>
 
       <footer style={{ marginTop: '60px' }}>
-        <button style={{...styles.button, width: '200px', borderBottomColor: '#9333ea'}}>
+        <button style={{...styles.button, width: '200px', borderBottomColor: '#9333ea'}} onClick={() => navigate('/desafios')}>
           DESAFIOS
         </button>
       </footer>
