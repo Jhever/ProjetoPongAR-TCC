@@ -11,20 +11,35 @@ const Login = () => {
   const [error, setError] = useState(''); // Adicione estado de erro
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // 1. Alerta de diagnóstico para cravar que o clique funcionou
+    console.log("--> O Botão ENTRAR foi clicado com sucesso!");
+    console.log("Tentando logar com:", { user, password });
 
-    // Chamamos a função do contexto. 
-    // Nota: você pode adaptar o login para aceitar email ou user.
-    const success = await loginUser(user, password); 
+    try {
+      // 2. Dispara a função do contexto e rastreia o resultado
+      console.log("Chamando a função loginUser do ConfigContext...");
+      const success = await loginUser(user, password); 
+      console.log("Resultado retornado pelo contexto:", success);
 
-    if (success) {
-      navigate('/home');
-    } else {
-      setError('E-mail ou senha incorretos!');
+      if (success) {
+        console.log("Login validado! Redirecionando para /home");
+        navigate('/home');
+      } else {
+        console.log("O contexto retornou falso (Credenciais incorretas).");
+        setError('E-mail ou senha incorretos!');
+        alert('Erro: E-mail ou senha incorretos!'); // Força um aviso na tela
+      }
+    } catch (err: any) {
+      // 3. Captura qualquer erro oculto que esteja fazendo a função travar
+      console.error("ERRO CRÍTICO CAPTURADO NO LOGIN:", err);
+      alert(`O login travou por um erro: ${err.message}`);
     }
   };
+  
   const styles = {
     screen: {
       width: '100vw',

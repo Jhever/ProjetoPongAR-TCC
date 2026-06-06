@@ -1,3 +1,5 @@
+// @ts-nocheck
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -6,12 +8,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Conexão adaptada para ler a String de Conexão (URI) do Supabase vinda do .env
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'postgres',
-  password: 'jhever',
-  port: 5432,
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Obrigatório para evitar erros de conexão segura na nuvem
+  }
 });
 
 // --- ROTA DE CONTAGEM (ESSENCIAL PARA O FRONTEND) ---

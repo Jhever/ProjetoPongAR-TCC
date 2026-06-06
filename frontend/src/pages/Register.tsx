@@ -172,6 +172,7 @@ const Register = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        
 
         <div style={styles.footerActions}>
           <button 
