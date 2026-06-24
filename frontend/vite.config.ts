@@ -4,14 +4,16 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Configurações de segurança obrigatórias para o MediaPipe acessar a GPU
     headers: {
       "Cross-Origin-Embedder-Policy": "require-corp",
       "Cross-Origin-Opener-Policy": "same-origin",
     },
   },
+  // Força o Vite a não processar mapas de arquivos js no client de desenvolvimento
+  dev: {
+    sourcemap: false
+  },
   optimizeDeps: {
-    // Exclua a biblioteca do processamento do Vite para evitar erros de exportação
     exclude: ['@mediapipe/tasks-vision']
   }
 })

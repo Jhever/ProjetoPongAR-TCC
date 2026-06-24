@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
@@ -16,16 +18,29 @@ const pool = new Pool({
   }
 });
 
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 // --- ROTA DE CONTAGEM (ESSENCIAL PARA O FRONTEND) ---
 app.get('/api/desafios/contagem-pulos/:jogador_id', async (req, res) => {
     const { jogador_id } = req.params;
     try {
         const result = await pool.query(
-            "SELECT COUNT(*) FROM progresso_desafios WHERE jogador_id = $1 AND data_registro = CURRENT_DATE AND status = 'pulado'",
+            "SELECT COUNT(*) AS total_pulos FROM progresso_desafios WHERE jogador_id = $1 AND data_registro = CURRENT_DATE AND status = 'pulado'",
             [jogador_id]
         );
-        res.json({ total: parseInt(result.rows[0].count) });
+        
+        // Garante que se o retorno for nulo por algum motivo, ele assuma 0
+        const total = parseInt(result.rows[0].total_pulos) || 0;
+        
+        res.json({ total: total });
     } catch (err) { 
+        console.error("Erro na rota de contagem-pulos:", err.message);
         res.status(500).json({ error: err.message }); 
     }
 });
@@ -149,6 +164,127 @@ app.post('/api/desafios/recolher', async (req, res) => {
         await pool.query("UPDATE progresso_desafios SET status = 'finalizado' WHERE jogador_id = $1 AND desafio_id = $2 AND data_registro = CURRENT_DATE", [jogador_id, desafio_id]);
         res.json({ message: "Recompensa recolhida!" });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post ('/api/desafios/progresso', async (req, res) => {
+    const { jogador_id, desafio_id, progresso } = req.body;
+    try {
+        const result = await
+    pool.query("UPDATE progresso_desafios SET progresso_atual = $1 WHERE jogador_id = $2 AND desafio_id = $3 AND data_registro = CURRENT_DATE", [progresso, jogador_id, desafio_id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Desafio não encontrado." });
+        }  
+        res.json({ message: "Progresso atualizado!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+
+    const result = await pool.query(
+      'SELECT * FROM jogadores WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Email não encontrado.'
+      });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+
+    const expiracao = new Date(
+      Date.now() + 60 * 60 * 1000
+    );
+
+    await pool.query(
+      `UPDATE jogadores
+       SET reset_token = $1,
+           reset_token_expira = $2
+       WHERE email = $3`,
+      [token, expiracao, email]
+    );
+
+    const link =
+      `http://localhost:5173/reset-password/${token}`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Recuperação de Senha - Pong AR',
+      html: `
+        <h2>Recuperação de Senha</h2>
+
+        <p>Foi solicitada uma redefinição de senha para sua conta.</p>
+
+        <p>Clique no link abaixo:</p>
+
+        <a href="${link}">
+          Redefinir Senha
+        </a>
+
+        <p>Este link expira em 1 hora.</p>
+      `
+    });
+
+    res.json({
+      message: 'Email enviado com sucesso.'
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.post('/reset-password', async (req, res) => {
+
+  const { token, senha } = req.body;
+
+  try {
+
+    const result = await pool.query(
+      `SELECT *
+       FROM jogadores
+       WHERE reset_token = $1
+       AND reset_token_expira > NOW()`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        error: 'Token inválido ou expirado.'
+      });
+    }
+
+    await pool.query(
+      `UPDATE jogadores
+       SET senha = $1,
+           reset_token = NULL,
+           reset_token_expira = NULL
+       WHERE id = $2`,
+      [senha, result.rows[0].id]
+    );
+
+    res.json({
+      message: 'Senha alterada com sucesso.'
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
 });
 
 app.listen(3001, () => console.log('Backend rodando na porta 3001'));

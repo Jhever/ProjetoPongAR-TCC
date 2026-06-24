@@ -24,10 +24,10 @@ const GameTreino = () => {
   }, [dificuldade]);
 
   const configIA = {
-    facil: { speed: 0.10, error: 10 },
-    medio: { speed: 0.15, error: 7 },
-    dificil: { speed: 0.20, error: 3 },
-    impossivel: { speed: 0.25, error: 1 }
+    facil: { speed: 0.08, error: 12 },
+    medio: { speed: 0.15, error: 10 },
+    dificil: { speed: 0.20, error: 8 },
+    impossivel: { speed: 0.25, error: 4 }
   };
 
   useEffect(() => {

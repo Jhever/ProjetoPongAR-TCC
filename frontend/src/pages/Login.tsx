@@ -178,7 +178,13 @@ const handleLogin = async (e: React.FormEvent) => {
           </button>
         </form>
 
-        <button style={styles.linkButton}>Esqueci minha senha</button>
+        <button 
+          style={styles.linkButton}
+          onClick={() => navigate('/esqueci-senha')}
+        >
+          Esqueci minha senha
+        </button>
+        
         <button 
           style={styles.linkButton}
           onClick={() => navigate('/register')}

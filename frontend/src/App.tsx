@@ -15,6 +15,8 @@ import TestarCamera from './pages/TestarCamera';
 import Game from './pages/Game';
 import GameTreino from './pages/GameTreino';
 import Desafios from './pages/Desafios';
+import EsqueciSenha from './pages/EsqueciSenha';
+import ResetPassword from './pages/ResetPassword'; // <-- COMPONENTE IMPORTADO AQUI
 
 // Componente auxiliar com tipagem corrigida
 const AppContainer = ({ children }: { children: ReactNode }) => {
@@ -53,6 +55,10 @@ function App() {
             <Route path="/game" element={<Game />} />
             <Route path="/game-treino" element={<GameTreino />} />
             <Route path="/desafios" element={<Desafios />} />
+            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+            
+            {/* ⚠️ A ROTA DINÂMICA FOI ADICIONADA AQUI ABAIXO ⚠️ */}
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
           </Routes>
         </AppContainer>
       </Router>
