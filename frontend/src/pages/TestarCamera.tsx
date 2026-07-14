@@ -94,8 +94,6 @@ function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean>
     pinky: false,
   };
 
-  // Região aproximada da palma.
-  // Não é uma máscara perfeita, mas funciona melhor do que depender de visibility ou z.
   const palmPolygon = [
     landmarks[0],  // wrist
     landmarks[5],  // index MCP
@@ -104,8 +102,6 @@ function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean>
     landmarks[17], // pinky MCP
   ];
 
-  // Medida base da mão para normalizar thresholds.
-  // Isso evita usar valores fixos como 0.045, que mudam muito conforme distância da câmera.
   const palmSize = Math.max(
     dist2D(landmarks[0], landmarks[9]),
     dist2D(landmarks[5], landmarks[17]),
@@ -135,7 +131,6 @@ function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean>
     const closeToPalmCenter = dist2D(tip, landmarks[9]) < palmSize * 0.9;
 
     if (finger.isThumb) {
-      // O dedão tem geometria diferente dos outros dedos, então fica com regra separada.
       result[finger.name] =
         tipInsidePalm ||
         dipInsidePalm ||
@@ -166,9 +161,6 @@ function buildHiddenMask(
       counters[finger.name] = Math.max(counters[finger.name] - 1, 0);
     }
 
-    // Histerese:
-    // precisa detectar oculto por pelo menos 2 frames para esconder.
-    // Isso reduz bastante o efeito de piscar/sumir tudo aleatoriamente.
     const shouldHide = counters[finger.name] >= 2;
 
     if (shouldHide) {
@@ -229,7 +221,6 @@ const TestarCamera = () => {
     }
   }, []);
 
-  // Estilo solicitado
   const btnGreen = {
     background: 'linear-gradient(to right, #059669, #a3e635)',
     border: 'none',
@@ -241,6 +232,7 @@ const TestarCamera = () => {
     fontSize: '16px',
     boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
     transition: 'transform 0.2s',
+    width: '100%', 
   };
 
   useEffect(() => {
@@ -265,9 +257,6 @@ const TestarCamera = () => {
           },
           runningMode: 'VIDEO',
           numHands: 1,
-
-          // Ajuda o modelo a manter a mão detectada, mas não resolve oclusão.
-          // Oclusão precisa ser filtrada manualmente no desenho.
           minHandDetectionConfidence: 0.3,
           minHandPresenceConfidence: 0.3,
           minTrackingConfidence: 0.3,
@@ -397,9 +386,6 @@ const TestarCamera = () => {
 
               totalPontosVisiveis += pontosVisiveis.length;
 
-              // Casts intencionais:
-              // o MediaPipe JS retorna estruturas compatíveis, mas o TS pode não inferir
-              // bem depois dos filtros manuais.
               drawingUtils.drawConnectors(
                 landmarksOriginal as any,
                 conexoesValidas as any,
@@ -452,92 +438,140 @@ const TestarCamera = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '40px',
+        justifyContent: 'center', // Centraliza o bloco inteiro verticalmente
+        padding: '20px',
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <h2 style={{ marginBottom: '10px' }}>TESTE DE CÂMERA</h2>
-
-      <p style={{ color: '#059669', fontWeight: 'bold' }}>
-        {status} - Pontos: {pontos} / 21
-      </p>
-
-      <div
-        style={{
-          position: 'relative',
-          width: 640,
-          height: 480,
-          border: '4px solid #333',
-          borderRadius: '20px',
-          overflow: 'hidden',
-          boxShadow: '0 0 30px rgba(0,0,0,0.5)',
-        }}
-      >
-        <video
-          ref={videoRef}
-          style={{
-            width: '100%',
-            height: '100%',
-            transform: 'scaleX(-1)',
-            objectFit: 'cover',
-          }}
-          autoPlay
-          playsInline
-          muted
-        />
-
-        <canvas
-          ref={canvasRef}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            transform: 'scaleX(-1)',
-          }}
-        />
-      </div>
-
+      {/* NOVO CONTAINER FLEX: TRÊS COLUNAS (TEXTO - VÍDEO - BOTÕES) */}
       <div
         style={{
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '15px',
-          marginTop: '20px',
+          flexDirection: 'row', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          gap: '40px', 
+          width: '100%',
+          maxWidth: '1600px', // Limite expandido para caber as 3 colunas
         }}
       >
-        <button
-          onClick={iniciarTeste}
-          disabled={!landmarker}
-          style={
-            landmarker
-              ? btnGreen
-              : {
-                  ...btnGreen,
-                  opacity: 0.5,
-                  cursor: 'not-allowed',
-                }
-          }
-        >
-          HABILITAR CÂMERA
-        </button>
-
-        <button
-          onClick={voltarParaInicio}
+        
+        {/* COLUNA ESQUERDA: TÍTULO E PONTOS */}
+        <div
           style={{
-            background: 'transparent',
-            color: isDark ? '#fff' : '#333',
-            border: '2px solid #555',
-            padding: '10px 30px',
-            borderRadius: '30px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
+            display: 'flex',
+            flexDirection: 'column', 
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '250px', // Mesma largura da coluna da direita (simetria!)
+            textAlign: 'center',
           }}
         >
-          VOLTAR PARA O INICIO
-        </button>
+          <h2 style={{ marginBottom: '20px', fontSize: '2.2rem', lineHeight: '1.2' }}>
+            TESTE DE<br/>CÂMERA
+          </h2>
+          
+          <div style={{
+            background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+            padding: '20px',
+            borderRadius: '15px',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <p style={{ color: '#059669', fontWeight: 'bold', fontSize: '1.1rem', margin: '0 0 10px 0' }}>
+              {status}
+            </p>
+            <p style={{ fontWeight: 'bold', fontSize: '1.2rem', margin: 0 }}>
+              Pontos: <span style={{ color: '#a3e635' }}>{pontos}</span> / 21
+            </p>
+          </div>
+        </div>
+
+        {/* COLUNA CENTRAL: VÍDEO EXPANDIDO */}
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            maxWidth: '1000px', 
+            aspectRatio: '4/3', 
+            border: '4px solid #333',
+            borderRadius: '20px',
+            overflow: 'hidden',
+            boxShadow: '0 0 30px rgba(0,0,0,0.5)',
+            flexShrink: 1, 
+          }}
+        >
+          <video
+            ref={videoRef}
+            style={{
+              position: 'absolute', 
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              transform: 'scaleX(-1)',
+              objectFit: 'cover',
+            }}
+            autoPlay
+            playsInline
+            muted
+          />
+
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: 'absolute', 
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              transform: 'scaleX(-1)',
+            }}
+          />
+        </div>
+
+        {/* COLUNA DIREITA: BOTÕES */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column', 
+            gap: '20px', 
+            width: '250px', // Mesma largura da coluna da esquerda
+          }}
+        >
+          <button
+            onClick={iniciarTeste}
+            disabled={!landmarker}
+            style={
+              landmarker
+                ? btnGreen
+                : {
+                    ...btnGreen,
+                    opacity: 0.5,
+                    cursor: 'not-allowed',
+                  }
+            }
+          >
+            HABILITAR CÂMERA
+          </button>
+
+          <button
+            onClick={voltarParaInicio}
+            style={{
+              background: 'transparent',
+              color: isDark ? '#fff' : '#333',
+              border: '2px solid #555',
+              padding: '12px 25px',
+              borderRadius: '30px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              width: '100%', 
+            }}
+          >
+            VOLTAR PARA O INICIO
+          </button>
+        </div>
+
       </div>
     </div>
   );

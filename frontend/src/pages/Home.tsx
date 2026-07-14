@@ -7,6 +7,9 @@ const Home = () => {
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
   
+  // NOVO ESTADO: Controla a exibição da mensagem de saída
+  const [showExitModal, setShowExitModal] = useState(false);
+  
   // Usando os dados do "Cofre" global
   const { isDark, isAnonimo, userData, toggleAnonimo } = useConfig();
 
@@ -30,6 +33,7 @@ const Home = () => {
       backgroundColor: theme.bg,
       color: theme.text,
       transition: '0.3s all ease',
+      boxSizing: 'border-box' as const,
     },
     header: {
       display: 'flex',
@@ -101,6 +105,62 @@ const Home = () => {
       textAlign: 'left' as const,
       textTransform: 'uppercase' as const,
     },
+    // --- ESTILOS DO MODAL DE SAÍDA ---
+    modalBackdrop: {
+      position: 'fixed' as const,
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)', // Fundo escurecido
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999, // Fica por cima de absolutamente tudo
+    },
+    modalCard: {
+      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+      padding: '40px',
+      borderRadius: '15px',
+      textAlign: 'center' as const,
+      boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+      border: `2px solid ${theme.accent}`,
+      maxWidth: '400px',
+      width: '90%',
+    },
+    modalText: {
+      fontSize: '1.4rem',
+      fontWeight: 'bold' as const,
+      marginBottom: '30px',
+      color: theme.text,
+    },
+    modalButtonsDiv: {
+      display: 'flex',
+      justifyContent: 'center',
+      gap: '20px',
+    },
+    modalBtnYes: {
+      padding: '12px 30px',
+      backgroundColor: '#ef4444', // Vermelho para a ação destrutiva (sair)
+      color: '#fff',
+      border: 'none',
+      borderRadius: '8px',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      fontSize: '1.1rem',
+      transition: '0.2s',
+    },
+    modalBtnNo: {
+      padding: '12px 30px',
+      backgroundColor: theme.accent, // Azul do tema para manter no jogo
+      color: '#000',
+      border: 'none',
+      borderRadius: '8px',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      fontSize: '1.1rem',
+      transition: '0.2s',
+    }
   };
 
   const handleMenuClick = (item: string) => {
@@ -114,7 +174,10 @@ const Home = () => {
       case "INFORMAÇÕES": navigate('/informacoes'); break;
       case "SUPORTE E AJUDA": navigate('/suporte'); break;
       case "DESAFIOS": navigate('/desafios'); break;
-      case "SAIR DO JOGO": navigate('/'); break;
+      
+      // ⚠️ MUDANÇA AQUI: Abre o modal em vez de sair direto
+      case "SAIR DO JOGO": setShowExitModal(true); break;
+      
       default: console.log(`${item} em breve.`);
     }
   };
@@ -132,28 +195,26 @@ const Home = () => {
           <UserCircle size={80} color={theme.text} strokeWidth={1} />
           
           <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
-  {/* Se for anônimo, exibe "ANÔNIMO", senão exibe o usuário do banco */}
-  <p style={styles.menuItemText}>
-    USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
-  </p>
+            <p style={styles.menuItemText}>
+              USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
+            </p>
 
-  {/* Se for anônimo, esconde o ID, senão exibe o ID formatado */}
-  <p style={styles.menuItemText}>
-    ID: {isAnonimo ? "########" : (userData?.id ? String(userData.id).padStart(8, '0') : "00000000")}
-  </p>
+            <p style={styles.menuItemText}>
+              ID: {isAnonimo ? "########" : (userData?.id ? String(userData.id).padStart(8, '0') : "00000000")}
+            </p>
 
-  <p style={{...styles.menuItemText, border: 'none'}}>MODO ANÔNIMO:</p>
-  
-  <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-    <label style={styles.labelStyle}>
-      <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
-    </label>
-    <label style={styles.labelStyle}>
-      <input type="radio" name="anonimo" checked={!isAnonimo} onChange={toggleAnonimo} /> NÃO
-    </label>
-      </div>
-    </div>
-  </div>
+            <p style={{...styles.menuItemText, border: 'none'}}>MODO ANÔNIMO:</p>
+            
+            <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+              <label style={styles.labelStyle}>
+                <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
+              </label>
+              <label style={styles.labelStyle}>
+                <input type="radio" name="anonimo" checked={!isAnonimo} onChange={toggleAnonimo} /> NÃO
+              </label>
+            </div>
+          </div>
+        </div>
 
         <h1 style={styles.title}>PONG COM AR</h1>
       </header>
@@ -177,6 +238,34 @@ const Home = () => {
           DESAFIOS
         </button>
       </footer>
+
+      {/* --- CÓDIGO DO MODAL DE CONFIRMAÇÃO --- */}
+      {showExitModal && (
+        <div style={styles.modalBackdrop}>
+          <div style={styles.modalCard}>
+            <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
+            <div style={styles.modalButtonsDiv}>
+              <button 
+                style={styles.modalBtnYes} 
+                onClick={() => navigate('/')}
+                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
+                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                SIM
+              </button>
+              <button 
+                style={styles.modalBtnNo} 
+                onClick={() => setShowExitModal(false)}
+                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
+                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                NÃO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

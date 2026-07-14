@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react'; // Importação dos ícones
 
 const ResetPassword = () => {
   const navigate = useNavigate();
-  // O useParams captura aquele código gigante que vem na URL do e-mail
   const { token } = useParams<{ token: string }>(); 
   
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Estados separados para mostrar/esconder cada campo de senha
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleRedefinir = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +32,6 @@ const ResetPassword = () => {
     setStatusMsg('Processando...');
 
     try {
-      // Envia o token (da URL) e a nova senha para o seu backend
       const response = await fetch('http://localhost:3001/reset-password', {
         method: 'POST',
         headers: {
@@ -41,8 +44,6 @@ const ResetPassword = () => {
 
       if (response.ok) {
         setStatusMsg('✅ ' + data.message + ' Redirecionando...');
-        
-        // Se deu tudo certo, joga o usuário para a tela de login após 3 segundos
         setTimeout(() => {
           navigate('/'); 
         }, 3000);
@@ -57,7 +58,7 @@ const ResetPassword = () => {
     }
   };
 
-  // --- ESTILOS INLINE ESPELHADOS DA TELA DE LOGIN ---
+  // --- ESTILOS ATUALIZADOS COM O INPUT GROUP ---
   const styles = {
     container: {
       minHeight: '100vh',
@@ -98,9 +99,16 @@ const ResetPassword = () => {
       fontWeight: 'normal',
       margin: '0',
     },
+    inputGroup: {
+      position: 'relative' as const,
+      width: '100%',
+      display: 'flex',
+      alignItems: 'center',
+    },
     input: {
       width: '100%',
       padding: '15px',
+      paddingRight: '50px', // Espaço extra para o olhinho não sobrepor o texto
       borderRadius: '5px',
       border: 'none',
       backgroundColor: '#f0f8ff',
@@ -108,6 +116,18 @@ const ResetPassword = () => {
       fontSize: '1rem',
       boxSizing: 'border-box' as const,
       outline: 'none',
+    },
+    eyeButton: {
+      position: 'absolute' as const,
+      right: '10px',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#555',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '5px',
     },
     button: {
       width: '100%',
@@ -137,25 +157,47 @@ const ResetPassword = () => {
       <form style={styles.card} onSubmit={handleRedefinir}>
         <h2 style={styles.cardTitle}>CRIAR NOVA SENHA</h2>
 
-        <input
-          type="password"
-          placeholder="Sua nova senha"
-          value={senha}
-          onChange={(e) => setSenha(e.target.value)}
-          style={styles.input}
-          maxLength={15}
-          required
-        />
+        {/* CAMPO: NOVA SENHA */}
+        <div style={styles.inputGroup}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Sua nova senha"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            style={styles.input}
+            maxLength={15}
+            required
+          />
+          <button 
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={styles.eyeButton}
+            tabIndex={-1} // Evita que o Tab foque no olhinho e quebre a navegação
+          >
+            {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
+          </button>
+        </div>
 
-        <input
-          type="password"
-          placeholder="Confirme a nova senha"
-          value={confirmarSenha}
-          onChange={(e) => setConfirmarSenha(e.target.value)}
-          style={styles.input}
-          maxLength={15}
-          required
-        />
+        {/* CAMPO: CONFIRMAR NOVA SENHA */}
+        <div style={styles.inputGroup}>
+          <input
+            type={showConfirmPassword ? "text" : "password"}
+            placeholder="Confirme a nova senha"
+            value={confirmarSenha}
+            onChange={(e) => setConfirmarSenha(e.target.value)}
+            style={styles.input}
+            maxLength={15}
+            required
+          />
+          <button 
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            style={styles.eyeButton}
+            tabIndex={-1}
+          >
+            {showConfirmPassword ? <EyeOff size={22} /> : <Eye size={22} />}
+          </button>
+        </div>
 
         {statusMsg && <p style={styles.statusMessage}>{statusMsg}</p>}
 

@@ -31,7 +31,7 @@ app.get('/api/desafios/contagem-pulos/:jogador_id', async (req, res) => {
     const { jogador_id } = req.params;
     try {
         const result = await pool.query(
-            "SELECT COUNT(*) AS total_pulos FROM progresso_desafios WHERE jogador_id = $1 AND data_registro = CURRENT_DATE AND status = 'pulado'",
+            "SELECT COUNT(*) AS total_pulos FROM progresso_desafios WHERE jogador_id = $1 AND data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE AND status = 'pulado'",
             [jogador_id]
         );
         
@@ -46,12 +46,13 @@ app.get('/api/desafios/contagem-pulos/:jogador_id', async (req, res) => {
 });
 
 // --- ROTA DE DESAFIOS (Corrigida e Higienizada) ---
+// --- ROTA DE DESAFIOS (Corrigida com PONTOS RECOMPENSA) ---
 app.get('/api/desafios/:jogador_id', async (req, res) => {
     const { jogador_id } = req.params;
     try {
-        // 1. Busca os desafios atuais que não estão pulados nem finalizados de forma errada
+        // 1. Busca os desafios atuais (COM d.pontos_recompensa)
         let result = await pool.query(
-            "SELECT d.id, d.titulo, d.descricao, d.objetivo, p.status, p.progresso_atual FROM desafios d JOIN progresso_desafios p ON d.id = p.desafio_id WHERE p.jogador_id = $1 AND p.data_registro = CURRENT_DATE AND p.status != 'pulado' ORDER BY p.id ASC LIMIT 5",
+            "SELECT d.id, d.titulo, d.descricao, d.objetivo, d.pontos_recompensa, p.status, p.progresso_atual FROM desafios d JOIN progresso_desafios p ON d.id = p.desafio_id WHERE p.jogador_id = $1 AND p.data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE AND p.status != 'pulado' ORDER BY p.id ASC LIMIT 5",
             [jogador_id]
         );
 
@@ -61,18 +62,18 @@ app.get('/api/desafios/:jogador_id', async (req, res) => {
             
             await pool.query(`
                 INSERT INTO progresso_desafios (jogador_id, desafio_id, data_registro, status, progresso_atual)
-                SELECT $1, id, CURRENT_DATE, 'pendente', 0
+                SELECT $1, id, (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE, 'pendente', 0
                 FROM desafios 
                 WHERE id NOT IN (
                     SELECT desafio_id FROM progresso_desafios 
-                    WHERE jogador_id = $1 AND data_registro = CURRENT_DATE
+                    WHERE jogador_id = $1 AND data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE
                 )
                 ORDER BY RANDOM() LIMIT $2`, [jogador_id, faltam]
             );
             
-            // Re-busca para entregar os 5 finais atualizados ao React
+            // Re-busca (TEM QUE TER O d.pontos_recompensa AQUI TAMBÉM)
             result = await pool.query(
-                "SELECT d.id, d.titulo, d.descricao, d.objetivo, p.status, p.progresso_atual FROM desafios d JOIN progresso_desafios p ON d.id = p.desafio_id WHERE p.jogador_id = $1 AND p.data_registro = CURRENT_DATE AND p.status != 'pulado' ORDER BY p.id ASC LIMIT 5",
+                "SELECT d.id, d.titulo, d.descricao, d.objetivo, d.pontos_recompensa, p.status, p.progresso_atual FROM desafios d JOIN progresso_desafios p ON d.id = p.desafio_id WHERE p.jogador_id = $1 AND p.data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE AND p.status != 'pulado' ORDER BY p.id ASC LIMIT 5",
                 [jogador_id]
             );
         }
@@ -92,7 +93,7 @@ app.post('/api/desafios/pular', async (req, res) => {
 
     try {
         const contagem = await pool.query(
-            "SELECT COUNT(*) FROM progresso_desafios WHERE jogador_id = $1 AND data_registro = CURRENT_DATE AND status = 'pulado'",
+            "SELECT COUNT(*) FROM progresso_desafios WHERE jogador_id = $1 AND data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE AND status = 'pulado'",
             [jogador_id]
         );
 
@@ -101,7 +102,7 @@ app.post('/api/desafios/pular', async (req, res) => {
         }
 
         const result = await pool.query(
-            "UPDATE progresso_desafios SET status = 'pulado' WHERE jogador_id = $1 AND desafio_id = $2 AND data_registro = CURRENT_DATE", 
+            "UPDATE progresso_desafios SET status = 'pulado' WHERE jogador_id = $1 AND desafio_id = $2 AND data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE", 
             [jogador_id, desafio_id]
         );
 
@@ -158,19 +159,49 @@ app.post('/salvar-partida', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ⚠️ ROTA ATUALIZADA: AGORA DEPOSITA OS PONTOS NA CONTA AO RECOLHER ⚠️
 app.post('/api/desafios/recolher', async (req, res) => {
     const { jogador_id, desafio_id } = req.body;
     try {
-        await pool.query("UPDATE progresso_desafios SET status = 'finalizado' WHERE jogador_id = $1 AND desafio_id = $2 AND data_registro = CURRENT_DATE", [jogador_id, desafio_id]);
-        res.json({ message: "Recompensa recolhida!" });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        // 1. Consulta o valor do desafio no banco (10, 20, 40 ou 100 pontos)
+        const desafioResult = await pool.query(
+            "SELECT pontos_recompensa FROM desafios WHERE id = $1", 
+            [desafio_id]
+        );
+        
+        if (desafioResult.rows.length === 0) {
+            return res.status(404).json({ error: "Desafio não encontrado." });
+        }
+        
+        const pontosGanhos = desafioResult.rows[0].pontos_recompensa;
+
+        // 2. Tenta marcar o progresso como 'finalizado'. 
+        // O AND status = 'concluido' impede que o jogador clique rápido e ganhe pontos em dobro.
+        const updateProgresso = await pool.query(
+            "UPDATE progresso_desafios SET status = 'finalizado' WHERE jogador_id = $1 AND desafio_id = $2 AND data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE AND status = 'concluido'", 
+            [jogador_id, desafio_id]
+        );
+
+        if (updateProgresso.rowCount === 0) {
+            return res.status(400).json({ error: "Desafio não concluído ou recompensa já resgatada." });
+        }
+
+        // 3. Deposita o dinheiro na conta do usuário
+        await pool.query(
+            "UPDATE jogadores SET pontos_totais = COALESCE(pontos_totais, 0) + $1 WHERE id = $2",
+            [pontosGanhos, jogador_id]
+        );
+
+        res.json({ message: `Recompensa recolhida! Você ganhou ${pontosGanhos} pontos!` });
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post ('/api/desafios/progresso', async (req, res) => {
     const { jogador_id, desafio_id, progresso } = req.body;
     try {
-        const result = await
-    pool.query("UPDATE progresso_desafios SET progresso_atual = $1 WHERE jogador_id = $2 AND desafio_id = $3 AND data_registro = CURRENT_DATE", [progresso, jogador_id, desafio_id]);
+        const result = await pool.query("UPDATE progresso_desafios SET progresso_atual = $1 WHERE jogador_id = $2 AND desafio_id = $3 AND data_registro = (NOW() AT TIME ZONE 'America/Sao_Paulo')::DATE", [progresso, jogador_id, desafio_id]);
         if (result.rowCount === 0) {
             return res.status(404).json({ error: "Desafio não encontrado." });
         }  
@@ -182,7 +213,6 @@ app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
 
   try {
-
     const result = await pool.query(
       'SELECT * FROM jogadores WHERE email = $1',
       [email]
@@ -196,20 +226,16 @@ app.post('/forgot-password', async (req, res) => {
 
     const token = crypto.randomBytes(32).toString('hex');
 
-    const expiracao = new Date(
-      Date.now() + 60 * 60 * 1000
-    );
-
+    // ⚠️ AQUI ESTÁ A CORREÇÃO DA SENHA: Usando o banco para calcular a expiração
     await pool.query(
       `UPDATE jogadores
        SET reset_token = $1,
-           reset_token_expira = $2
-       WHERE email = $3`,
-      [token, expiracao, email]
+           reset_token_expira = NOW() + INTERVAL '1 hour'
+       WHERE email = $2`,
+      [token, email]
     );
 
-    const link =
-      `http://localhost:5173/reset-password/${token}`;
+    const link = `http://localhost:5173/reset-password/${token}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -217,15 +243,9 @@ app.post('/forgot-password', async (req, res) => {
       subject: 'Recuperação de Senha - Pong AR',
       html: `
         <h2>Recuperação de Senha</h2>
-
         <p>Foi solicitada uma redefinição de senha para sua conta.</p>
-
         <p>Clique no link abaixo:</p>
-
-        <a href="${link}">
-          Redefinir Senha
-        </a>
-
+        <a href="${link}">Redefinir Senha</a>
         <p>Este link expira em 1 hora.</p>
       `
     });
@@ -236,7 +256,6 @@ app.post('/forgot-password', async (req, res) => {
 
   } catch (err) {
     console.error(err);
-
     res.status(500).json({
       error: err.message
     });
@@ -244,11 +263,9 @@ app.post('/forgot-password', async (req, res) => {
 });
 
 app.post('/reset-password', async (req, res) => {
-
   const { token, senha } = req.body;
 
   try {
-
     const result = await pool.query(
       `SELECT *
        FROM jogadores
@@ -277,14 +294,27 @@ app.post('/reset-password', async (req, res) => {
     });
 
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       error: err.message
     });
-
   }
+});
+// --- ROTA DE RANKING GLOBAL ---
+app.get('/api/ranking', async (req, res) => {
+    try {
+        // Puxa os 10 melhores jogadores, ignorando os anônimos, ordenados por pontos
+        const result = await pool.query(
+            `SELECT usuario, pontos_totais 
+             FROM jogadores 
+             WHERE is_anonimo = false 
+             ORDER BY pontos_totais DESC 
+             LIMIT 10`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.listen(3001, () => console.log('Backend rodando na porta 3001'));

@@ -18,12 +18,13 @@ const styles = {
   }
 };
 
-// Interface para tipar o Desafio no TypeScript
+// ⚠️ ADICIONADO 'pontos_recompensa' AQUI
 interface Desafio {
   id: number;
   titulo: string;
   descricao: string;
   objetivo: number;
+  pontos_recompensa: number; 
   status: 'pendente' | 'concluido' | 'finalizado';
   progresso_atual: number;
 }
@@ -103,7 +104,23 @@ const Desafios: React.FC = () => {
             const barColor = d.status === 'finalizado' ? '#86efac' : d.status === 'concluido' ? '#fde68a' : '#fca5a5';
             return (
               <div key={index} style={{ padding: '20px', border: `1px solid ${barColor}`, borderRadius: '15px', background: theme.card, minHeight: '120px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h3 style={{ margin: '0 0 10px 0' }}>{d.titulo}</h3>
+                
+                {/* ⚠️ ADICIONADO A ETIQUETA DE PONTOS AQUI NA MESMA LINHA DO TÍTULO */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <h3 style={{ margin: '0' }}>{d.titulo}</h3>
+                  <span style={{ 
+                    background: theme.accent, 
+                    color: '#fff', 
+                    padding: '5px 12px', 
+                    borderRadius: '20px', 
+                    fontSize: '0.85rem', 
+                    fontWeight: 'bold',
+                    boxShadow: `0 2px 8px ${theme.accent}66` // Dá um brilhinho na tag
+                  }}>
+                    💎 {d.pontos_recompensa || 0} PTS
+                  </span>
+                </div>
+
                 <p style={{ margin: '0 0 15px 0' }}>{d.descricao}</p>
                 
                 <div style={{ width: '100%', background: '#333', height: '8px', borderRadius: '4px', margin: '10px 0' }}>

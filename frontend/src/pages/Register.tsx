@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react'; // Importação dos ícones
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,6 +11,9 @@ const Register = () => {
   const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  
+  // Estado para controlar a visibilidade da senha
+  const [showPassword, setShowPassword] = useState(false);
 
   // Função para validar e criar conta
   const handleCreateAccount = async () => {
@@ -103,13 +107,47 @@ const Register = () => {
       backgroundColor: '#f1f5f9',
       color: '#000',
       outline: 'none',
+      boxSizing: 'border-box' as const,
+    },
+    // Estilos novos para comportar o olhinho da senha
+    inputGroup: {
+      position: 'relative' as const,
+      width: '320px',
+      marginBottom: '15px',
+      display: 'flex',
+      alignItems: 'center',
+    },
+    passwordInput: {
+      width: '100%',
+      height: '45px',
+      border: '1px solid #64748b',
+      borderRadius: '4px',
+      padding: '0 40px 0 15px', // Espaço extra na direita para o ícone
+      fontSize: '1rem',
+      textAlign: 'center' as const,
+      backgroundColor: '#f1f5f9',
+      color: '#000',
+      outline: 'none',
+      boxSizing: 'border-box' as const,
+    },
+    eyeButton: {
+      position: 'absolute' as const,
+      right: '10px',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#64748b',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '5px',
     },
     errorText: {
       color: '#dc2626',
       fontSize: '0.9rem',
       fontWeight: 'bold' as const,
       marginBottom: '15px',
-      height: '20px', // Altura fixa para o layout não "pular"
+      height: '20px',
     },
     footerActions: {
       display: 'flex',
@@ -165,13 +203,24 @@ const Register = () => {
           onChange={(e) => setUser(e.target.value)}
         />
         
-        <input
-          style={styles.input}
-          type="password"
-          placeholder="SENHA"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        {/* CAMPO DE SENHA COM O BOTÃO DE VISUALIZAR */}
+        <div style={styles.inputGroup}>
+          <input
+            style={styles.passwordInput}
+            type={showPassword ? "text" : "password"}
+            placeholder="SENHA"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button 
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={styles.eyeButton}
+            tabIndex={-1} // Impede que a navegação por Tab pare no ícone
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
         
 
         <div style={styles.footerActions}>
