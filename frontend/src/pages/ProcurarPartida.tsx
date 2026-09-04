@@ -2,30 +2,43 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../services/socket';
 
+interface UsuarioStorage {
+  id?: number;
+  usuario?: string;
+  is_anonimo?: boolean;
+}
+
 const ProcurarPartida = () => {
   const navigate = useNavigate();
   const [statusMensagem, setStatusMensagem] = useState('PROCURANDO PARTIDA');
 
   useEffect(() => {
-    // 1. Conecta o socket se ainda não estiver conectado
+    // 1. Valida se o usuário tem conta real para jogar partidas ranqueadas
+    const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
+
+    if (!usuarioSalvo.id || usuarioSalvo.is_anonimo) {
+      alert('É necessário estar conectado com uma conta para disputar o Ranking Online.');
+      navigate('/home');
+      return;
+    }
+
+    // 2. Conecta o socket caso não esteja conectado
     if (!socket.connected) {
       socket.connect();
     }
 
-    // 2. Obtém o usuário do localStorage ou gera um identificador temporário
-    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
-    const jogadorId = usuarioSalvo.id || Math.floor(Math.random() * 10000);
-    const nome = usuarioSalvo.usuario || `Jogador_${Math.floor(Math.random() * 100)}`;
+    const jogadorId = usuarioSalvo.id;
+    const nome = usuarioSalvo.usuario || 'Jogador';
 
-    // 3. Entra na fila de matchmaking no servidor
-    socket.emit('entrarFila', { jogadorId, nome });
+    // 3. Entra na fila competitiva no backend
+    socket.emit('entrarFila', { jogadorId, nome, tipoPartida: 'ONLINE' });
 
     // 4. Aguardando adversário
     socket.on('aguardandoAdversario', () => {
       setStatusMensagem('AGUARDANDO OPONENTE');
     });
 
-    // 5. Partida encontrada: navega para o jogo passando as informações da sala
+    // 5. Partida encontrada: envia para a tela de jogo marcando explicitamente como ONLINE
     socket.on('partidaEncontrada', (dados: {
       salaId: string;
       lado: 'esquerda' | 'direita';
@@ -33,7 +46,14 @@ const ProcurarPartida = () => {
       adversarioId: number | string;
     }) => {
       setStatusMensagem('PARTIDA ENCONTRADA!');
-      navigate('/game', { state: dados });
+      navigate('/game', {
+        state: {
+          ...dados,
+          tipoPartida: 'ONLINE',
+          jogadorId,
+          jogadorNome: nome
+        }
+      });
     });
 
     return () => {
@@ -43,7 +63,11 @@ const ProcurarPartida = () => {
   }, [navigate]);
 
   const handleCancelar = () => {
-    socket.disconnect(); // Sai da fila e cancela a busca no servidor
+    const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
+    if (socket.connected) {
+      socket.emit('cancelarFila', { jogadorId: usuarioSalvo.id });
+      socket.disconnect();
+    }
     navigate('/home');
   };
 

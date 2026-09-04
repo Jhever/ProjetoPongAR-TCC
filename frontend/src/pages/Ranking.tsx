@@ -1,18 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConfig } from '../context/ConfigContext';
+
+interface PlayerRank {
+  id_usuario: number | string;
+  pontos: number;
+  posicao: number;
+  nome: string;
+  is_anonimo?: boolean;
+  desafio?: number;
+  pontos_desafio?: number;
+  vitoria: number;
+  derrota: number;
+  gols_feito?: number;
+  gols_feitos?: number;
+  gols_sofrido?: number;
+  gols_sofridos?: number;
+}
 
 const Ranking = () => {
   const navigate = useNavigate();
-  const [showHistorico, setShowHistorico] = useState(false);
+  const { userData, isAnonimo: isAnonimoContext } = useConfig();
 
-  // Simulação de dados que viriam do banco de dados
-  const rankingData = [
-    { id: "1234567", pontos: 500, pos: 1, nome: "ANONIMO", desafio: 50, v: 5, d: 0, gf: 50, gs: 20 },
-    { id: "1234566", pontos: 400, pos: 2, nome: "FULANO B", desafio: 56, v: 4, d: 2, gf: 56, gs: 35 },
-    { id: "1234532", pontos: 400, pos: 3, nome: "FULANO C", desafio: 60, v: 4, d: 3, gf: 60, gs: 50 },
-    { id: "1234512", pontos: 360, pos: 10, nome: "FULANO D", desafio: 42, v: 3, d: 3, gf: 42, gs: 45 },
-    { id: "1244112", pontos: 60, pos: 50, nome: "FULANO E", desafio: 21, v: 0, d: 3, gf: 21, gs: 30 },
-  ];
+  const [showHistorico, setShowHistorico] = useState(false);
+  const [rankingData, setRankingData] = useState<PlayerRank[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:3001/api/ranking')
+      .then((res) => {
+        if (!res.ok) throw new Error('Falha ao buscar dados');
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRankingData(data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar ranking real:', err);
+        setLoading(false);
+      });
+  }, []);
 
   const getHistorico = () => {
     const data = localStorage.getItem('pong_historico');
@@ -30,6 +60,7 @@ const Ranking = () => {
       alignItems: 'center',
       padding: '20px',
       fontFamily: '"Segoe UI", sans-serif',
+      boxSizing: 'border-box' as const,
     },
     mainTitle: { color: '#87CEEB', fontSize: '3.5rem', fontFamily: '"Arial Black", sans-serif', fontStyle: 'italic', margin: 0 },
     rankTitle: { color: '#ff4d4d', fontSize: '4.5rem', fontFamily: '"Times New Roman", serif', margin: 0, letterSpacing: '5px' },
@@ -54,17 +85,63 @@ const Ranking = () => {
     <div style={styles.screen}>
       <h1 style={styles.mainTitle}>PONG COM AR</h1>
       <div><h2 style={styles.rankTitle}>RANKING GLOBAL</h2></div>
-      <div style={{alignSelf: 'flex-start', marginLeft: '5%', marginBottom: '10px' }}>DO 1°  AO 10°</div>
+      <div style={{ alignSelf: 'flex-start', marginLeft: '5%', marginBottom: '10px' }}>DO 1° AO 10°</div>
 
       <div style={styles.tableContainer}>
         <div style={styles.headerRow}>
-          <span>ID USUARIO</span><span>PONTOS</span><span>POSIÇÃO</span><span>NOME</span><span>PONTOS DESAFIO</span><span>VITORIA</span><span>DERROTA</span><span>GOLS FEITO</span><span>GOLS SOFRIDO</span>
+          <span>ID USUARIO</span>
+          <span>PONTOS</span>
+          <span>POSIÇÃO</span>
+          <span>NOME</span>
+          <span>PONTOS DESAFIO</span>
+          <span>VITORIA</span>
+          <span>DERROTA</span>
+          <span>GOLS FEITO</span>
+          <span>GOLS SOFRIDO</span>
         </div>
-        {rankingData.map((player, index) => (
-          <div key={index} style={styles.dataRow}>
-            <span>{player.id}</span><span>{player.pontos}</span><span>{getMedal(player.pos)} {player.pos}</span><span>{player.nome}</span><span>{player.desafio}</span><span>{player.v}</span><span>{player.d}</span><span>{player.gf}</span><span>{player.gs}</span>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#87CEEB', fontSize: '1.2rem' }}>
+            Carregando ranking do banco de dados...
           </div>
-        ))}
+        ) : rankingData.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+            Nenhum jogador pontuado ainda.
+          </div>
+        ) : (
+          rankingData.map((player) => {
+            // Verifica se este registro é o do usuário atual logado
+            const isCurrentUser = userData && String(userData.id) === String(player.id_usuario);
+            
+            // É anônimo se o contexto disser que é (para o logado) ou se o banco trouxer a flag
+            const jogadorAnonimo = (isCurrentUser && isAnonimoContext) || player.is_anonimo || player.nome === 'ANÔNIMO';
+            
+            // Exibe 'ANÔNIMO' se estiver ativado, senão o nome normal
+            const nomeExibido = jogadorAnonimo ? 'ANÔNIMO' : player.nome;
+
+            return (
+              <div key={player.id_usuario} style={styles.dataRow}>
+                {/* ID SEMPRE com zeros à esquerda: 00000001 */}
+                <span style={{ fontFamily: 'monospace', letterSpacing: '1px' }}>
+                  {String(player.id_usuario).padStart(8, '0')}
+                </span>
+                <span>{player.pontos}</span>
+                <span>{getMedal(player.posicao)} {player.posicao}°</span>
+                <span style={{ 
+                  fontWeight: 'bold', 
+                  color: jogadorAnonimo ? '#94a3b8' : (player.posicao <= 3 ? '#a3e635' : '#fff') 
+                }}>
+                  {nomeExibido}
+                </span>
+                <span>{player.desafio ?? player.pontos_desafio ?? 0}</span>
+                <span style={{ color: '#4ade80' }}>{player.vitoria}</span>
+                <span style={{ color: '#f87171' }}>{player.derrota}</span>
+                <span>{player.gols_feito ?? player.gols_feitos ?? 0}</span>
+                <span>{player.gols_sofrido ?? player.gols_sofridos ?? 0}</span>
+              </div>
+            );
+          })
+        )}
       </div>
 
       <div style={styles.footer}>
@@ -75,18 +152,22 @@ const Ranking = () => {
       {showHistorico && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <button onClick={() => setShowHistorico(false)} style={{ position: 'absolute', top: 10, right: 10, background: 'red', border: 'none', color: 'white', cursor: 'pointer' }}>X</button>
+            <button onClick={() => setShowHistorico(false)} style={{ position: 'absolute', top: 10, right: 10, background: 'red', border: 'none', color: 'white', cursor: 'pointer', borderRadius: '4px', padding: '4px 8px' }}>X</button>
             <h2 style={{ textAlign: 'center', color: '#87CEEB' }}>HISTÓRICO RECENTE</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', textAlign: 'center', marginTop: '20px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
               <span>DATA</span><span>RESULTADO</span><span>PLACAR</span>
             </div>
-            {getHistorico().map((p: any, i: number) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', textAlign: 'center', padding: '10px 0', borderBottom: '1px solid #333' }}>
-                <span>{p.data}</span>
-                <span style={{ color: p.resultado === 'VITÓRIA' ? '#a3e635' : '#ff4d4d' }}>{p.resultado}</span>
-                <span>{p.placar}</span>
-              </div>
-            ))}
+            {getHistorico().length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#888', marginTop: '20px' }}>Nenhuma partida recente gravada neste navegador.</p>
+            ) : (
+              getHistorico().map((p: any, i: number) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', textAlign: 'center', padding: '10px 0', borderBottom: '1px solid #333' }}>
+                  <span>{p.data}</span>
+                  <span style={{ color: p.resultado?.toUpperCase().includes('VIT') ? '#a3e635' : '#ff4d4d' }}>{p.resultado}</span>
+                  <span>{p.placar}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

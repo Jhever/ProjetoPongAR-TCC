@@ -96,7 +96,7 @@ const Configuracao = () => {
         <div style={styles.row}>
           <span>SEU ID:</span> 
           <span style={{ opacity: 0.8 }}>
-            {isAnonimo ? "########" : String(userData.id).padStart(8, '0')}
+            {String(userData.id).padStart(8, '0')}
           </span>
         </div>
         <div style={styles.row}>

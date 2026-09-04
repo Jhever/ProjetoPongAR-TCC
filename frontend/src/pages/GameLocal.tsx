@@ -87,7 +87,7 @@ function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, num
 }
 
 // ==========================================
-// COMPONENTE DO JOGO LOCAL
+// COMPONENTE DO JOGO LOCAL (ARENA PRESENCIAL)
 // ==========================================
 const GameLocal = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -97,7 +97,7 @@ const GameLocal = () => {
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [fps, setFps] = useState(60);
   const [showLandmarks, setShowLandmarks] = useState(true);
-  const [tempoRestante, setTempoRestante] = useState(300); // 5 min
+  const [tempoRestante, setTempoRestante] = useState(300);
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -106,6 +106,7 @@ const GameLocal = () => {
   const gameOverRef = useRef(false);
   const isPausedRef = useRef(false);
   const tempoRestanteRef = useRef(300);
+  const partidaRegistradaRef = useRef(false);
 
   const countersP1Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
   const countersP2Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
@@ -115,10 +116,45 @@ const GameLocal = () => {
   const game = useRef({
     ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
     p1Y: 175,
-    p2Y: 175
+    p2Y: 175,
+    targetP1Y: 175,
+    targetP2Y: 175
   });
 
-  // Temporizador de 5 minutos (respeita pausa e game over)
+  const finalizarPartidaLocal = (resultadoTexto: string) => {
+    if (partidaRegistradaRef.current) return;
+    partidaRegistradaRef.current = true;
+    gameOverRef.current = true;
+    setVencedor(resultadoTexto);
+
+    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+    const p1Score = placarRef.current.p1;
+    const p2Score = placarRef.current.p2;
+
+    const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
+    const novaEntrada = {
+      data: new Date().toLocaleDateString('pt-BR'),
+      resultado: p1Score > p2Score ? 'VITÓRIA P1' : p2Score > p1Score ? 'VITÓRIA P2' : 'EMPATE',
+      placar: `${p1Score} x ${p2Score} (Presencial)`
+    };
+    localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
+
+    if (usuarioSalvo?.id) {
+      fetch('http://localhost:3001/api/ranking/registrar-partida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jogador_id: usuarioSalvo.id,
+          adversario_nome: 'Player 2 (Presencial)',
+          pontuacao_jogador: p1Score,
+          pontuacao_adversario: p2Score,
+          resultado: p1Score > p2Score ? 'VITORIA' : p2Score > p1Score ? 'DERROTA' : 'EMPATE',
+          tipo_partida: 'LOCAL'
+        })
+      }).catch((err) => console.error("Erro ao registrar histórico local:", err));
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       if (gameOverRef.current || isPausedRef.current) return;
@@ -126,12 +162,10 @@ const GameLocal = () => {
       setTempoRestante(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          gameOverRef.current = true;
           const p1 = placarRef.current.p1;
           const p2 = placarRef.current.p2;
-          if (p1 > p2) setVencedor("PLAYER 1 (TEMPO ESGOTADO)");
-          else if (p2 > p1) setVencedor("PLAYER 2 (TEMPO ESGOTADO)");
-          else setVencedor("EMPATE!");
+          const msg = p1 > p2 ? "PLAYER 1 (TEMPO ESGOTADO)" : p2 > p1 ? "PLAYER 2 (TEMPO ESGOTADO)" : "EMPATE!";
+          finalizarPartidaLocal(msg);
           return 0;
         }
         tempoRestanteRef.current = prev - 1;
@@ -150,7 +184,7 @@ const GameLocal = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
-    const velInicial = 10;
+    const velInicial = 9;
     game.current.ball = {
       x: 400,
       y: 225,
@@ -166,8 +200,13 @@ const GameLocal = () => {
     tempoRestanteRef.current = 300;
     gameOverRef.current = false;
     isPausedRef.current = false;
+    partidaRegistradaRef.current = false;
     setIsPaused(false);
     setVencedor(null);
+    game.current.p1Y = 175;
+    game.current.p2Y = 175;
+    game.current.targetP1Y = 175;
+    game.current.targetP2Y = 175;
     lancarBola(Math.random() > 0.5 ? 1 : -1);
   };
 
@@ -183,6 +222,7 @@ const GameLocal = () => {
     let animationFrameId: number;
     let lastTime = performance.now();
     let frameCount = 0;
+    let lastVideoTime = -1;
 
     const initVision = async () => {
       try {
@@ -193,14 +233,19 @@ const GameLocal = () => {
         landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "CPU"
+            delegate: "GPU" // <--- ACELERAÇÃO GPU NATIVA
           },
           runningMode: "VIDEO",
           numHands: 2
         });
 
+        // 640x480 em vez de 720p: fluidez máxima com inferência rápida
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 }
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 60 }
+          }
         });
 
         if (videoRef.current) {
@@ -221,7 +266,14 @@ const GameLocal = () => {
                 lastTime = now;
               }
 
-              if (videoRef.current && videoRef.current.readyState >= 2 && landmarker) {
+              // SÓ CHAMA O MEDIAPIPE SE HOUVER UM NOVO QUADRO DE VÍDEO
+              if (
+                videoRef.current &&
+                videoRef.current.readyState >= 2 &&
+                landmarker &&
+                videoRef.current.currentTime !== lastVideoTime
+              ) {
+                lastVideoTime = videoRef.current.currentTime;
                 const results = landmarker.detectForVideo(videoRef.current, now);
 
                 let handP1Detected = false;
@@ -230,8 +282,6 @@ const GameLocal = () => {
                 if (results.landmarks && results.landmarks.length > 0) {
                   for (const hand of results.landmarks) {
                     const mirroredX = 1 - hand[0].x;
-                    
-                    // Junta central da palma (hand[9]) com calibração vertical
                     const palmY = hand[9] ? hand[9].y : hand[0].y;
                     const sensibilidade = 1.4;
                     let adjustedY = (palmY - 0.45) * sensibilidade + 0.5;
@@ -239,10 +289,10 @@ const GameLocal = () => {
                     const paddleY = adjustedY * 450 - 50;
 
                     if (mirroredX < 0.5) {
-                      game.current.p1Y = paddleY;
+                      game.current.targetP1Y = paddleY;
                       handP1Detected = true;
                     } else {
-                      game.current.p2Y = paddleY;
+                      game.current.targetP2Y = paddleY;
                       handP2Detected = true;
                     }
                   }
@@ -252,13 +302,16 @@ const GameLocal = () => {
                 if (!handP2Detected) countersP2Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
 
                 // ==========================================
-                // FÍSICA DA BOLA (RODA APENAS SE NÃO ESTIVER PAUSADO NEM FIM DE JOGO)
+                // RENDERIZAÇÃO E ATUALIZAÇÃO FÍSICA
                 // ==========================================
                 if (!gameOverRef.current && !isPausedRef.current) {
+                  // Interpolação suave (LERP) das raquetes
+                  game.current.p1Y += (game.current.targetP1Y - game.current.p1Y) * 0.4;
+                  game.current.p2Y += (game.current.targetP2Y - game.current.p2Y) * 0.4;
+
                   game.current.ball.x += game.current.ball.dx;
                   game.current.ball.y += game.current.ball.dy;
 
-                  // Quique no Teto / Chão
                   if (game.current.ball.y <= 10) {
                     game.current.ball.y = 10;
                     game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
@@ -269,13 +322,11 @@ const GameLocal = () => {
                     game.current.ball.dx += (Math.random() - 0.5) * 0.3;
                   }
 
-                  // Colisão Raquete Player 1 (Esquerda)
                   const hitP1 = game.current.ball.x <= 75 &&
                                 game.current.ball.x >= 45 &&
                                 game.current.ball.y >= game.current.p1Y &&
                                 game.current.ball.y <= game.current.p1Y + 100;
 
-                  // Colisão Raquete Player 2 (Direita)
                   const hitP2 = game.current.ball.x >= 725 &&
                                 game.current.ball.x <= 755 &&
                                 game.current.ball.y >= game.current.p2Y &&
@@ -305,14 +356,12 @@ const GameLocal = () => {
                     game.current.ball.x = 724;
                   }
 
-                  // Gols e Vitória (10 Pontos)
                   if (game.current.ball.x < 0) {
                     placarRef.current.p2 += 1;
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.p2 >= 10) {
-                      gameOverRef.current = true;
-                      setVencedor("PLAYER 2 (ALCANÇOU 10 PONTOS)");
+                      finalizarPartidaLocal("PLAYER 2 (ALCANÇOU 10 PONTOS)");
                     } else {
                       lancarBola(1);
                     }
@@ -321,70 +370,86 @@ const GameLocal = () => {
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.p1 >= 10) {
-                      gameOverRef.current = true;
-                      setVencedor("PLAYER 1 (ALCANÇOU 10 PONTOS)");
+                      finalizarPartidaLocal("PLAYER 1 (ALCANÇOU 10 PONTOS)");
                     } else {
                       lancarBola(-1);
                     }
                   }
                 }
 
-                // ==========================================
-                // RENDERIZAÇÃO NO CANVAS (CAMPO ESTILIZADO)
-                // ==========================================
                 ctx.clearRect(0, 0, 800, 450);
 
-                // Linha central divisória tracejada
-                ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
+                // Bordas de demarcação do campo
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(10, 10, 780, 430);
+
+                // Meio de Campo: Linha divisória e círculo central
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
                 ctx.lineWidth = 2;
-                ctx.setLineDash([8, 8]);
+                ctx.setLineDash([6, 6]);
                 ctx.beginPath();
-                ctx.moveTo(400, 0);
-                ctx.lineTo(400, 450);
+                ctx.moveTo(400, 10);
+                ctx.lineTo(400, 440);
                 ctx.stroke();
 
-                // Círculo e ponto central
+                ctx.setLineDash([]);
                 ctx.beginPath();
-                ctx.arc(400, 225, 55, 0, Math.PI * 2);
+                ctx.arc(400, 225, 60, 0, Math.PI * 2);
                 ctx.stroke();
 
-                ctx.fillStyle = "rgba(70, 130, 180, 0.6)";
+                ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.arc(400, 225, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Demarcação das pequenas áreas dos gols
-                ctx.setLineDash([]);
-                ctx.strokeRect(0, 125, 45, 200);
-                ctx.strokeRect(755, 125, 45, 200);
+                // Áreas de Gol Distintas
+                ctx.fillStyle = "rgba(0, 212, 255, 0.08)";
+                ctx.fillRect(10, 125, 45, 200);
+                ctx.strokeStyle = "#00d4ff";
+                ctx.strokeRect(10, 125, 45, 200);
 
-                // Placar e Cronômetro
+                ctx.fillStyle = "rgba(46, 204, 113, 0.08)";
+                ctx.fillRect(745, 125, 45, 200);
+                ctx.strokeStyle = "#2ecc71";
+                ctx.strokeRect(745, 125, 45, 200);
+
+                // Textos de Identificação no Chão da Arena
+                ctx.font = "bold 12px 'Courier New', monospace";
+                ctx.fillStyle = "rgba(0, 212, 255, 0.45)";
+                ctx.fillText("", 160, 420);
+
+                ctx.fillStyle = "rgba(46, 204, 113, 0.45)";
+                ctx.fillText("", 580, 420);
+
+                // Placar Superior
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
-                ctx.fillText(`PLAYER 1: ${placarRef.current.p1}`, 220, 35);
+                ctx.fillText(`P1: ${placarRef.current.p1}`, 220, 40);
 
                 ctx.fillStyle = "#fbbf24";
-                ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 375, 35);
+                ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 370, 40);
 
                 ctx.fillStyle = "#2ecc71";
-                ctx.fillText(`PLAYER 2: ${placarRef.current.p2}`, 465, 35);
+                ctx.fillText(`P2: ${placarRef.current.p2}`, 480, 40);
 
-                // Raquetes
+                // Raquete Player 1 (Esquerda)
                 ctx.strokeStyle = "#00d4ff";
-                ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
+                ctx.fillStyle = "rgba(0, 212, 255, 0.35)";
                 ctx.lineWidth = 3;
                 ctx.strokeRect(55, game.current.p1Y, 20, 100);
                 ctx.fillRect(55, game.current.p1Y, 20, 100);
 
+                // Raquete Player 2 (Direita)
                 ctx.strokeStyle = "#2ecc71";
-                ctx.fillStyle = "rgba(46, 204, 113, 0.25)";
+                ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
                 ctx.strokeRect(725, game.current.p2Y, 20, 100);
                 ctx.fillRect(725, game.current.p2Y, 20, 100);
 
-                // Bola AR
+                // Bola AR com efeito de iluminação
                 if (!gameOverRef.current) {
                   ctx.shadowColor = "#ffffff";
-                  ctx.shadowBlur = 15;
+                  ctx.shadowBlur = 14;
                   ctx.fillStyle = "#ffffff";
                   ctx.beginPath();
                   ctx.arc(game.current.ball.x, game.current.ball.y, 9, 0, Math.PI * 2);
@@ -392,7 +457,7 @@ const GameLocal = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // Esqueleto da Mão
+                // Renderização condicional dos esqueletos (só processa se ativado)
                 if (showLandmarksRef.current && results.landmarks) {
                   for (const landmarksOriginal of results.landmarks) {
                     const isLeft = (1 - landmarksOriginal[0].x) < 0.5;
@@ -415,12 +480,12 @@ const GameLocal = () => {
 
                     drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
                       color: isLeft ? '#00d4ff' : '#2ecc71',
-                      lineWidth: 4
+                      lineWidth: 3
                     });
                     drawingUtils.drawLandmarks(pontosVisiveis as any, {
                       color: '#ffffff',
                       lineWidth: 1,
-                      radius: 6
+                      radius: 5
                     });
                   }
                 }
@@ -432,7 +497,7 @@ const GameLocal = () => {
           };
         }
       } catch (error) {
-        console.error("Erro na inicialização AR:", error);
+        console.error("Erro na inicialização AR Presencial:", error);
       }
     };
 
@@ -458,7 +523,7 @@ const GameLocal = () => {
       boxSizing: 'border-box'
     }}>
       <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '10px' }}>
-        MODO PRESENCIAL | META: 10 PONTOS OU 5 MINUTOS
+        MODO PRESENCIAL (1 DISPOSITIVO / 2 MÃOS) | META: 10 PONTOS OU 5 MINUTOS
       </div>
 
       <div style={{
@@ -494,7 +559,6 @@ const GameLocal = () => {
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
         />
 
-        {/* OVERLAY DE PAUSA */}
         {isPaused && !vencedor && (
           <div style={{
             position: 'absolute',
@@ -516,7 +580,6 @@ const GameLocal = () => {
           </div>
         )}
 
-        {/* MODAL DE FIM DE PARTIDA */}
         {vencedor && (
           <div style={{
             position: 'absolute',
@@ -550,14 +613,12 @@ const GameLocal = () => {
         )}
       </div>
 
-      {/* DASHBOARD INFERIOR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '960px', marginTop: '15px' }}>
         <div style={{ fontSize: '12px', color: '#94a3b8' }}>
           DESEMPENHO LOCAL: <span style={{ color: '#4ade80' }}>{fps} FPS</span> | 0ms LATÊNCIA (NATIVO)
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* BOTÃO PAUSAR / RETOMAR */}
           <button
             onClick={alternarPausa}
             style={{
@@ -569,13 +630,12 @@ const GameLocal = () => {
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontWeight: 'bold',
-              fontSize: '12px'
+              fontSize: '17px'
             }}
           >
             {isPaused ? 'CONTINUAR' : 'PAUSAR'}
           </button>
 
-          {/* BOTÃO RESETAR PARTIDA */}
           <button
             onClick={reiniciarPartida}
             style={{
@@ -587,7 +647,7 @@ const GameLocal = () => {
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontWeight: 'bold',
-              fontSize: '12px'
+              fontSize: '17px'
             }}
           >
             RESETAR
@@ -595,21 +655,28 @@ const GameLocal = () => {
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', marginLeft: '5px' }}>
             <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />
-            <span>EXIBIR LANDMARKS</span>
+            <span>EXIBIR PONTOS NAS MÃOS</span>
           </label>
 
-          <button
+          {/* <button
             onClick={() => navigate('/modo-jogo')}
             style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '12px' }}
           >
             Sair da Partida
-          </button>
+          </button> */}
         </div>
+        
       </div>
-
-      <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
+      <br />
+        <button
+            onClick={() => navigate('/home')}
+            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
+          >
+            Sair da Partida
+        </button>
+      {/* <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
         TCC – PONG AR PROJECT | MEDIAPIPE MULTI-HANDS LOCAL | DESENVOLVEDOR: JHEVERSON
-      </div>
+      </div> */}
     </div>
   );
 };

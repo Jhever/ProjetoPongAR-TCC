@@ -37,7 +37,12 @@ const IniciarComAmigo = () => {
       adversario: string;
       adversarioId: number | string;
     }) => {
-      navigate('/game', { state: dados });
+      navigate('/game', { 
+        state: {
+          ...dados,
+          tipoPartida: 'Amigo' 
+        }
+      });
     });
 
     return () => {

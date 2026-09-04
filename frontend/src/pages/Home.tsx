@@ -198,8 +198,8 @@ const Home = () => {
               USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
             </p>
 
-            <p style={styles.menuItemText}>
-              ID: {isAnonimo ? "########" : (userData?.id ? String(userData.id).padStart(8, '0') : "00000000")}
+           <p style={styles.menuItemText}>
+              ID: {userData?.id ? String(userData.id).padStart(8, '0') : "00000000"}
             </p>
 
             <p style={{...styles.menuItemText, border: 'none'}}>MODO ANÔNIMO:</p>

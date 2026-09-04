@@ -108,19 +108,18 @@ const GameTreino = () => {
   const gameOverRef = useRef(false);
   const isPausedRef = useRef(false);
   const tempoRestanteRef = useRef(300);
+  const partidaRegistradaRef = useRef(false);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
-  // Memória adaptativa da IA
   const aiStateRef = useRef({
-    adaptFactor: 1.0,       // Fator que multiplica a velocidade baseado na sua performance
-    consecutiveHits: 0.14,     // Aumenta a inteligência a cada troca de bola longa
+    adaptFactor: 1.0,
+    consecutiveHits: 0,
     estimatedTargetY: 225
   });
 
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
   useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
 
-  // Perfis de velocidade reajustados para serem bem mais rápidos
   const configIA = {
     facil: { baseSpeed: 0.08, maxSpeed: 6, errorRange: 35, predictFactor: 0.2 },
     medio: { baseSpeed: 0.14, maxSpeed: 10, errorRange: 20, predictFactor: 0.5 },
@@ -131,8 +130,43 @@ const GameTreino = () => {
   const game = useRef({
     ball: { x: 400, y: 225, dx: 7, dy: (Math.random() > 0.5 ? 4 : -4) },
     playerY: 175,
+    targetPlayerY: 175,
     robotY: 175
   });
+
+  const finalizarPartidaTreino = (resultadoTexto: string) => {
+    if (partidaRegistradaRef.current) return;
+    partidaRegistradaRef.current = true;
+    gameOverRef.current = true;
+    setVencedor(resultadoTexto);
+
+    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+    const vScore = placarRef.current.voce;
+    const rScore = placarRef.current.robo;
+
+    const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
+    const novaEntrada = {
+      data: new Date().toLocaleDateString('pt-BR'),
+      resultado: vScore > rScore ? 'VITÓRIA' : rScore > vScore ? 'DERROTA' : 'EMPATE',
+      placar: `${vScore} x ${rScore} (Treino - ${dificuldadeRef.current.toUpperCase()})`
+    };
+    localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
+
+    if (usuarioSalvo?.id) {
+      fetch('http://localhost:3001/api/ranking/registrar-partida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jogador_id: usuarioSalvo.id,
+          adversario_nome: `IA (${dificuldadeRef.current.toUpperCase()})`,
+          pontuacao_jogador: vScore,
+          pontuacao_adversario: rScore,
+          resultado: vScore > rScore ? 'VITORIA' : rScore > vScore ? 'DERROTA' : 'EMPATE',
+          tipo_partida: 'TREINO'
+        })
+      }).catch(err => console.error("Erro ao registrar treino:", err));
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -141,12 +175,10 @@ const GameTreino = () => {
       setTempoRestante(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          gameOverRef.current = true;
           const v = placarRef.current.voce;
           const r = placarRef.current.robo;
-          if (v > r) setVencedor("VOCÊ VENCEU (TEMPO ESGOTADO)!");
-          else if (r > v) setVencedor("A IA VENCEU (TEMPO ESGOTADO)!");
-          else setVencedor("EMPATE!");
+          const msg = v > r ? "VOCÊ VENCEU (TEMPO ESGOTADO)!" : r > v ? "A IA VENCEU (TEMPO ESGOTADO)!" : "EMPATE!";
+          finalizarPartidaTreino(msg);
           return 0;
         }
         tempoRestanteRef.current = prev - 1;
@@ -181,8 +213,12 @@ const GameTreino = () => {
     tempoRestanteRef.current = 300;
     gameOverRef.current = false;
     isPausedRef.current = false;
+    partidaRegistradaRef.current = false;
     setIsPaused(false);
     setVencedor(null);
+    game.current.playerY = 175;
+    game.current.targetPlayerY = 175;
+    game.current.robotY = 175;
     aiStateRef.current.adaptFactor = 1.0;
     aiStateRef.current.consecutiveHits = 0;
     lancarBola(Math.random() > 0.5 ? 1 : -1);
@@ -204,6 +240,7 @@ const GameTreino = () => {
     let animationFrameId: number;
     let lastTime = performance.now();
     let frameCount = 0;
+    let lastVideoTime = -1;
 
     const initVision = async () => {
       try {
@@ -214,14 +251,19 @@ const GameTreino = () => {
         landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "CPU"
+            delegate: "GPU" // <--- ACELERAÇÃO GPU
           },
           runningMode: "VIDEO",
           numHands: 1
         });
 
+        // 640x480 para resposta imediata
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 }
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 60 }
+          }
         });
 
         if (videoRef.current) {
@@ -242,7 +284,14 @@ const GameTreino = () => {
                 lastTime = now;
               }
 
-              if (videoRef.current && videoRef.current.readyState >= 2 && landmarker) {
+              // SÓ CHAMA O MEDIAPIPE SE HOUVER NOVO QUADRO
+              if (
+                videoRef.current &&
+                videoRef.current.readyState >= 2 &&
+                landmarker &&
+                videoRef.current.currentTime !== lastVideoTime
+              ) {
+                lastVideoTime = videoRef.current.currentTime;
                 const results = landmarker.detectForVideo(videoRef.current, now);
 
                 let handDetected = false;
@@ -256,7 +305,7 @@ const GameTreino = () => {
                     const sensibilidade = 1.4;
                     let adjustedY = (palmY - 0.45) * sensibilidade + 0.5;
                     adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
-                    game.current.playerY = adjustedY * 450 - 50;
+                    game.current.targetPlayerY = adjustedY * 450 - 50;
                     handDetected = true;
                   }
                 }
@@ -266,9 +315,12 @@ const GameTreino = () => {
                 }
 
                 // ==========================================
-                // FÍSICA E ALGORITMO DA IA ADAPTATIVA
+                // FÍSICA E IA ADAPTATIVA
                 // ==========================================
                 if (!gameOverRef.current && !isPausedRef.current) {
+                  // Interpolação suave para a raquete do jogador
+                  game.current.playerY += (game.current.targetPlayerY - game.current.playerY) * 0.4;
+
                   game.current.ball.x += game.current.ball.dx;
                   game.current.ball.y += game.current.ball.dy;
 
@@ -285,24 +337,20 @@ const GameTreino = () => {
 
                   const profile = configIA[dificuldadeRef.current as keyof typeof configIA];
 
-                  // A IA se adapta com base no placar relativo
                   const saldoGols = placarRef.current.voce - placarRef.current.robo;
                   aiStateRef.current.adaptFactor = Math.max(0.85, 1.0 + (saldoGols * 0.08) + (aiStateRef.current.consecutiveHits * 0.02));
 
-                  // Predição de trajetória simplificada quando a bola viaja em direção à IA
                   if (game.current.ball.dx > 0) {
                     const distRestanteX = 725 - game.current.ball.x;
                     const tempoAteImpacto = distRestanteX / game.current.ball.dx;
-                    const prediçãoY = game.current.ball.y + (game.current.ball.dy * tempoAteImpacto * profile.predictFactor);
+                    const predicaoY = game.current.ball.y + (game.current.ball.dy * tempoAteImpacto * profile.predictFactor);
                     
                     const erroAleatorio = (Math.random() - 0.5) * (profile.errorRange / aiStateRef.current.adaptFactor);
-                    aiStateRef.current.estimatedTargetY = prediçãoY - 50 + erroAleatorio;
+                    aiStateRef.current.estimatedTargetY = predicaoY - 50 + erroAleatorio;
                   } else {
-                    // Retorna ao centro quando a bola está com o player
                     aiStateRef.current.estimatedTargetY = 175;
                   }
 
-                  // Movimento suave limitado pela velocidade máxima da IA
                   const diferencaY = aiStateRef.current.estimatedTargetY - game.current.robotY;
                   const step = diferencaY * (profile.baseSpeed * aiStateRef.current.adaptFactor);
                   const clampedStep = Math.sign(step) * Math.min(Math.abs(step), profile.maxSpeed);
@@ -310,13 +358,13 @@ const GameTreino = () => {
                   game.current.robotY += clampedStep;
                   game.current.robotY = Math.max(0, Math.min(350, game.current.robotY));
 
-                  // Colisão Player (Esquerda)
+                  // Colisão Player
                   const hitPlayer = game.current.ball.x <= 75 &&
                                     game.current.ball.x >= 45 &&
                                     game.current.ball.y >= game.current.playerY &&
                                     game.current.ball.y <= game.current.playerY + 100;
 
-                  // Colisão IA (Direita)
+                  // Colisão IA
                   const hitRobot = game.current.ball.x >= 725 &&
                                    game.current.ball.x <= 755 &&
                                    game.current.ball.y >= game.current.robotY &&
@@ -348,15 +396,13 @@ const GameTreino = () => {
                     game.current.ball.x = 724;
                   }
 
-                  // Gols e Win Rate
                   if (game.current.ball.x < 0) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.robo >= 10) {
-                      gameOverRef.current = true;
-                      setVencedor("IA ADAPTATIVA (ALCANÇOU 10 PONTOS)");
+                      finalizarPartidaTreino("IA ADAPTATIVA (ALCANÇOU 10 PONTOS)");
                     } else {
                       lancarBola(1);
                     }
@@ -366,8 +412,7 @@ const GameTreino = () => {
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.voce >= 10) {
-                      gameOverRef.current = true;
-                      setVencedor("VOCÊ (ALCANÇOU 10 PONTOS)!");
+                      finalizarPartidaTreino("VOCÊ (ALCANÇOU 10 PONTOS)!");
                     } else {
                       lancarBola(-1);
                     }
@@ -377,7 +422,6 @@ const GameTreino = () => {
                 // Renderização no Canvas
                 ctx.clearRect(0, 0, 800, 450);
 
-                // Linha central tracejada
                 ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
                 ctx.lineWidth = 2;
                 ctx.setLineDash([8, 8]);
@@ -386,7 +430,6 @@ const GameTreino = () => {
                 ctx.lineTo(400, 450);
                 ctx.stroke();
 
-                // Círculo central
                 ctx.beginPath();
                 ctx.arc(400, 225, 55, 0, Math.PI * 2);
                 ctx.stroke();
@@ -396,12 +439,10 @@ const GameTreino = () => {
                 ctx.arc(400, 225, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Áreas de gol
                 ctx.setLineDash([]);
                 ctx.strokeRect(0, 125, 45, 200);
                 ctx.strokeRect(755, 125, 45, 200);
 
-                // Placar
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
                 ctx.fillText(`VOCÊ: ${placarRef.current.voce}`, 220, 35);
@@ -412,7 +453,6 @@ const GameTreino = () => {
                 ctx.fillStyle = "#ff0055";
                 ctx.fillText(`IA: ${placarRef.current.robo}`, 480, 35);
 
-                // Raquetes
                 ctx.strokeStyle = "#00d4ff";
                 ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
                 ctx.lineWidth = 3;
@@ -424,7 +464,6 @@ const GameTreino = () => {
                 ctx.strokeRect(725, game.current.robotY, 20, 100);
                 ctx.fillRect(725, game.current.robotY, 20, 100);
 
-                // Bola
                 if (!gameOverRef.current) {
                   ctx.shadowColor = "#ffffff";
                   ctx.shadowBlur = 15;
@@ -435,7 +474,7 @@ const GameTreino = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // Landmarks
+                // Renderização condicional dos landmarks
                 if (showLandmarksRef.current && results.landmarks && results.landmarks.length > 0) {
                   const landmarksOriginal = results.landmarks[0];
                   const landmarks = landmarksOriginal as Landmark[];
@@ -533,7 +572,6 @@ const GameTreino = () => {
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
         />
 
-        {/* OVERLAY DE PAUSA */}
         {isPaused && !vencedor && (
           <div style={{
             position: 'absolute',
@@ -555,7 +593,6 @@ const GameTreino = () => {
           </div>
         )}
 
-        {/* MODAL DE FIM DE PARTIDA */}
         {vencedor && (
           <div style={{
             position: 'absolute',
@@ -589,7 +626,6 @@ const GameTreino = () => {
         )}
       </div>
 
-      {/* DASHBOARD INFERIOR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '960px', marginTop: '15px' }}>
         <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '15px' }}>
           <span>DESEMPENHO: <b style={{ color: '#4ade80' }}>{fps} FPS</b></span>
@@ -609,7 +645,6 @@ const GameTreino = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* BOTÃO PAUSAR */}
           <button
             onClick={alternarPausa}
             style={{
@@ -621,13 +656,12 @@ const GameTreino = () => {
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontWeight: 'bold',
-              fontSize: '12px'
+              fontSize: '17px'
             }}
           >
             {isPaused ? 'CONTINUAR' : 'PAUSAR'}
           </button>
 
-          {/* BOTÃO RESETAR */}
           <button
             onClick={reiniciarPartida}
             style={{
@@ -639,7 +673,7 @@ const GameTreino = () => {
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontWeight: 'bold',
-              fontSize: '12px'
+              fontSize: '17px'
             }}
           >
             RESETAR
@@ -650,18 +684,18 @@ const GameTreino = () => {
             <span>EXIBIR LANDMARKS</span>
           </label>
 
-          <button
-            onClick={() => navigate('/modo-jogo')}
-            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '12px' }}
-          >
-            Sair da Partida
-          </button>
         </div>
       </div>
 
-      <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
+          <button
+            onClick={() => navigate('/home')}
+            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
+          >
+           Sair da Partida
+          </button>
+      {/* <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
         TCC – PONG AR PROJECT | MODO TREINO (IA ADAPTATIVA HEURÍSTICA) | DESENVOLVEDOR: JHEVERSON
-      </div>
+      </div> */}
     </div>
   );
 };
