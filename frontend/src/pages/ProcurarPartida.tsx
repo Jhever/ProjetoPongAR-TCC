@@ -1,17 +1,51 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { socket } from '../services/socket';
 
 const ProcurarPartida = () => {
   const navigate = useNavigate();
+  const [statusMensagem, setStatusMensagem] = useState('PROCURANDO PARTIDA');
 
-  // Simulação: Após 5 segundos procurando, ele encontraria uma partida
-  // Útil para você testar o fluxo de navegação no TCC
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // navigate('/jogo'); // Descomente quando a tela de jogo estiver pronta
-    }, 5000);
-    return () => clearTimeout(timer);
+    // 1. Conecta o socket se ainda não estiver conectado
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    // 2. Obtém o usuário do localStorage ou gera um identificador temporário
+    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+    const jogadorId = usuarioSalvo.id || Math.floor(Math.random() * 10000);
+    const nome = usuarioSalvo.usuario || `Jogador_${Math.floor(Math.random() * 100)}`;
+
+    // 3. Entra na fila de matchmaking no servidor
+    socket.emit('entrarFila', { jogadorId, nome });
+
+    // 4. Aguardando adversário
+    socket.on('aguardandoAdversario', () => {
+      setStatusMensagem('AGUARDANDO OPONENTE');
+    });
+
+    // 5. Partida encontrada: navega para o jogo passando as informações da sala
+    socket.on('partidaEncontrada', (dados: {
+      salaId: string;
+      lado: 'esquerda' | 'direita';
+      adversario: string;
+      adversarioId: number | string;
+    }) => {
+      setStatusMensagem('PARTIDA ENCONTRADA!');
+      navigate('/game', { state: dados });
+    });
+
+    return () => {
+      socket.off('aguardandoAdversario');
+      socket.off('partidaEncontrada');
+    };
   }, [navigate]);
+
+  const handleCancelar = () => {
+    socket.disconnect(); // Sai da fila e cancela a busca no servidor
+    navigate('/home');
+  };
 
   const styles = {
     screen: {
@@ -88,7 +122,7 @@ const ProcurarPartida = () => {
       animation: 'dashEffect 1.5s ease-in-out infinite',
     },
     headDot: {
-      fill: '#ff00ff',
+      fill: '#ff0055',
       animation: 'dotOrbit 1.5s ease-in-out infinite',
       transformOrigin: '25px 25px',
     },
@@ -131,7 +165,7 @@ const ProcurarPartida = () => {
         <h2 style={styles.statusTitle}>INICIANDO PARTIDA</h2>
 
         <div style={styles.infoWrapper}>
-          <p style={styles.infoText}>PROCURANDO PARTIDA</p>
+          <p style={styles.infoText}>{statusMensagem}</p>
           <p style={styles.infoText}>POR FAVOR AGUARDE</p>
         </div>
 
@@ -142,10 +176,10 @@ const ProcurarPartida = () => {
               <circle style={styles.headDot} cx="25" cy="5" r="3.5" />
             </svg>
           </div>
-          
-          <button 
+
+          <button
             style={styles.cancelButton}
-            onClick={() => navigate('/home')}
+            onClick={handleCancelar}
             onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
             onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f87171')}
           >

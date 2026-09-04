@@ -87,53 +87,38 @@ function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, num
 }
 
 // ==========================================
-// COMPONENTE DO JOGO TREINO
+// COMPONENTE DO JOGO LOCAL
 // ==========================================
-const GameTreino = () => {
+const GameLocal = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
 
-  const [placar, setPlacar] = useState({ voce: 0, robo: 0 });
-  const [dificuldade, setDificuldade] = useState('medio');
+  const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [fps, setFps] = useState(60);
   const [showLandmarks, setShowLandmarks] = useState(true);
-  const [tempoRestante, setTempoRestante] = useState(300);
+  const [tempoRestante, setTempoRestante] = useState(300); // 5 min
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
 
-  const placarRef = useRef({ voce: 0, robo: 0 });
+  const placarRef = useRef({ p1: 0, p2: 0 });
   const showLandmarksRef = useRef(showLandmarks);
-  const dificuldadeRef = useRef(dificuldade);
   const gameOverRef = useRef(false);
   const isPausedRef = useRef(false);
   const tempoRestanteRef = useRef(300);
-  const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
-  // Memória adaptativa da IA
-  const aiStateRef = useRef({
-    adaptFactor: 1.0,       // Fator que multiplica a velocidade baseado na sua performance
-    consecutiveHits: 0.14,     // Aumenta a inteligência a cada troca de bola longa
-    estimatedTargetY: 225
-  });
+  const countersP1Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
+  const countersP2Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
-  useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
-
-  // Perfis de velocidade reajustados para serem bem mais rápidos
-  const configIA = {
-    facil: { baseSpeed: 0.08, maxSpeed: 6, errorRange: 35, predictFactor: 0.2 },
-    medio: { baseSpeed: 0.14, maxSpeed: 10, errorRange: 20, predictFactor: 0.5 },
-    dificil: { baseSpeed: 0.22, maxSpeed: 16, errorRange: 8, predictFactor: 0.8 },
-    impossivel: { baseSpeed: 0.35, maxSpeed: 24, errorRange: 0, predictFactor: 1.0 }
-  };
 
   const game = useRef({
-    ball: { x: 400, y: 225, dx: 7, dy: (Math.random() > 0.5 ? 4 : -4) },
-    playerY: 175,
-    robotY: 175
+    ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
+    p1Y: 175,
+    p2Y: 175
   });
 
+  // Temporizador de 5 minutos (respeita pausa e game over)
   useEffect(() => {
     const timer = setInterval(() => {
       if (gameOverRef.current || isPausedRef.current) return;
@@ -142,10 +127,10 @@ const GameTreino = () => {
         if (prev <= 1) {
           clearInterval(timer);
           gameOverRef.current = true;
-          const v = placarRef.current.voce;
-          const r = placarRef.current.robo;
-          if (v > r) setVencedor("VOCÊ VENCEU (TEMPO ESGOTADO)!");
-          else if (r > v) setVencedor("A IA VENCEU (TEMPO ESGOTADO)!");
+          const p1 = placarRef.current.p1;
+          const p2 = placarRef.current.p2;
+          if (p1 > p2) setVencedor("PLAYER 1 (TEMPO ESGOTADO)");
+          else if (p2 > p1) setVencedor("PLAYER 2 (TEMPO ESGOTADO)");
           else setVencedor("EMPATE!");
           return 0;
         }
@@ -165,7 +150,7 @@ const GameTreino = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
-    const velInicial = 8;
+    const velInicial = 10;
     game.current.ball = {
       x: 400,
       y: 225,
@@ -175,16 +160,14 @@ const GameTreino = () => {
   };
 
   const reiniciarPartida = () => {
-    placarRef.current = { voce: 0, robo: 0 };
-    setPlacar({ voce: 0, robo: 0 });
+    placarRef.current = { p1: 0, p2: 0 };
+    setPlacar({ p1: 0, p2: 0 });
     setTempoRestante(300);
     tempoRestanteRef.current = 300;
     gameOverRef.current = false;
     isPausedRef.current = false;
     setIsPaused(false);
     setVencedor(null);
-    aiStateRef.current.adaptFactor = 1.0;
-    aiStateRef.current.consecutiveHits = 0;
     lancarBola(Math.random() > 0.5 ? 1 : -1);
   };
 
@@ -194,10 +177,6 @@ const GameTreino = () => {
     isPausedRef.current = novoStatus;
     setIsPaused(novoStatus);
   };
-
-  useEffect(() => {
-    reiniciarPartida();
-  }, [dificuldade]);
 
   useEffect(() => {
     let landmarker: Vision.HandLandmarker | null = null;
@@ -217,7 +196,7 @@ const GameTreino = () => {
             delegate: "CPU"
           },
           runningMode: "VIDEO",
-          numHands: 1
+          numHands: 2
         });
 
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -245,34 +224,41 @@ const GameTreino = () => {
               if (videoRef.current && videoRef.current.readyState >= 2 && landmarker) {
                 const results = landmarker.detectForVideo(videoRef.current, now);
 
-                let handDetected = false;
+                let handP1Detected = false;
+                let handP2Detected = false;
 
                 if (results.landmarks && results.landmarks.length > 0) {
-                  const hand = results.landmarks[0];
-                  const mirroredX = 1 - hand[0].x;
-
-                  if (mirroredX < 0.5) {
+                  for (const hand of results.landmarks) {
+                    const mirroredX = 1 - hand[0].x;
+                    
+                    // Junta central da palma (hand[9]) com calibração vertical
                     const palmY = hand[9] ? hand[9].y : hand[0].y;
                     const sensibilidade = 1.4;
                     let adjustedY = (palmY - 0.45) * sensibilidade + 0.5;
                     adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
-                    game.current.playerY = adjustedY * 450 - 50;
-                    handDetected = true;
+                    const paddleY = adjustedY * 450 - 50;
+
+                    if (mirroredX < 0.5) {
+                      game.current.p1Y = paddleY;
+                      handP1Detected = true;
+                    } else {
+                      game.current.p2Y = paddleY;
+                      handP2Detected = true;
+                    }
                   }
                 }
 
-                if (!handDetected) {
-                  hiddenFingerCountersRef.current = { ...INITIAL_HIDDEN_COUNTERS };
-                }
+                if (!handP1Detected) countersP1Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
+                if (!handP2Detected) countersP2Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
 
                 // ==========================================
-                // FÍSICA E ALGORITMO DA IA ADAPTATIVA
+                // FÍSICA DA BOLA (RODA APENAS SE NÃO ESTIVER PAUSADO NEM FIM DE JOGO)
                 // ==========================================
                 if (!gameOverRef.current && !isPausedRef.current) {
                   game.current.ball.x += game.current.ball.dx;
                   game.current.ball.y += game.current.ball.dy;
 
-                  // Quique Teto/Chão
+                  // Quique no Teto / Chão
                   if (game.current.ball.y <= 10) {
                     game.current.ball.y = 10;
                     game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
@@ -283,101 +269,72 @@ const GameTreino = () => {
                     game.current.ball.dx += (Math.random() - 0.5) * 0.3;
                   }
 
-                  const profile = configIA[dificuldadeRef.current as keyof typeof configIA];
+                  // Colisão Raquete Player 1 (Esquerda)
+                  const hitP1 = game.current.ball.x <= 75 &&
+                                game.current.ball.x >= 45 &&
+                                game.current.ball.y >= game.current.p1Y &&
+                                game.current.ball.y <= game.current.p1Y + 100;
 
-                  // A IA se adapta com base no placar relativo
-                  const saldoGols = placarRef.current.voce - placarRef.current.robo;
-                  aiStateRef.current.adaptFactor = Math.max(0.85, 1.0 + (saldoGols * 0.08) + (aiStateRef.current.consecutiveHits * 0.02));
+                  // Colisão Raquete Player 2 (Direita)
+                  const hitP2 = game.current.ball.x >= 725 &&
+                                game.current.ball.x <= 755 &&
+                                game.current.ball.y >= game.current.p2Y &&
+                                game.current.ball.y <= game.current.p2Y + 100;
 
-                  // Predição de trajetória simplificada quando a bola viaja em direção à IA
-                  if (game.current.ball.dx > 0) {
-                    const distRestanteX = 725 - game.current.ball.x;
-                    const tempoAteImpacto = distRestanteX / game.current.ball.dx;
-                    const prediçãoY = game.current.ball.y + (game.current.ball.dy * tempoAteImpacto * profile.predictFactor);
-                    
-                    const erroAleatorio = (Math.random() - 0.5) * (profile.errorRange / aiStateRef.current.adaptFactor);
-                    aiStateRef.current.estimatedTargetY = prediçãoY - 50 + erroAleatorio;
-                  } else {
-                    // Retorna ao centro quando a bola está com o player
-                    aiStateRef.current.estimatedTargetY = 175;
-                  }
-
-                  // Movimento suave limitado pela velocidade máxima da IA
-                  const diferencaY = aiStateRef.current.estimatedTargetY - game.current.robotY;
-                  const step = diferencaY * (profile.baseSpeed * aiStateRef.current.adaptFactor);
-                  const clampedStep = Math.sign(step) * Math.min(Math.abs(step), profile.maxSpeed);
-                  
-                  game.current.robotY += clampedStep;
-                  game.current.robotY = Math.max(0, Math.min(350, game.current.robotY));
-
-                  // Colisão Player (Esquerda)
-                  const hitPlayer = game.current.ball.x <= 75 &&
-                                    game.current.ball.x >= 45 &&
-                                    game.current.ball.y >= game.current.playerY &&
-                                    game.current.ball.y <= game.current.playerY + 100;
-
-                  // Colisão IA (Direita)
-                  const hitRobot = game.current.ball.x >= 725 &&
-                                   game.current.ball.x <= 755 &&
-                                   game.current.ball.y >= game.current.robotY &&
-                                   game.current.ball.y <= game.current.robotY + 100;
-
-                  if (hitPlayer) {
-                    aiStateRef.current.consecutiveHits++;
-                    const impactOffset = (game.current.ball.y - (game.current.playerY + 50)) / 50;
+                  if (hitP1) {
+                    const impactOffset = (game.current.ball.y - (game.current.p1Y + 50)) / 50;
                     const randomVariance = (Math.random() - 0.5) * 0.25;
                     const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
 
                     const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                    const newSpeed = Math.min(currentSpeed * 1.12, 26);
+                    const newSpeed = Math.min(currentSpeed * 1.14, 28);
 
                     game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
                     game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
                     game.current.ball.x = 76;
-                  } else if (hitRobot) {
-                    aiStateRef.current.consecutiveHits++;
-                    const impactOffset = (game.current.ball.y - (game.current.robotY + 50)) / 50;
-                    const randomVariance = (Math.random() - 0.5) * 0.2;
+                  } else if (hitP2) {
+                    const impactOffset = (game.current.ball.y - (game.current.p2Y + 50)) / 50;
+                    const randomVariance = (Math.random() - 0.5) * 0.25;
                     const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
 
                     const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                    const newSpeed = Math.min(currentSpeed * 1.12, 26);
+                    const newSpeed = Math.min(currentSpeed * 1.14, 28);
 
                     game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
                     game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
                     game.current.ball.x = 724;
                   }
 
-                  // Gols e Win Rate
+                  // Gols e Vitória (10 Pontos)
                   if (game.current.ball.x < 0) {
-                    aiStateRef.current.consecutiveHits = 0;
-                    placarRef.current.robo += 1;
+                    placarRef.current.p2 += 1;
                     setPlacar({ ...placarRef.current });
 
-                    if (placarRef.current.robo >= 10) {
+                    if (placarRef.current.p2 >= 10) {
                       gameOverRef.current = true;
-                      setVencedor("IA ADAPTATIVA (ALCANÇOU 10 PONTOS)");
+                      setVencedor("PLAYER 2 (ALCANÇOU 10 PONTOS)");
                     } else {
                       lancarBola(1);
                     }
                   } else if (game.current.ball.x > 800) {
-                    aiStateRef.current.consecutiveHits = 0;
-                    placarRef.current.voce += 1;
+                    placarRef.current.p1 += 1;
                     setPlacar({ ...placarRef.current });
 
-                    if (placarRef.current.voce >= 10) {
+                    if (placarRef.current.p1 >= 10) {
                       gameOverRef.current = true;
-                      setVencedor("VOCÊ (ALCANÇOU 10 PONTOS)!");
+                      setVencedor("PLAYER 1 (ALCANÇOU 10 PONTOS)");
                     } else {
                       lancarBola(-1);
                     }
                   }
                 }
 
-                // Renderização no Canvas
+                // ==========================================
+                // RENDERIZAÇÃO NO CANVAS (CAMPO ESTILIZADO)
+                // ==========================================
                 ctx.clearRect(0, 0, 800, 450);
 
-                // Linha central tracejada
+                // Linha central divisória tracejada
                 ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
                 ctx.lineWidth = 2;
                 ctx.setLineDash([8, 8]);
@@ -386,7 +343,7 @@ const GameTreino = () => {
                 ctx.lineTo(400, 450);
                 ctx.stroke();
 
-                // Círculo central
+                // Círculo e ponto central
                 ctx.beginPath();
                 ctx.arc(400, 225, 55, 0, Math.PI * 2);
                 ctx.stroke();
@@ -396,35 +353,35 @@ const GameTreino = () => {
                 ctx.arc(400, 225, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Áreas de gol
+                // Demarcação das pequenas áreas dos gols
                 ctx.setLineDash([]);
                 ctx.strokeRect(0, 125, 45, 200);
                 ctx.strokeRect(755, 125, 45, 200);
 
-                // Placar
+                // Placar e Cronômetro
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
-                ctx.fillText(`VOCÊ: ${placarRef.current.voce}`, 220, 35);
+                ctx.fillText(`PLAYER 1: ${placarRef.current.p1}`, 220, 35);
 
                 ctx.fillStyle = "#fbbf24";
                 ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 375, 35);
 
-                ctx.fillStyle = "#ff0055";
-                ctx.fillText(`IA: ${placarRef.current.robo}`, 480, 35);
+                ctx.fillStyle = "#2ecc71";
+                ctx.fillText(`PLAYER 2: ${placarRef.current.p2}`, 465, 35);
 
                 // Raquetes
                 ctx.strokeStyle = "#00d4ff";
                 ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
                 ctx.lineWidth = 3;
-                ctx.strokeRect(55, game.current.playerY, 20, 100);
-                ctx.fillRect(55, game.current.playerY, 20, 100);
+                ctx.strokeRect(55, game.current.p1Y, 20, 100);
+                ctx.fillRect(55, game.current.p1Y, 20, 100);
 
-                ctx.strokeStyle = "#ff0055";
-                ctx.fillStyle = "rgba(255, 0, 85, 0.25)";
-                ctx.strokeRect(725, game.current.robotY, 20, 100);
-                ctx.fillRect(725, game.current.robotY, 20, 100);
+                ctx.strokeStyle = "#2ecc71";
+                ctx.fillStyle = "rgba(46, 204, 113, 0.25)";
+                ctx.strokeRect(725, game.current.p2Y, 20, 100);
+                ctx.fillRect(725, game.current.p2Y, 20, 100);
 
-                // Bola
+                // Bola AR
                 if (!gameOverRef.current) {
                   ctx.shadowColor = "#ffffff";
                   ctx.shadowBlur = 15;
@@ -435,33 +392,37 @@ const GameTreino = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // Landmarks
-                if (showLandmarksRef.current && results.landmarks && results.landmarks.length > 0) {
-                  const landmarksOriginal = results.landmarks[0];
-                  const landmarks = landmarksOriginal as Landmark[];
-                  const hiddenMask = buildHiddenMask(landmarks, hiddenFingerCountersRef.current);
+                // Esqueleto da Mão
+                if (showLandmarksRef.current && results.landmarks) {
+                  for (const landmarksOriginal of results.landmarks) {
+                    const isLeft = (1 - landmarksOriginal[0].x) < 0.5;
+                    const counters = isLeft ? countersP1Ref.current : countersP2Ref.current;
 
-                  const mirroredLandmarks = landmarksOriginal.map(pt => ({
-                    ...pt,
-                    x: 1 - pt.x
-                  }));
+                    const landmarks = landmarksOriginal as Landmark[];
+                    const hiddenMask = buildHiddenMask(landmarks, counters);
 
-                  const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
-                    const { start, end } = connection as { start: number; end: number };
-                    return !hiddenMask[start] && !hiddenMask[end];
-                  });
+                    const mirroredLandmarks = landmarksOriginal.map(pt => ({
+                      ...pt,
+                      x: 1 - pt.x
+                    }));
 
-                  const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
+                    const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
+                      const { start, end } = connection as { start: number; end: number };
+                      return !hiddenMask[start] && !hiddenMask[end];
+                    });
 
-                  drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
-                    color: '#00d4ff',
-                    lineWidth: 4
-                  });
-                  drawingUtils.drawLandmarks(pontosVisiveis as any, {
-                    color: '#ffffff',
-                    lineWidth: 1,
-                    radius: 6
-                  });
+                    const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
+
+                    drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
+                      color: isLeft ? '#00d4ff' : '#2ecc71',
+                      lineWidth: 4
+                    });
+                    drawingUtils.drawLandmarks(pontosVisiveis as any, {
+                      color: '#ffffff',
+                      lineWidth: 1,
+                      radius: 6
+                    });
+                  }
                 }
               }
               animationFrameId = requestAnimationFrame(renderLoop);
@@ -471,7 +432,7 @@ const GameTreino = () => {
           };
         }
       } catch (error) {
-        console.error("Erro na inicialização AR Treino:", error);
+        console.error("Erro na inicialização AR:", error);
       }
     };
 
@@ -497,7 +458,7 @@ const GameTreino = () => {
       boxSizing: 'border-box'
     }}>
       <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '10px' }}>
-        MODO TREINO (IA ADAPTATIVA) | META: 10 PONTOS OU 5 MINUTOS
+        MODO PRESENCIAL | META: 10 PONTOS OU 5 MINUTOS
       </div>
 
       <div style={{
@@ -505,17 +466,17 @@ const GameTreino = () => {
         width: '100%',
         maxWidth: '960px',
         aspectRatio: '16/9',
-        border: '2px solid #00d4ff',
+        border: '2px solid #22c55e',
         borderRadius: '8px',
         overflow: 'hidden',
         backgroundColor: '#000',
-        boxShadow: '0 0 25px rgba(0, 212, 255, 0.2)'
+        boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)'
       }}>
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#00d4ff', fontWeight: 'bold' }}>
-          VOCÊ (PLAYER)
+          PLAYER 1 (LOCAL ESQUERDA)
         </div>
-        <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #ff0055', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#ff0055', fontWeight: 'bold' }}>
-          IA ADAPTATIVA ({dificuldade.toUpperCase()})
+        <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#2ecc71', fontWeight: 'bold' }}>
+          PLAYER 2 (LOCAL DIREITA)
         </div>
 
         <video
@@ -550,7 +511,7 @@ const GameTreino = () => {
               onClick={alternarPausa}
               style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
             >
-              CONTINUAR TREINO
+              CONTINUAR JOGO
             </button>
           </div>
         )}
@@ -567,9 +528,9 @@ const GameTreino = () => {
             justifyContent: 'center',
             zIndex: 30
           }}>
-            <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE TREINO!</h2>
+            <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE JOGO!</h2>
             <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '30px' }}>
-              {vencedor}
+              VENCEDOR: {vencedor}
             </p>
             <div style={{ display: 'flex', gap: '20px' }}>
               <button
@@ -591,25 +552,12 @@ const GameTreino = () => {
 
       {/* DASHBOARD INFERIOR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '960px', marginTop: '15px' }}>
-        <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <span>DESEMPENHO: <b style={{ color: '#4ade80' }}>{fps} FPS</b></span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>NÍVEL DA IA:</span>
-            <select
-              value={dificuldade}
-              onChange={(e) => setDificuldade(e.target.value)}
-              style={{ background: '#1e293b', color: '#38bdf8', border: '1px solid #475569', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              <option value="facil">FÁCIL</option>
-              <option value="medio">MÉDIO</option>
-              <option value="dificil">DIFÍCIL</option>
-              <option value="impossivel">IMPOSSÍVEL</option>
-            </select>
-          </div>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+          DESEMPENHO LOCAL: <span style={{ color: '#4ade80' }}>{fps} FPS</span> | 0ms LATÊNCIA (NATIVO)
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* BOTÃO PAUSAR */}
+          {/* BOTÃO PAUSAR / RETOMAR */}
           <button
             onClick={alternarPausa}
             style={{
@@ -627,7 +575,7 @@ const GameTreino = () => {
             {isPaused ? 'CONTINUAR' : 'PAUSAR'}
           </button>
 
-          {/* BOTÃO RESETAR */}
+          {/* BOTÃO RESETAR PARTIDA */}
           <button
             onClick={reiniciarPartida}
             style={{
@@ -660,10 +608,10 @@ const GameTreino = () => {
       </div>
 
       <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
-        TCC – PONG AR PROJECT | MODO TREINO (IA ADAPTATIVA HEURÍSTICA) | DESENVOLVEDOR: JHEVERSON
+        TCC – PONG AR PROJECT | MEDIAPIPE MULTI-HANDS LOCAL | DESENVOLVEDOR: JHEVERSON
       </div>
     </div>
   );
 };
 
-export default GameTreino;
+export default GameLocal;

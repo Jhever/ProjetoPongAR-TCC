@@ -165,8 +165,7 @@ const Home = () => {
 
   const handleMenuClick = (item: string) => {
     switch (item) {
-      case "INICIAR PARTIDA ONLINE": navigate('/procurar-partida'); break;
-      case "INICIAR PARTIDA COM AMIGO": navigate('/iniciar-com-amigo'); break;
+      case "JOGAR MULTIPLAYER": navigate('/modo-jogo'); break;
       case "TESTAR CAMERA (AR)": navigate('/testar-camera'); break;
       case "PARTIDA TREINO": navigate('/game-treino'); break;
       case "RANKING GLOBAL": navigate('/ranking'); break;
@@ -183,9 +182,9 @@ const Home = () => {
   };
 
   const menuItems = [
-    "INICIAR PARTIDA ONLINE", "INICIAR PARTIDA COM AMIGO", "TESTAR CAMERA (AR)",
-    "PARTIDA TREINO", "RANKING GLOBAL", "CONFIGURAÇÃO",
-    "INFORMAÇÕES", "SUPORTE E AJUDA", "SAIR DO JOGO"
+    "JOGAR MULTIPLAYER", "PARTIDA TREINO", "TESTAR CAMERA (AR)",
+    "RANKING GLOBAL", "CONFIGURAÇÃO", "INFORMAÇÕES",
+    "SUPORTE E AJUDA", "DESAFIOS", "SAIR DO JOGO"
   ];
 
   return (
@@ -232,12 +231,6 @@ const Home = () => {
           </button>
         ))}
       </main>
-
-      <footer style={{ marginTop: '60px' }}>
-        <button style={{...styles.button, width: '200px', borderBottomColor: '#9333ea'}} onClick={() => navigate('/desafios')}>
-          DESAFIOS
-        </button>
-      </footer>
 
       {/* --- CÓDIGO DO MODAL DE CONFIRMAÇÃO --- */}
       {showExitModal && (
