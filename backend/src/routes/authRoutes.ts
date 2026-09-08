@@ -5,6 +5,8 @@ import { transporter } from '../services/mailer.js';
 
 const router = Router();
 
+const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel.app';
+
 router.post('/register', async (req: Request, res: Response) => {
   const { usuario, email, senha } = req.body;
   try {
@@ -86,8 +88,6 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
       [token, email]
     );
 
-    // const link = `http://localhost:5173/reset-password/${token}`;
-    const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel.app';
     const link = `${CLIENT_URL}/reset-password/${token}`;
     await transporter.sendMail({
       from: process.env.EMAIL_USER,

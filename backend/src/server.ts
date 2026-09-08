@@ -16,6 +16,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Rota raiz para teste direto no navegador / Render health check
+app.get('/', (req, res) => {
+  res.send('⚡ Servidor Pong AR rodando com sucesso no Render!');
+});
+
 app.use(authRoutes);
 app.use(desafioRoutes);
 app.use(partidaRoutes);
