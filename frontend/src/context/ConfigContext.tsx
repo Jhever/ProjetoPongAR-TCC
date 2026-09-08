@@ -1,8 +1,5 @@
 import { createContext, useState, useContext, useEffect, type ReactNode } from 'react';
 
-// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-// const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
-// CORRETO:
 const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 interface UserData {
@@ -34,17 +31,20 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(false);
   
   const [userData, setUserData] = useState<UserData | null>(() => {
-    const saved = localStorage.getItem('userData');
+    const saved = localStorage.getItem('usuario') || localStorage.getItem('userData');
     return saved ? JSON.parse(saved) : null;
   });
 
   useEffect(() => { localStorage.setItem('isDark', String(isDark)); }, [isDark]);
   useEffect(() => { localStorage.setItem('isAnonimo', String(isAnonimo)); }, [isAnonimo]);
+  
   useEffect(() => {
     if (userData) {
       localStorage.setItem('userData', JSON.stringify(userData));
+      localStorage.setItem('usuario', JSON.stringify(userData)); // Alimenta as telas do jogo e ranking
     } else {
       localStorage.removeItem('userData');
+      localStorage.removeItem('usuario');
     }
   }, [userData]);
 
@@ -63,6 +63,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
       if (response.ok) {
         const data = await response.json();
         setUserData(data);
+        localStorage.setItem('usuario', JSON.stringify(data));
         return true;
       }
       return false;
