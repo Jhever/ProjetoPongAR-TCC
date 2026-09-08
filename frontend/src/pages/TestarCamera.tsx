@@ -24,10 +24,7 @@ type FingerInfo = {
 };
 
 const FINGERS: FingerInfo[] = [
-  // Thumb: 1 CMC, 2 MCP, 3 IP, 4 TIP
   { name: 'thumb', mcp: 1, pip: 2, dip: 3, tip: 4, hide: [2, 3, 4], isThumb: true },
-
-  // Other fingers: MCP, PIP, DIP, TIP
   { name: 'index', mcp: 5, pip: 6, dip: 7, tip: 8, hide: [6, 7, 8] },
   { name: 'middle', mcp: 9, pip: 10, dip: 11, tip: 12, hide: [10, 11, 12] },
   { name: 'ring', mcp: 13, pip: 14, dip: 15, tip: 16, hide: [14, 15, 16] },
@@ -56,9 +53,7 @@ function angleDeg(a: Landmark, b: Landmark, c: Landmark): number {
   const abLen = Math.hypot(abx, aby);
   const cbLen = Math.hypot(cbx, cby);
 
-  if (abLen === 0 || cbLen === 0) {
-    return 180;
-  }
+  if (abLen === 0 || cbLen === 0) return 180;
 
   const cos = dot / (abLen * cbLen);
   return (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
@@ -77,9 +72,7 @@ function pointInPolygon(point: Landmark, polygon: Landmark[]): boolean {
       yi > point.y !== yj > point.y &&
       point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi;
 
-    if (intersects) {
-      inside = !inside;
-    }
+    if (intersects) inside = !inside;
   }
 
   return inside;
@@ -95,11 +88,11 @@ function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean>
   };
 
   const palmPolygon = [
-    landmarks[0],  // wrist
-    landmarks[5],  // index MCP
-    landmarks[9],  // middle MCP
-    landmarks[13], // ring MCP
-    landmarks[17], // pinky MCP
+    landmarks[0],
+    landmarks[5],
+    landmarks[9],
+    landmarks[13],
+    landmarks[17],
   ];
 
   const palmSize = Math.max(
@@ -115,9 +108,7 @@ function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean>
     const tip = landmarks[finger.tip];
 
     const fingerLength =
-      dist2D(mcp, pip) +
-      dist2D(pip, dip) +
-      dist2D(dip, tip);
+      dist2D(mcp, pip) + dist2D(pip, dip) + dist2D(dip, tip);
 
     const span = dist2D(mcp, tip);
     const curlRatio = span / Math.max(fingerLength, 0.0001);
@@ -132,9 +123,7 @@ function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean>
 
     if (finger.isThumb) {
       result[finger.name] =
-        tipInsidePalm ||
-        dipInsidePalm ||
-        (curlRatio < 0.55 && closeToPalmCenter);
+        tipInsidePalm || dipInsidePalm || (curlRatio < 0.55 && closeToPalmCenter);
     } else {
       result[finger.name] =
         (tipInsidePalm && curlRatio < 0.85) ||
@@ -161,9 +150,7 @@ function buildHiddenMask(
       counters[finger.name] = Math.max(counters[finger.name] - 1, 0);
     }
 
-    const shouldHide = counters[finger.name] >= 2;
-
-    if (shouldHide) {
+    if (counters[finger.name] >= 2) {
       for (const index of finger.hide) {
         hiddenMask[index] = true;
       }
@@ -181,6 +168,8 @@ const TestarCamera = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>(0);
   const landmarkerRef = useRef<Vision.HandLandmarker | null>(null);
+  const activeStreamRef = useRef<MediaStream | null>(null);
+  const lastVideoTimeRef = useRef<number>(-1);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({
     ...INITIAL_HIDDEN_COUNTERS,
   });
@@ -207,18 +196,24 @@ const TestarCamera = () => {
   }, []);
 
   const stopCamera = useCallback(() => {
-    cancelAnimationFrame(animationFrameRef.current);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    if (activeStreamRef.current) {
+      activeStreamRef.current.getTracks().forEach((track) => track.stop());
+      activeStreamRef.current = null;
+    }
 
     const video = videoRef.current;
-    const stream = video?.srcObject as MediaStream | null;
-
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
-
     if (video) {
+      if (video.srcObject) {
+        const stream = video.srcObject as MediaStream;
+        stream.getTracks().forEach((track) => track.stop());
+      }
       video.srcObject = null;
     }
+    lastVideoTimeRef.current = -1;
   }, []);
 
   const btnGreen = {
@@ -232,7 +227,7 @@ const TestarCamera = () => {
     fontSize: '16px',
     boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
     transition: 'transform 0.2s',
-    width: '100%', 
+    width: '100%',
   };
 
   useEffect(() => {
@@ -245,9 +240,7 @@ const TestarCamera = () => {
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm',
         );
 
-        if (disposed) {
-          return;
-        }
+        if (disposed) return;
 
         const created = await Vision.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
@@ -314,10 +307,13 @@ const TestarCamera = () => {
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
+          frameRate: { ideal: 60 },
           facingMode: 'user',
         },
         audio: false,
       });
+
+      activeStreamRef.current = stream;
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -325,11 +321,10 @@ const TestarCamera = () => {
       video.srcObject = stream;
       await video.play();
 
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      canvas.width = 640;
+      canvas.height = 480;
 
       const ctx = canvas.getContext('2d');
-
       if (!ctx) {
         throw new Error('Não foi possível criar o contexto 2D do canvas.');
       }
@@ -345,7 +340,11 @@ const TestarCamera = () => {
           return;
         }
 
-        if (currentVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        if (
+          currentVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          currentVideo.currentTime !== lastVideoTimeRef.current
+        ) {
+          lastVideoTimeRef.current = currentVideo.currentTime;
           const results = activeLandmarker.detectForVideo(
             currentVideo,
             performance.now(),
@@ -353,7 +352,7 @@ const TestarCamera = () => {
 
           ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
 
-          if (results.landmarks.length > 0) {
+          if (results.landmarks && results.landmarks.length > 0) {
             updateStatus('MÃO DETECTADA!');
 
             ctx.shadowBlur = 10;
@@ -375,7 +374,6 @@ const TestarCamera = () => {
                     start: number;
                     end: number;
                   };
-
                   return !hiddenMask[start] && !hiddenMask[end];
                 },
               );
@@ -438,46 +436,45 @@ const TestarCamera = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center', // Centraliza o bloco inteiro verticalmente
+        justifyContent: 'center',
         padding: '20px',
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      {/* NOVO CONTAINER FLEX: TRÊS COLUNAS (TEXTO - VÍDEO - BOTÕES) */}
       <div
         style={{
           display: 'flex',
-          flexDirection: 'row', 
-          alignItems: 'center', 
+          flexDirection: 'row',
+          alignItems: 'center',
           justifyContent: 'center',
-          gap: '40px', 
+          gap: '40px',
           width: '100%',
-          maxWidth: '1600px', // Limite expandido para caber as 3 colunas
+          maxWidth: '1600px',
         }}
       >
-        
-        {/* COLUNA ESQUERDA: TÍTULO E PONTOS */}
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column', 
+            flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            width: '250px', // Mesma largura da coluna da direita (simetria!)
+            width: '250px',
             textAlign: 'center',
           }}
         >
           <h2 style={{ marginBottom: '20px', fontSize: '2.2rem', lineHeight: '1.2' }}>
-            TESTE DE<br/>CÂMERA
+            TESTE DE<br />CÂMERA
           </h2>
-          
-          <div style={{
-            background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-            padding: '20px',
-            borderRadius: '15px',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}>
+
+          <div
+            style={{
+              background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+              padding: '20px',
+              borderRadius: '15px',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
             <p style={{ color: '#059669', fontWeight: 'bold', fontSize: '1.1rem', margin: '0 0 10px 0' }}>
               {status}
             </p>
@@ -487,24 +484,23 @@ const TestarCamera = () => {
           </div>
         </div>
 
-        {/* COLUNA CENTRAL: VÍDEO EXPANDIDO */}
         <div
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: '1000px', 
-            aspectRatio: '4/3', 
+            maxWidth: '1000px',
+            aspectRatio: '4/3',
             border: '4px solid #333',
             borderRadius: '20px',
             overflow: 'hidden',
             boxShadow: '0 0 30px rgba(0,0,0,0.5)',
-            flexShrink: 1, 
+            flexShrink: 1,
           }}
         >
           <video
             ref={videoRef}
             style={{
-              position: 'absolute', 
+              position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
@@ -520,7 +516,7 @@ const TestarCamera = () => {
           <canvas
             ref={canvasRef}
             style={{
-              position: 'absolute', 
+              position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
@@ -530,13 +526,12 @@ const TestarCamera = () => {
           />
         </div>
 
-        {/* COLUNA DIREITA: BOTÕES */}
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column', 
-            gap: '20px', 
-            width: '250px', // Mesma largura da coluna da esquerda
+            flexDirection: 'column',
+            gap: '20px',
+            width: '250px',
           }}
         >
           <button
@@ -565,13 +560,12 @@ const TestarCamera = () => {
               borderRadius: '30px',
               cursor: 'pointer',
               fontWeight: 'bold',
-              width: '100%', 
+              width: '100%',
             }}
           >
             VOLTAR PARA O INICIO
           </button>
         </div>
-
       </div>
     </div>
   );

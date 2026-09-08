@@ -241,6 +241,7 @@ const GameTreino = () => {
     let lastTime = performance.now();
     let frameCount = 0;
     let lastVideoTime = -1;
+    let activeStream: MediaStream | null = null;
 
     const initVision = async () => {
       try {
@@ -251,13 +252,12 @@ const GameTreino = () => {
         landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU" // <--- ACELERAÇÃO GPU
+            delegate: "GPU"
           },
           runningMode: "VIDEO",
           numHands: 1
         });
 
-        // 640x480 para resposta imediata
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
@@ -265,6 +265,8 @@ const GameTreino = () => {
             frameRate: { ideal: 60 }
           }
         });
+
+        activeStream = stream;
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -284,7 +286,6 @@ const GameTreino = () => {
                 lastTime = now;
               }
 
-              // SÓ CHAMA O MEDIAPIPE SE HOUVER NOVO QUADRO
               if (
                 videoRef.current &&
                 videoRef.current.readyState >= 2 &&
@@ -314,17 +315,12 @@ const GameTreino = () => {
                   hiddenFingerCountersRef.current = { ...INITIAL_HIDDEN_COUNTERS };
                 }
 
-                // ==========================================
-                // FÍSICA E IA ADAPTATIVA
-                // ==========================================
                 if (!gameOverRef.current && !isPausedRef.current) {
-                  // Interpolação suave para a raquete do jogador
                   game.current.playerY += (game.current.targetPlayerY - game.current.playerY) * 0.4;
 
                   game.current.ball.x += game.current.ball.dx;
                   game.current.ball.y += game.current.ball.dy;
 
-                  // Quique Teto/Chão
                   if (game.current.ball.y <= 10) {
                     game.current.ball.y = 10;
                     game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
@@ -358,13 +354,11 @@ const GameTreino = () => {
                   game.current.robotY += clampedStep;
                   game.current.robotY = Math.max(0, Math.min(350, game.current.robotY));
 
-                  // Colisão Player
                   const hitPlayer = game.current.ball.x <= 75 &&
                                     game.current.ball.x >= 45 &&
                                     game.current.ball.y >= game.current.playerY &&
                                     game.current.ball.y <= game.current.playerY + 100;
 
-                  // Colisão IA
                   const hitRobot = game.current.ball.x >= 725 &&
                                    game.current.ball.x <= 755 &&
                                    game.current.ball.y >= game.current.robotY &&
@@ -419,7 +413,6 @@ const GameTreino = () => {
                   }
                 }
 
-                // Renderização no Canvas
                 ctx.clearRect(0, 0, 800, 450);
 
                 ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
@@ -474,7 +467,6 @@ const GameTreino = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // Renderização condicional dos landmarks
                 if (showLandmarksRef.current && results.landmarks && results.landmarks.length > 0) {
                   const landmarksOriginal = results.landmarks[0];
                   const landmarks = landmarksOriginal as Landmark[];
@@ -519,6 +511,16 @@ const GameTreino = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
       if (landmarker) landmarker.close();
+
+      // Encerra imediatamente as trilhas de vídeo para liberar a webcam
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        const currentStream = videoRef.current.srcObject as MediaStream;
+        currentStream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
     };
   }, []);
 
@@ -683,19 +685,26 @@ const GameTreino = () => {
             <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />
             <span>EXIBIR LANDMARKS</span>
           </label>
-
         </div>
       </div>
 
-          <button
-            onClick={() => navigate('/home')}
-            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
-          >
-           Sair da Partida
-          </button>
-      {/* <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
-        TCC – PONG AR PROJECT | MODO TREINO (IA ADAPTATIVA HEURÍSTICA) | DESENVOLVEDOR: JHEVERSON
-      </div> */}
+      <button
+        onClick={() => navigate('/home')}
+        style={{
+          marginTop: '12px',
+          background: '#dc2626',
+          color: '#fff',
+          border: 'none',
+          padding: '6px 14px',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          fontWeight: 'bold',
+          fontSize: '18px'
+        }}
+      >
+        Sair da Partida
+      </button>
     </div>
   );
 };
