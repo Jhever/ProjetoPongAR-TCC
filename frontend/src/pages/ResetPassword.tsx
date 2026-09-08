@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react'; // Importação dos ícones
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-  
+const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>(); 

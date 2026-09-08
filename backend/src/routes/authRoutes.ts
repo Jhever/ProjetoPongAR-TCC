@@ -86,7 +86,9 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
       [token, email]
     );
 
-    const link = `http://localhost:5173/reset-password/${token}`;
+    // const link = `http://localhost:5173/reset-password/${token}`;
+    const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel.app';
+    const link = `${CLIENT_URL}/reset-password/${token}`;
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,

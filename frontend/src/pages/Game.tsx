@@ -5,7 +5,7 @@ import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
 import Denuncia from '../components/Denuncia';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
 type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';

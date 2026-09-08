@@ -26,7 +26,8 @@ const Ranking = () => {
   const [rankingData, setRankingData] = useState<PlayerRank[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
   
   useEffect(() => {
     fetch(`${API_URL}/api/ranking`)

@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Vision from "@mediapipe/tasks-vision";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 // ==========================================
 // TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO

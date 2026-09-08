@@ -1,6 +1,7 @@
 import { createContext, useState, useContext, useEffect, type ReactNode } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 interface UserData {
   id: string;
