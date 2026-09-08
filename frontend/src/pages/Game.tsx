@@ -142,7 +142,6 @@ const Game = () => {
     const adversarioPlacar = isHost ? p2Score : p1Score;
     const isVitoria = meuPlacar > adversarioPlacar;
 
-    // 1. Salva no histórico do navegador
     const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
     const novaEntrada = {
       data: new Date().toLocaleDateString('pt-BR'),
@@ -151,7 +150,6 @@ const Game = () => {
     };
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
-    // 2. Registra no banco de dados
     if (usuarioSalvo?.id) {
       fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
@@ -170,6 +168,9 @@ const Game = () => {
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
+
+    // Garante que o socket está vinculado à sala nesta partida
+    socket.emit('entrarSala', { salaId });
 
     socket.on('adversarioMoveu', (dados: { y: number }) => {
       if (isHost) {
@@ -226,6 +227,7 @@ const Game = () => {
     let animationFrameId: number;
     let lastTime = performance.now();
     let frameCount = 0;
+    let activeStream: MediaStream | null = null;
 
     const initVision = async () => {
       const vision = await Vision.FilesetResolver.forVisionTasks(
@@ -242,6 +244,8 @@ const Game = () => {
       });
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      activeStream = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
@@ -414,6 +418,16 @@ const Game = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
       landmarker?.close();
+
+      // Encerra imediatamente as trilhas da webcam para liberar a câmera
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        const currentStream = videoRef.current.srcObject as MediaStream;
+        currentStream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
     };
   }, [isHost, salaId, showLandmarks]);
 

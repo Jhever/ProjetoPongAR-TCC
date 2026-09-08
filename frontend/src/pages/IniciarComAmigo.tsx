@@ -30,17 +30,17 @@ const IniciarComAmigo = () => {
       setMensagemErro(msg);
     });
 
-    // Ambos os jogadores recebem quando a sala estiver com os 2 prontos
+    // Disparado quando os jogadores iniciam ou quando um terceiro entra como espectador
     socket.on('partidaEncontrada', (dados: {
       salaId: string;
-      lado: 'esquerda' | 'direita';
+      lado: 'esquerda' | 'direita' | 'espectador';
       adversario: string;
       adversarioId: number | string;
     }) => {
       navigate('/game', { 
         state: {
           ...dados,
-          tipoPartida: 'Amigo' 
+          tipoPartida: 'AMIGO' 
         }
       });
     });
@@ -78,11 +78,16 @@ const IniciarComAmigo = () => {
       return;
     }
 
+    // Impede o anfitrião de tentar se conectar à própria sala criada
+    if (codigoGerado && codLimpo === codigoGerado) {
+      setMensagemErro('Você é o anfitrião desta sala! Envie o código para seus amigos jogarem ou assistirem.');
+      return;
+    }
+
     socket.emit('entrarSalaAmigo', { codigo: codLimpo, jogadorId, nome });
   };
 
   const handleVoltar = () => {
-    socket.disconnect();
     navigate('/modo-jogo');
   };
 
@@ -108,7 +113,7 @@ const IniciarComAmigo = () => {
         JOGAR COM AMIGO
       </h1>
       <p style={{ color: '#94a3b8', fontSize: '1rem', marginBottom: '35px' }}>
-        Crie uma sala privada ou insira o código de um amigo
+        Crie uma sala privada ou insira o código de uma partida
       </p>
 
       {mensagemErro && (
@@ -146,7 +151,7 @@ const IniciarComAmigo = () => {
         }}>
           <h2 style={{ fontSize: '1.4rem', color: '#38bdf8', margin: '0 0 10px 0' }}>CRIAR UMA SALA</h2>
           <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '25px' }}>
-            Gere um código exclusivo e envie para o seu oponente entrar
+            Gere um código exclusivo e envie para que outros joguem ou assistam
           </p>
 
           {!aguardandoAmigo ? (
@@ -185,7 +190,7 @@ const IniciarComAmigo = () => {
                 {codigoGerado}
               </div>
               <span style={{ fontSize: '0.85rem', color: '#4ade80' }}>
-                ● Aguardando amigo entrar na sala...
+                ● Sala aberta! Aguardando oponente...
               </span>
             </div>
           )}
@@ -204,7 +209,7 @@ const IniciarComAmigo = () => {
         }}>
           <h2 style={{ fontSize: '1.4rem', color: '#a855f7', margin: '0 0 10px 0' }}>ENTRAR EM UMA SALA</h2>
           <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '25px' }}>
-            Digite o código de 5 caracteres que seu amigo gerou
+            Digite o código de 5 caracteres para jogar ou assistir à partida
           </p>
 
           <form onSubmit={handleEntrarSala} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -214,37 +219,44 @@ const IniciarComAmigo = () => {
               value={codigoEntrada}
               onChange={(e) => setCodigoEntrada(e.target.value.toUpperCase())}
               placeholder="Ex: X9K2P"
+              disabled={aguardandoAmigo}
               style={{
                 width: '100%',
                 padding: '14px',
                 borderRadius: '8px',
                 border: '1px solid #475569',
-                backgroundColor: '#1e293b',
-                color: '#fff',
+                backgroundColor: aguardandoAmigo ? '#0f172a' : '#1e293b',
+                color: aguardandoAmigo ? '#64748b' : '#fff',
                 fontSize: '1.2rem',
                 textAlign: 'center',
                 letterSpacing: '4px',
                 textTransform: 'uppercase',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                cursor: aguardandoAmigo ? 'not-allowed' : 'text'
               }}
             />
 
             <button
               type="submit"
+              disabled={aguardandoAmigo}
               style={{
                 width: '100%',
                 padding: '14px',
-                backgroundColor: '#9333ea',
-                color: '#fff',
+                backgroundColor: aguardandoAmigo ? '#334155' : '#9333ea',
+                color: aguardandoAmigo ? '#94a3b8' : '#fff',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 'bold',
-                cursor: 'pointer',
+                cursor: aguardandoAmigo ? 'not-allowed' : 'pointer',
                 fontSize: '1rem',
                 transition: '0.2s'
               }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#7e22ce')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#9333ea')}
+              onMouseOver={(e) => {
+                if (!aguardandoAmigo) e.currentTarget.style.backgroundColor = '#7e22ce';
+              }}
+              onMouseOut={(e) => {
+                if (!aguardandoAmigo) e.currentTarget.style.backgroundColor = '#9333ea';
+              }}
             >
               CONECTAR À SALA
             </button>
