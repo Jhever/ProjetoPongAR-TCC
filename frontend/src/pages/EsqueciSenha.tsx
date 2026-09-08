@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const EsqueciSenha = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -20,7 +22,7 @@ const EsqueciSenha = () => {
 
     try {
       // Faz a requisição para a rota que envia o e-mail via Nodemailer
-      const response = await fetch('http://localhost:3001/forgot-password', {
+      const response = await fetch(`${API_URL}/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +99,7 @@ const EsqueciSenha = () => {
       padding: '15px',
       borderRadius: '5px',
       border: 'none',
-      backgroundColor: '#f0f8ff', // Azul bem clarinho/branco
+      backgroundColor: '#f0f8ff',
       color: '#333333',
       fontSize: '1rem',
       boxSizing: 'border-box' as const,
@@ -133,7 +135,7 @@ const EsqueciSenha = () => {
       padding: '0',
     },
     statusMessage: {
-      color: '#a3e635', // Verde limão suave para status
+      color: '#a3e635',
       textAlign: 'center' as const,
       fontSize: '0.9rem',
       margin: '0',
@@ -175,7 +177,7 @@ const EsqueciSenha = () => {
         <div style={styles.linkContainer}>
           <button 
             type="button" 
-            onClick={() => navigate('/')} // Ajuste para a sua rota de login exata
+            onClick={() => navigate('/')}
             style={styles.link}
           >
             Lembrei minha senha! Voltar para login

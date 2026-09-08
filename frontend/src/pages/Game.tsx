@@ -5,6 +5,8 @@ import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
 import Denuncia from '../components/Denuncia';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
 type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
 type FingerInfo = { name: FingerName; mcp: number; pip: number; dip: number; tip: number; hide: number[]; isThumb?: boolean; };
@@ -149,9 +151,9 @@ const Game = () => {
     };
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
-    // 2. Registra no banco de dados (o backend ignora pontuação de ranking se for AMIGO)
+    // 2. Registra no banco de dados
     if (usuarioSalvo?.id) {
-      fetch('http://localhost:3001/api/ranking/registrar-partida', {
+      fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -236,7 +238,7 @@ const Game = () => {
           delegate: "GPU"
         },
         runningMode: "VIDEO",
-        numHands: 1 // Otimizado para 1 jogador por webcam
+        numHands: 1
       });
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -280,7 +282,6 @@ const Game = () => {
                 socket.emit('moverRaquete', { salaId, y: paddleY });
               }
 
-              // Física da Bola Autoritativa no Host
               if (isHost && !partidaFinalizadaRef.current) {
                 game.current.ball.x += game.current.ball.dx;
                 game.current.ball.y += game.current.ball.dy;
@@ -322,7 +323,6 @@ const Game = () => {
                 socket.emit('atualizarBola', { salaId, bola: game.current.ball });
               }
 
-              // Renderização HUD
               ctx.clearRect(0, 0, 800, 450);
 
               ctx.strokeStyle = "rgba(70, 130, 180, 0.4)";
@@ -351,7 +351,6 @@ const Game = () => {
               ctx.fillText("GOAL (P2)", 690, 405);
               ctx.fillText("FIELD", 430, 370);
 
-              // Raquetes
               ctx.strokeStyle = "#00d4ff";
               ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
               ctx.lineWidth = 3;
@@ -360,10 +359,10 @@ const Game = () => {
 
               ctx.strokeStyle = "#2ecc71";
               ctx.fillStyle = "rgba(46, 204, 113, 0.25)";
+              ctx.lineWidth = 3;
               ctx.strokeRect(725, game.current.p2Y, 20, 100);
               ctx.fillRect(725, game.current.p2Y, 20, 100);
 
-              // Bola AR
               if (!partidaFinalizadaRef.current) {
                 ctx.shadowColor = "#ffffff";
                 ctx.shadowBlur = 15;
@@ -374,7 +373,6 @@ const Game = () => {
                 ctx.shadowBlur = 0;
               }
 
-              // Landmarks Espelhados no Canvas
               if (showLandmarks && handDetected && results.landmarks) {
                 for (const landmarksOriginal of results.landmarks) {
                   const landmarks = landmarksOriginal as Landmark[];
@@ -452,7 +450,6 @@ const Game = () => {
           {!isHost ? 'VOCÊ (LOCAL)' : adversarioNome}
         </div>
 
-        {/* BOTÃO DE DENÚNCIA EXCLUSIVO DO MODO ONLINE COMPETITIVO */}
         {tipoPartida === 'ONLINE' && (
           <button
             onClick={() => setShowDenunciaModal(true)}
@@ -482,7 +479,6 @@ const Game = () => {
           muted
           style={{ position: 'absolute', width: '100%', height: '100%', transform: 'scaleX(-1)', objectFit: 'cover' }}
         />
-        {/* Canvas sem scaleX(-1) para que as fontes sejam legíveis */}
         <canvas
           ref={canvasRef}
           width={800}

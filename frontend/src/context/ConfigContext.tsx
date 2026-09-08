@@ -1,5 +1,7 @@
 import { createContext, useState, useContext, useEffect, type ReactNode } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 interface UserData {
   id: string;
   usuario: string;
@@ -16,7 +18,7 @@ interface ConfigContextData {
   toggleAnonimo: () => void;
   updateUserData: (newData: UserData) => Promise<void>;
   loginUser: (user: string, senha: string) => Promise<boolean>;
-  logoutUser: () => void; // Adicionado para limpar a sessão
+  logoutUser: () => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -24,7 +26,6 @@ interface ConfigContextData {
 const ConfigContext = createContext<ConfigContextData>({} as ConfigContextData);
 
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
-  // Inicializa estados lendo do localStorage
   const [isDark, setIsDark] = useState(() => localStorage.getItem('isDark') !== 'false');
   const [isAnonimo, setIsAnonimo] = useState(() => localStorage.getItem('isAnonimo') === 'true');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +35,6 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Efeitos para sincronizar com localStorage quando os estados mudarem
   useEffect(() => { localStorage.setItem('isDark', String(isDark)); }, [isDark]);
   useEffect(() => { localStorage.setItem('isAnonimo', String(isAnonimo)); }, [isAnonimo]);
   useEffect(() => {
@@ -51,7 +51,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const loginUser = async (email: string, senha: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/login', {
+      const response = await fetch(`${API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, senha })
@@ -59,7 +59,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setUserData(data); // O useEffect acima salvará no localStorage automaticamente
+        setUserData(data);
         return true;
       }
       return false;
@@ -77,7 +77,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUserData = async (newData: UserData) => {
     try {
-      await fetch('http://localhost:3001/update-user', {
+      await fetch(`${API_URL}/update-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newData)

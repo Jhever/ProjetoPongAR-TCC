@@ -26,8 +26,10 @@ const Ranking = () => {
   const [rankingData, setRankingData] = useState<PlayerRank[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  
   useEffect(() => {
-    fetch('http://localhost:3001/api/ranking')
+    fetch(`${API_URL}/api/ranking`)
       .then((res) => {
         if (!res.ok) throw new Error('Falha ao buscar dados');
         return res.json();

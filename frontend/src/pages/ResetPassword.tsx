@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react'; // Importação dos ícones
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>(); 
@@ -32,7 +34,7 @@ const ResetPassword = () => {
     setStatusMsg('Processando...');
 
     try {
-      const response = await fetch('http://localhost:3001/reset-password', {
+      const response = await fetch(`${API_URL}/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

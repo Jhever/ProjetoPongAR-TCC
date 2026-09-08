@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../context/ConfigContext';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const styles = {
   backButton: {
     marginTop: '40px',
@@ -18,7 +20,6 @@ const styles = {
   }
 };
 
-// ⚠️ ADICIONADO 'pontos_recompensa' AQUI
 interface Desafio {
   id: number;
   titulo: string;
@@ -41,8 +42,8 @@ const Desafios: React.FC = () => {
     try {
       setLoading(true);
       const [desafiosRes, countRes] = await Promise.all([
-        fetch(`http://localhost:3001/api/desafios/${userData.id}`),
-        fetch(`http://localhost:3001/api/desafios/contagem-pulos/${userData.id}`)
+        fetch(`${API_URL}/api/desafios/${userData.id}`),
+        fetch(`${API_URL}/api/desafios/contagem-pulos/${userData.id}`)
       ]);
       
       if (!desafiosRes.ok || !countRes.ok) throw new Error("Erro nas requisições");
@@ -65,7 +66,7 @@ const Desafios: React.FC = () => {
 
   const handleAction = async (id: number, action: 'pular' | 'recolher') => {
     try {
-      const res = await fetch(`http://localhost:3001/api/desafios/${action}`, {
+      const res = await fetch(`${API_URL}/api/desafios/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jogador_id: userData?.id, desafio_id: id })
@@ -105,7 +106,6 @@ const Desafios: React.FC = () => {
             return (
               <div key={index} style={{ padding: '20px', border: `1px solid ${barColor}`, borderRadius: '15px', background: theme.card, minHeight: '120px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 
-                {/* ⚠️ ADICIONADO A ETIQUETA DE PONTOS AQUI NA MESMA LINHA DO TÍTULO */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <h3 style={{ margin: '0' }}>{d.titulo}</h3>
                   <span style={{ 
@@ -115,7 +115,7 @@ const Desafios: React.FC = () => {
                     borderRadius: '20px', 
                     fontSize: '0.85rem', 
                     fontWeight: 'bold',
-                    boxShadow: `0 2px 8px ${theme.accent}66` // Dá um brilhinho na tag
+                    boxShadow: `0 2px 8px ${theme.accent}66`
                   }}>
                     💎 {d.pontos_recompensa || 0} PTS
                   </span>

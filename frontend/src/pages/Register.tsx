@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react'; // Importação dos ícones
+import { Eye, EyeOff } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -27,7 +29,7 @@ const Register = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/register', {
+      const response = await fetch(`${API_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usuario: user, email, senha: password })
@@ -109,7 +111,6 @@ const Register = () => {
       outline: 'none',
       boxSizing: 'border-box' as const,
     },
-    // Estilos novos para comportar o olhinho da senha
     inputGroup: {
       position: 'relative' as const,
       width: '320px',
@@ -122,7 +123,7 @@ const Register = () => {
       height: '45px',
       border: '1px solid #64748b',
       borderRadius: '4px',
-      padding: '0 40px 0 15px', // Espaço extra na direita para o ícone
+      padding: '0 40px 0 15px',
       fontSize: '1rem',
       textAlign: 'center' as const,
       backgroundColor: '#f1f5f9',
@@ -203,7 +204,6 @@ const Register = () => {
           onChange={(e) => setUser(e.target.value)}
         />
         
-        {/* CAMPO DE SENHA COM O BOTÃO DE VISUALIZAR */}
         <div style={styles.inputGroup}>
           <input
             style={styles.passwordInput}
@@ -216,12 +216,11 @@ const Register = () => {
             type="button"
             onClick={() => setShowPassword(!showPassword)}
             style={styles.eyeButton}
-            tabIndex={-1} // Impede que a navegação por Tab pare no ícone
+            tabIndex={-1}
           >
             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
           </button>
         </div>
-        
 
         <div style={styles.footerActions}>
           <button 

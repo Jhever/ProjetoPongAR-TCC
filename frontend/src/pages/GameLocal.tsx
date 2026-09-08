@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Vision from "@mediapipe/tasks-vision";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 // ==========================================
 // TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO
 // ==========================================
@@ -140,7 +142,7 @@ const GameLocal = () => {
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
     if (usuarioSalvo?.id) {
-      fetch('http://localhost:3001/api/ranking/registrar-partida', {
+      fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -233,13 +235,12 @@ const GameLocal = () => {
         landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU" // <--- ACELERAÇÃO GPU NATIVA
+            delegate: "GPU"
           },
           runningMode: "VIDEO",
           numHands: 2
         });
 
-        // 640x480 em vez de 720p: fluidez máxima com inferência rápida
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
@@ -266,7 +267,6 @@ const GameLocal = () => {
                 lastTime = now;
               }
 
-              // SÓ CHAMA O MEDIAPIPE SE HOUVER UM NOVO QUADRO DE VÍDEO
               if (
                 videoRef.current &&
                 videoRef.current.readyState >= 2 &&
@@ -301,11 +301,7 @@ const GameLocal = () => {
                 if (!handP1Detected) countersP1Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
                 if (!handP2Detected) countersP2Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
 
-                // ==========================================
-                // RENDERIZAÇÃO E ATUALIZAÇÃO FÍSICA
-                // ==========================================
                 if (!gameOverRef.current && !isPausedRef.current) {
-                  // Interpolação suave (LERP) das raquetes
                   game.current.p1Y += (game.current.targetP1Y - game.current.p1Y) * 0.4;
                   game.current.p2Y += (game.current.targetP2Y - game.current.p2Y) * 0.4;
 
@@ -379,12 +375,10 @@ const GameLocal = () => {
 
                 ctx.clearRect(0, 0, 800, 450);
 
-                // Bordas de demarcação do campo
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
                 ctx.lineWidth = 3;
                 ctx.strokeRect(10, 10, 780, 430);
 
-                // Meio de Campo: Linha divisória e círculo central
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
                 ctx.lineWidth = 2;
                 ctx.setLineDash([6, 6]);
@@ -403,7 +397,6 @@ const GameLocal = () => {
                 ctx.arc(400, 225, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Áreas de Gol Distintas
                 ctx.fillStyle = "rgba(0, 212, 255, 0.08)";
                 ctx.fillRect(10, 125, 45, 200);
                 ctx.strokeStyle = "#00d4ff";
@@ -414,15 +407,6 @@ const GameLocal = () => {
                 ctx.strokeStyle = "#2ecc71";
                 ctx.strokeRect(745, 125, 45, 200);
 
-                // Textos de Identificação no Chão da Arena
-                ctx.font = "bold 12px 'Courier New', monospace";
-                ctx.fillStyle = "rgba(0, 212, 255, 0.45)";
-                ctx.fillText("", 160, 420);
-
-                ctx.fillStyle = "rgba(46, 204, 113, 0.45)";
-                ctx.fillText("", 580, 420);
-
-                // Placar Superior
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
                 ctx.fillText(`P1: ${placarRef.current.p1}`, 220, 40);
@@ -433,20 +417,17 @@ const GameLocal = () => {
                 ctx.fillStyle = "#2ecc71";
                 ctx.fillText(`P2: ${placarRef.current.p2}`, 480, 40);
 
-                // Raquete Player 1 (Esquerda)
                 ctx.strokeStyle = "#00d4ff";
                 ctx.fillStyle = "rgba(0, 212, 255, 0.35)";
                 ctx.lineWidth = 3;
                 ctx.strokeRect(55, game.current.p1Y, 20, 100);
                 ctx.fillRect(55, game.current.p1Y, 20, 100);
 
-                // Raquete Player 2 (Direita)
                 ctx.strokeStyle = "#2ecc71";
                 ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
                 ctx.strokeRect(725, game.current.p2Y, 20, 100);
                 ctx.fillRect(725, game.current.p2Y, 20, 100);
 
-                // Bola AR com efeito de iluminação
                 if (!gameOverRef.current) {
                   ctx.shadowColor = "#ffffff";
                   ctx.shadowBlur = 14;
@@ -457,7 +438,6 @@ const GameLocal = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // Renderização condicional dos esqueletos (só processa se ativado)
                 if (showLandmarksRef.current && results.landmarks) {
                   for (const landmarksOriginal of results.landmarks) {
                     const isLeft = (1 - landmarksOriginal[0].x) < 0.5;
@@ -657,26 +637,15 @@ const GameLocal = () => {
             <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />
             <span>EXIBIR PONTOS NAS MÃOS</span>
           </label>
-
-          {/* <button
-            onClick={() => navigate('/modo-jogo')}
-            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '12px' }}
-          >
-            Sair da Partida
-          </button> */}
         </div>
-        
       </div>
       <br />
-        <button
-            onClick={() => navigate('/home')}
-            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
-          >
-            Sair da Partida
-        </button>
-      {/* <div style={{ marginTop: '15px', fontSize: '11px', color: '#475569', letterSpacing: '1px' }}>
-        TCC – PONG AR PROJECT | MEDIAPIPE MULTI-HANDS LOCAL | DESENVOLVEDOR: JHEVERSON
-      </div> */}
+      <button
+        onClick={() => navigate('/home')}
+        style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
+      >
+        Sair da Partida
+      </button>
     </div>
   );
 };

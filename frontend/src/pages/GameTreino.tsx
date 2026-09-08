@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Vision from "@mediapipe/tasks-vision";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 // ==========================================
 // TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO
 // ==========================================
@@ -153,7 +155,7 @@ const GameTreino = () => {
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
     if (usuarioSalvo?.id) {
-      fetch('http://localhost:3001/api/ranking/registrar-partida', {
+      fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
