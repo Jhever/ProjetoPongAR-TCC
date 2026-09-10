@@ -87,7 +87,9 @@ function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, num
 
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -163,13 +165,23 @@ const Game = () => {
           tipo_partida: tipoPartida
         })
       }).catch(err => console.error("Erro ao registrar partida online:", err));
+
+      fetch(`${API_URL}/api/desafios/sincronizar-partida`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jogador_id: usuarioSalvo.id,
+          vitoria: isVitoria,
+          pontos: meuPlacar,
+          tipo_partida: tipoPartida
+        })
+      }).catch(err => console.error("Erro ao sincronizar desafios:", err));
     }
   };
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
-    // Garante que o socket está vinculado à sala nesta partida
     socket.emit('entrarSala', { salaId });
 
     socket.on('adversarioMoveu', (dados: { y: number }) => {
@@ -229,7 +241,7 @@ const Game = () => {
     let frameCount = 0;
     let activeStream: MediaStream | null = null;
 
-    const initVision = async () => {
+    const initVisionAndWebRTC = async () => {
       const vision = await Vision.FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
       );
@@ -246,10 +258,65 @@ const Game = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       activeStream = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current!.play();
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        
+        // Configuração WebRTC
+        if (tipoPartida !== 'OFFLINE') {
+          const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+          });
+          peerConnectionRef.current = pc;
+
+          // Adiciona as trilhas de vídeo locais ao túnel P2P
+          stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+          // Quando o vídeo do oponente chegar, coloca no remoteVideoRef
+          pc.ontrack = (event) => {
+            if (remoteVideoRef.current && event.streams[0]) {
+              remoteVideoRef.current.srcObject = event.streams[0];
+            }
+          };
+
+          // Negociação de rede
+          pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit('webrtc_signal', { salaId, signal: { type: 'ice', candidate: event.candidate } });
+            }
+          };
+
+          socket.on('webrtc_signal', async (data) => {
+            try {
+              if (data.type === 'offer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
+              } else if (data.type === 'answer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+              } else if (data.type === 'ice') {
+                if (pc.remoteDescription) {
+                  await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                }
+              }
+            } catch (err) {
+              console.error("Erro no WebRTC:", err);
+            }
+          });
+
+          // O Host inicia a chamada após um breve delay para garantir que ambos estão na sala
+          if (isHost) {
+            setTimeout(async () => {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
+            }, 1500);
+          }
+        }
+
+        // Loop de Renderização do Jogo e MediaPipe
+        localVideoRef.current.onloadedmetadata = () => {
+          localVideoRef.current!.play();
           const canvas = canvasRef.current!;
           const ctx = canvas.getContext('2d')!;
           const drawingUtils = new Vision.DrawingUtils(ctx);
@@ -263,8 +330,8 @@ const Game = () => {
               lastTime = now;
             }
 
-            if (videoRef.current && videoRef.current.readyState >= 2) {
-              const results = landmarker.detectForVideo(videoRef.current, now);
+            if (localVideoRef.current && localVideoRef.current.readyState >= 2) {
+              const results = landmarker.detectForVideo(localVideoRef.current, now);
 
               let handDetected = false;
               if (results.landmarks && results.landmarks.length > 0) {
@@ -413,23 +480,27 @@ const Game = () => {
       }
     };
 
-    initVision();
+    initVisionAndWebRTC();
 
     return () => {
       cancelAnimationFrame(animationFrameId);
       landmarker?.close();
+      
+      socket.off('webrtc_signal');
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
 
-      // Encerra imediatamente as trilhas da webcam para liberar a câmera
       if (activeStream) {
         activeStream.getTracks().forEach(track => track.stop());
       }
-      if (videoRef.current && videoRef.current.srcObject) {
-        const currentStream = videoRef.current.srcObject as MediaStream;
+      if (localVideoRef.current && localVideoRef.current.srcObject) {
+        const currentStream = localVideoRef.current.srcObject as MediaStream;
         currentStream.getTracks().forEach(track => track.stop());
-        videoRef.current.srcObject = null;
+        localVideoRef.current.srcObject = null;
       }
     };
-  }, [isHost, salaId, showLandmarks]);
+  }, [isHost, salaId, showLandmarks, tipoPartida]);
 
   return (
     <div style={{
@@ -486,18 +557,31 @@ const Game = () => {
           </button>
         )}
 
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ position: 'absolute', width: '100%', height: '100%', transform: 'scaleX(-1)', objectFit: 'cover' }}
-        />
+        {/* CONTAINER DO SPLIT SCREEN (WebRTC) */}
+        <div style={{ position: 'absolute', width: '100%', height: '100%', display: 'flex', zIndex: 1 }}>
+          {/* Metade Esquerda: Câmera do Player 1 (Host) */}
+          <video
+            ref={isHost ? localVideoRef : remoteVideoRef}
+            autoPlay
+            playsInline
+            muted={isHost} // Nunca ouça o próprio eco
+            style={{ width: '50%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', borderRight: '1px solid #3b82f6' }}
+          />
+          {/* Metade Direita: Câmera do Player 2 */}
+          <video
+            ref={!isHost ? localVideoRef : remoteVideoRef}
+            autoPlay
+            playsInline
+            muted={!isHost} // Nunca ouça o próprio eco
+            style={{ width: '50%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+          />
+        </div>
+
         <canvas
           ref={canvasRef}
           width={800}
           height={450}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}
         />
 
         {vencedor && (
@@ -544,13 +628,7 @@ const Game = () => {
         />
       )}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr',
-        gap: '15px',
-        width: '900px',
-        marginTop: '15px'
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '15px', width: '900px', marginTop: '15px' }}>
         <div style={{ border: '1px solid #334155', borderRadius: '4px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
           <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
             SOCKET.IO & STATE
@@ -602,10 +680,6 @@ const Game = () => {
           </div>
         </div>
       </div>
-
-      {/* <div style={{ marginTop: '15px', fontSize: '11px', color: '#64748b', letterSpacing: '1px' }}>
-        TCC – PONG AR PROJECT | JS, TS, REACT, MEDIAPIPE, SOCKET.IO | DESENVOLVEDOR: JHEVERSON & 
-      </div> */}
     </div>
   );
 };

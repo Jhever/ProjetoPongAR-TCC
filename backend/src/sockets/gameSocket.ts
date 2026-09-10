@@ -146,6 +146,12 @@ export function setupGameSocket(io: Server) {
       io.to(dados.salaId).emit('placarAtualizado', dados.placar);
     });
 
+    // Sincronização de Vídeo WebRTC (Câmeras P2P)
+    socket.on('webrtc_signal', (dados: { salaId: string; signal: any }) => {
+      // Repassa o sinal de vídeo diretamente para o adversário na sala
+      socket.to(dados.salaId).emit('webrtc_signal', dados.signal);
+    });
+    
     // Ping / Latência
     socket.on('pingCheck', (callback: () => void) => {
       if (typeof callback === 'function') callback();
