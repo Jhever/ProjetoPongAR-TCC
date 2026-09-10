@@ -603,9 +603,9 @@ const Game = () => {
         </div>
       </div>
 
-      <div style={{ marginTop: '15px', fontSize: '11px', color: '#64748b', letterSpacing: '1px' }}>
-        TCC – PONG AR PROJECT | JS, TS, REACT, MEDIAPIPE, SOCKET.IO | DESENVOLVEDOR: JHEVERSON
-      </div>
+      {/* <div style={{ marginTop: '15px', fontSize: '11px', color: '#64748b', letterSpacing: '1px' }}>
+        TCC – PONG AR PROJECT | JS, TS, REACT, MEDIAPIPE, SOCKET.IO | DESENVOLVEDOR: JHEVERSON & 
+      </div> */}
     </div>
   );
 };

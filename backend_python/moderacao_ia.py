@@ -1,7 +1,8 @@
+import os
+from typing import List, Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
 import numpy as np
 
 app = FastAPI(title="Moderador AR - Pong TCC")
@@ -26,6 +27,15 @@ class InspecaoRequest(BaseModel):
     jogador_id: Optional[int] = None
     tipo_denuncia: str
     historico_frames: List[FrameTelemetria]
+
+# Rota raiz para diagnóstico no navegador e health check
+@app.get("/")
+def health_check():
+    return {
+        "status": "online",
+        "servico": "Moderador AR - Pong TCC",
+        "versao": "1.0.0"
+    }
 
 def dist_euclidiana(p1: Landmark, p2: Landmark) -> float:
     return np.hypot(p1.x - p2.x, p1.y - p2.y)
@@ -72,6 +82,10 @@ def verificar_dedo_medio_frame(landmarks: List[Landmark]) -> bool:
 
     return medio_estendido and outros_recolhidos
 
+@app.get("/api/auditoria/analisar-gesto")
+def info_analise():
+    return {"message": "Envie os dados vetoriais via POST para este endpoint."}
+
 @app.post("/api/auditoria/analisar-gesto")
 def analisar_gesto_recorrente(payload: InspecaoRequest):
     frames = payload.historico_frames
@@ -88,7 +102,7 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
     max_consecutivos = 0
     consecutivos_atuais = 0
 
-    # Varredura temporal dos frames
+    # Varredura temporal dos quadros
     for frame in frames:
         if verificar_dedo_medio_frame(frame.landmarks):
             ocorrencias += 1
@@ -100,10 +114,8 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
 
     taxa_presenca = ocorrencias / total_frames
 
-    # Critério de recorrência:
-    # Presente em pelo menos 25% dos quadros OU sustentado por mais de 8 frames seguidos
+    # Critério de detecção: presente em >= 25% dos quadros OU 8 frames consecutivos
     infracao_detectada = taxa_presenca >= 0.25 or max_consecutivos >= 8
-
     confianca = min(0.99, float(0.60 + (taxa_presenca * 0.35))) if infracao_detectada else 0.15
 
     return {
@@ -125,4 +137,5 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    porta = int(os.environ.get("PORT", 8000))
+    uvicorn.run("moderacao_ia:app", host="0.0.0.0", port=porta, reload=True)
