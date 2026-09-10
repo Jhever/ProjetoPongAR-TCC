@@ -125,7 +125,7 @@ const Game = () => {
   const partidaFinalizadaRef = useRef(false);
 
   const game = useRef({
-    ball: { x: 400, y: 225, dx: 5, dy: 5 },
+    ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
     p1Y: 175,
     p2Y: 175
   });
@@ -134,7 +134,19 @@ const Game = () => {
     setGameLogs(prev => [...prev.slice(-4), msg]);
   };
 
-  const finalizarPartidaOnline = (vencedorMsg: string, p1Score: number, p2Score: number) => {
+  const lancarBola = (direcaoX: number) => {
+    const angulo = (Math.random() * 0.8 - 0.4) * Math.PI; 
+    const velInicial = 7;
+    return {
+      x: 400,
+      y: 225,
+      dx: direcaoX * velInicial * Math.cos(angulo),
+      dy: velInicial * Math.sin(angulo)
+    };
+  };
+
+  // Função centralizada para finalizar a partida e calcular a pontuação
+  const finalizarPartidaOnline = (vencedorMsg: string, p1Score: number, p2Score: number, abandonoLocal: boolean = false) => {
     if (partidaFinalizadaRef.current) return;
     partidaFinalizadaRef.current = true;
     setVencedor(vencedorMsg);
@@ -142,17 +154,33 @@ const Game = () => {
     const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
     const meuPlacar = isHost ? p1Score : p2Score;
     const adversarioPlacar = isHost ? p2Score : p1Score;
-    const isVitoria = meuPlacar > adversarioPlacar;
+    
+    let isVitoria = meuPlacar > adversarioPlacar;
+    let resultadoFinal = isVitoria ? 'VITORIA' : (meuPlacar === adversarioPlacar ? 'EMPATE' : 'DERROTA');
+
+    // Se o próprio jogador desistiu, sobrescreve para abandono
+    if (abandonoLocal) {
+      resultadoFinal = 'ABANDONO';
+      isVitoria = false;
+    }
+
+    // Regras de pontuação do TCC
+    let pontos = 0;
+    if (resultadoFinal === 'VITORIA') pontos = 30;
+    else if (resultadoFinal === 'EMPATE') pontos = 15;
+    else if (resultadoFinal === 'DERROTA') pontos = 5;
+    else if (resultadoFinal === 'ABANDONO') pontos = -15; // Penalidade por desistir
 
     const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
     const novaEntrada = {
       data: new Date().toLocaleDateString('pt-BR'),
-      resultado: isVitoria ? 'VITÓRIA' : 'DERROTA',
+      resultado: resultadoFinal,
       placar: `${meuPlacar} x ${adversarioPlacar} (${tipoPartida})`
     };
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
     if (usuarioSalvo?.id) {
+      // Envia os dados para o ranking
       fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,11 +189,13 @@ const Game = () => {
           adversario_nome: adversarioNome,
           pontuacao_jogador: meuPlacar,
           pontuacao_adversario: adversarioPlacar,
-          resultado: isVitoria ? 'VITORIA' : 'DERROTA',
-          tipo_partida: tipoPartida
+          resultado: resultadoFinal,
+          tipo_partida: tipoPartida,
+          pontos_ganhos: pontos // Adicionamos os pontos diretamente aqui!
         })
       }).catch(err => console.error("Erro ao registrar partida online:", err));
 
+      // Sincroniza os Desafios
       fetch(`${API_URL}/api/desafios/sincronizar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -176,6 +206,23 @@ const Game = () => {
           tipo_partida: tipoPartida
         })
       }).catch(err => console.error("Erro ao sincronizar desafios:", err));
+    }
+  };
+
+  // Função disparada ao clicar no botão "Sair da Partida"
+  const handleSair = () => {
+    if (partidaFinalizadaRef.current) {
+      navigate('/home');
+      return;
+    }
+    
+    const confirmacao = window.confirm("ATENÇÃO: Deseja realmente sair? Você perderá a partida e sofrerá penalidade nos seus pontos de ranking.");
+    
+    if (confirmacao) {
+      // Desconecta o socket imediatamente para o adversário ganhar por W.O.
+      socket.disconnect(); 
+      // Finaliza localmente como Abandono (0 para você, 10 para oponente)
+      finalizarPartidaOnline('VOCÊ DESISTIU (DERROTA)', isHost ? 0 : 10, isHost ? 10 : 0, true);
     }
   };
 
@@ -210,11 +257,13 @@ const Game = () => {
       }
     });
 
+    // Se o oponente fechar a aba ou clicar em "Sair"
     socket.on('adversarioDesconectou', () => {
       addLog('[Socket] Opponent disconnected');
       if (!partidaFinalizadaRef.current) {
         alert('O oponente desconectou-se da partida.');
-        finalizarPartidaOnline('VITÓRIA POR W.O. (OPONENTE SAIU)', 10, 0);
+        // Você ganha de 10 a 0
+        finalizarPartidaOnline('VITÓRIA POR W.O. (OPONENTE DESISTIU)', isHost ? 10 : 0, isHost ? 0 : 10);
       }
     });
 
@@ -255,30 +304,26 @@ const Game = () => {
         numHands: 1
       });
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       activeStream = stream;
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         
-        // Configuração WebRTC
         if (tipoPartida !== 'OFFLINE') {
           const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
           });
           peerConnectionRef.current = pc;
 
-          // Adiciona as trilhas de vídeo locais ao túnel P2P
           stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-          // Quando o vídeo do oponente chegar, coloca no remoteVideoRef
           pc.ontrack = (event) => {
             if (remoteVideoRef.current && event.streams[0]) {
               remoteVideoRef.current.srcObject = event.streams[0];
             }
           };
 
-          // Negociação de rede
           pc.onicecandidate = (event) => {
             if (event.candidate) {
               socket.emit('webrtc_signal', { salaId, signal: { type: 'ice', candidate: event.candidate } });
@@ -304,17 +349,15 @@ const Game = () => {
             }
           });
 
-          // O Host inicia a chamada após um breve delay para garantir que ambos estão na sala
           if (isHost) {
             setTimeout(async () => {
               const offer = await pc.createOffer();
               await pc.setLocalDescription(offer);
               socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
-            }, 1500);
+            }, 2000);
           }
         }
 
-        // Loop de Renderização do Jogo e MediaPipe
         localVideoRef.current.onloadedmetadata = () => {
           localVideoRef.current!.play();
           const canvas = canvasRef.current!;
@@ -357,37 +400,64 @@ const Game = () => {
                 game.current.ball.x += game.current.ball.dx;
                 game.current.ball.y += game.current.ball.dy;
 
-                if (game.current.ball.y <= 10 || game.current.ball.y >= 440) {
-                  game.current.ball.dy *= -1;
+                if (game.current.ball.y <= 10) {
+                  game.current.ball.y = 10;
+                  game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
+                  game.current.ball.dx += (Math.random() - 0.5) * 0.3;
+                } else if (game.current.ball.y >= 440) {
+                  game.current.ball.y = 440;
+                  game.current.ball.dy = -Math.abs(game.current.ball.dy) * 1.02;
+                  game.current.ball.dx += (Math.random() - 0.5) * 0.3;
                 }
 
-                const hitP1 = game.current.ball.x <= 75 && game.current.ball.y > game.current.p1Y && game.current.ball.y < game.current.p1Y + 100;
-                const hitP2 = game.current.ball.x >= 725 && game.current.ball.y > game.current.p2Y && game.current.ball.y < game.current.p2Y + 100;
+                const hitP1 = game.current.ball.x <= 75 && game.current.ball.x >= 45 && game.current.ball.y > game.current.p1Y && game.current.ball.y < game.current.p1Y + 100;
+                const hitP2 = game.current.ball.x >= 725 && game.current.ball.x <= 755 && game.current.ball.y > game.current.p2Y && game.current.ball.y < game.current.p2Y + 100;
 
-                if (hitP1 || hitP2) {
-                  game.current.ball.dx *= -1.1;
-                  if (Math.abs(game.current.ball.dx) > 18) game.current.ball.dx = 18 * Math.sign(game.current.ball.dx);
+                if (hitP1) {
+                  const impactOffset = (game.current.ball.y - (game.current.p1Y + 50)) / 50;
+                  const randomVariance = (Math.random() - 0.5) * 0.25;
+                  const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
+
+                  const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
+                  const newSpeed = Math.min(currentSpeed * 1.12, 24);
+
+                  game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
+                  game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
+                  game.current.ball.x = 76;
+                } else if (hitP2) {
+                  const impactOffset = (game.current.ball.y - (game.current.p2Y + 50)) / 50;
+                  const randomVariance = (Math.random() - 0.5) * 0.25;
+                  const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
+
+                  const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
+                  const newSpeed = Math.min(currentSpeed * 1.12, 24);
+
+                  game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
+                  game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
+                  game.current.ball.x = 724;
                 }
 
-                if (game.current.ball.x < 10) {
+                if (game.current.ball.x < 0) {
                   const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
                   socket.emit('pontoMarcado', { salaId, placar: { esquerda: novoPlacar.p1, direita: novoPlacar.p2 } });
-                  game.current.ball = { x: 400, y: 225, dx: 5, dy: 5 };
-
+                  
                   if (novoPlacar.p2 >= 10) {
                     finalizarPartidaOnline('PLAYER 2 VENCEU!', novoPlacar.p1, novoPlacar.p2);
+                  } else {
+                    game.current.ball = lancarBola(1);
                   }
-                } else if (game.current.ball.x > 790) {
+                } else if (game.current.ball.x > 800) {
                   const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
                   socket.emit('pontoMarcado', { salaId, placar: { esquerda: novoPlacar.p1, direita: novoPlacar.p2 } });
-                  game.current.ball = { x: 400, y: 225, dx: -5, dy: 5 };
-
+                  
                   if (novoPlacar.p1 >= 10) {
                     finalizarPartidaOnline('PLAYER 1 VENCEU!', novoPlacar.p1, novoPlacar.p2);
+                  } else {
+                    game.current.ball = lancarBola(-1);
                   }
                 }
 
@@ -396,17 +466,23 @@ const Game = () => {
 
               ctx.clearRect(0, 0, 800, 450);
 
-              ctx.strokeStyle = "rgba(70, 130, 180, 0.4)";
+              ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
               ctx.lineWidth = 2;
+              ctx.setLineDash([8, 8]);
               ctx.beginPath();
               ctx.moveTo(400, 0);
               ctx.lineTo(400, 450);
               ctx.stroke();
 
               ctx.beginPath();
-              ctx.moveTo(50, 380);
-              ctx.lineTo(750, 380);
+              ctx.arc(400, 225, 55, 0, Math.PI * 2);
               ctx.stroke();
+
+              ctx.fillStyle = "rgba(70, 130, 180, 0.6)";
+              ctx.beginPath();
+              ctx.arc(400, 225, 4, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.setLineDash([]);
 
               ctx.fillStyle = "rgba(0, 180, 255, 0.9)";
               ctx.font = "bold 16px 'Courier New', monospace";
@@ -449,10 +525,11 @@ const Game = () => {
                   const landmarks = landmarksOriginal as Landmark[];
                   const hiddenMask = buildHiddenMask(landmarks, hiddenFingerCountersRef.current);
 
-                  const mirroredLandmarks = landmarksOriginal.map(pt => ({
-                    ...pt,
-                    x: 1 - pt.x
-                  }));
+                  const mirroredLandmarks = landmarksOriginal.map(pt => {
+                    const xEspelhado = 1 - pt.x;
+                    const posX = isHost ? (xEspelhado * 0.5) : (0.5 + xEspelhado * 0.5);
+                    return { ...pt, x: posX };
+                  });
 
                   const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
                     const { start, end } = connection as { start: number; end: number };
@@ -463,12 +540,12 @@ const Game = () => {
 
                   drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
                     color: isHost ? '#00d4ff' : '#2ecc71',
-                    lineWidth: 2
+                    lineWidth: 4
                   });
                   drawingUtils.drawLandmarks(pontosVisiveis as any, {
                     color: '#ffffff',
                     lineWidth: 1,
-                    radius: 3
+                    radius: 6
                   });
                 }
               }
@@ -499,6 +576,11 @@ const Game = () => {
         currentStream.getTracks().forEach(track => track.stop());
         localVideoRef.current.srcObject = null;
       }
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+        const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
+        remoteStream.getTracks().forEach(track => track.stop());
+        remoteVideoRef.current.srcObject = null;
+      }
     };
   }, [isHost, salaId, showLandmarks, tipoPartida]);
 
@@ -525,14 +607,14 @@ const Game = () => {
         border: '2px solid #3b82f6',
         borderRadius: '6px',
         overflow: 'hidden',
-        backgroundColor: '#000',
+        backgroundColor: '#111',
         boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)'
       }}>
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '3px 8px', fontSize: '11px', background: 'rgba(0,0,0,0.6)', color: '#00d4ff' }}>
-          {isHost ? 'VOCÊ (LOCAL)' : adversarioNome}
+          {isHost ? 'VOCÊ (P1)' : adversarioNome}
         </div>
         <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '3px 8px', fontSize: '11px', background: 'rgba(0,0,0,0.6)', color: '#2ecc71' }}>
-          {!isHost ? 'VOCÊ (LOCAL)' : adversarioNome}
+          {!isHost ? 'VOCÊ (P2)' : adversarioNome}
         </div>
 
         {tipoPartida === 'ONLINE' && (
@@ -557,24 +639,36 @@ const Game = () => {
           </button>
         )}
 
-        {/* CONTAINER DO SPLIT SCREEN (WebRTC) */}
+        {/* CONTAINER DO SPLIT SCREEN WEBRTC */}
         <div style={{ position: 'absolute', width: '100%', height: '100%', display: 'flex', zIndex: 1 }}>
-          {/* Metade Esquerda: Câmera do Player 1 (Host) */}
-          <video
-            ref={isHost ? localVideoRef : remoteVideoRef}
-            autoPlay
-            playsInline
-            muted={isHost} // Nunca ouça o próprio eco
-            style={{ width: '50%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', borderRight: '1px solid #3b82f6' }}
-          />
-          {/* Metade Direita: Câmera do Player 2 */}
-          <video
-            ref={!isHost ? localVideoRef : remoteVideoRef}
-            autoPlay
-            playsInline
-            muted={!isHost} // Nunca ouça o próprio eco
-            style={{ width: '50%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-          />
+          
+          {/* Lado Esquerdo (Player 1) */}
+          <div style={{ width: '50%', height: '100%', borderRight: '2px solid rgba(59, 130, 246, 0.5)', position: 'relative' }}>
+             <video
+                ref={isHost ? localVideoRef : remoteVideoRef}
+                autoPlay
+                playsInline
+                muted={isHost}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+             />
+             {(!isHost && !remoteVideoRef.current?.srcObject) && (
+                <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando câmera do P1...</div>
+             )}
+          </div>
+
+          {/* Lado Direito (Player 2) */}
+          <div style={{ width: '50%', height: '100%', position: 'relative' }}>
+             <video
+                ref={!isHost ? localVideoRef : remoteVideoRef}
+                autoPlay
+                playsInline
+                muted={!isHost}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+             />
+             {(isHost && !remoteVideoRef.current?.srcObject) && (
+                <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando câmera do P2...</div>
+             )}
+          </div>
         </div>
 
         <canvas
@@ -596,7 +690,7 @@ const Game = () => {
             zIndex: 30
           }}>
             <h2 style={{ fontSize: '2.2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE PARTIDA!</h2>
-            <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '25px' }}>
+            <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', padding: '0 20px' }}>
               {vencedor}
             </p>
             <div style={{ display: 'flex', gap: '15px' }}>
@@ -661,8 +755,10 @@ const Game = () => {
               <div>- Telemetria de Gestos Ativa</div>
               <div>- {tipoPartida === 'ONLINE' ? 'Denúncia Habilitada' : 'Modo Casual (Amigo)'}</div>
             </div>
+            
+            {/* O BOTÃO SAIR DA PARTIDA AGORA EXECUTA O HANDLE_SAIR */}
             <button
-              onClick={() => navigate('/home')}
+              onClick={handleSair}
               style={{
                 marginTop: '6px',
                 background: '#dc2626',
