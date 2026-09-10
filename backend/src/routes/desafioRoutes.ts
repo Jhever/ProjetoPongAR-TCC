@@ -3,7 +3,6 @@ import { pool } from '../config/db.js';
 
 const router = Router();
 
-// ... (MANTÉM AS ROTAS GET INTACTAS)
 router.get('/api/desafios/contagem-pulos/:jogador_id', async (req: Request, res: Response) => {
   const { jogador_id } = req.params;
   try {
@@ -96,14 +95,22 @@ router.post('/api/desafios/recolher', async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Desafio não concluído ou recompensa já resgatada." });
     }
 
-    await pool.query("UPDATE jogadores SET pontos_totais = COALESCE(pontos_totais, 0) + $1 WHERE id = $2", [pontosGanhos, jogador_id]);
+    // A MÁGICA ACONTECE AQUI: Atualiza ambas as colunas simultaneamente
+    await pool.query(
+      `UPDATE jogadores 
+       SET pontos_totais = COALESCE(pontos_totais, 0) + $1,
+           pontos_desafio = COALESCE(pontos_desafio, 0) + $1 
+       WHERE id = $2`, 
+      [pontosGanhos, jogador_id]
+    );
+
     res.json({ message: `Recompensa recolhida! Você ganhou ${pontosGanhos} pontos!` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// NOVA ROTA INTELIGENTE: Sincroniza o progresso automaticamente ao fim da partida
+// Rota Inteligente: Sincroniza o progresso automaticamente ao fim da partida
 router.post('/api/desafios/sincronizar-partida', async (req: Request, res: Response) => {
   const { jogador_id, vitoria, pontos, tipo_partida } = req.body;
 
@@ -140,7 +147,7 @@ router.post('/api/desafios/sincronizar-partida', async (req: Request, res: Respo
       // 3. Se houver progresso, atualiza no banco
       if (incremento > 0) {
         const novoProgresso = Math.min(d.progresso_atual + incremento, d.objetivo);
-        const novoStatus = novoProgresso >= d.objetivo ? 'concluido' : 'pendente'; // Altera status se bateu a meta!
+        const novoStatus = novoProgresso >= d.objetivo ? 'concluido' : 'pendente';
 
         await pool.query(`
           UPDATE progresso_desafios 
