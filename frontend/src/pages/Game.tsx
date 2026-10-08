@@ -139,7 +139,7 @@ const Game = () => {
   ]);
 
   const game = useRef({
-    ball: { x: 400, y: 225, dx: 12, dy: 8 },
+    ball: { x: 400, y: 225, dx: 7, dy: (Math.random() > 0.5 ? 4 : -4) },
     p1Y: 175,
     p2Y: 175
   });
@@ -150,7 +150,7 @@ const Game = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI; 
-    const velInicial = 5; 
+    const velInicial = 14; 
     return {
       x: 400,
       y: 225,
