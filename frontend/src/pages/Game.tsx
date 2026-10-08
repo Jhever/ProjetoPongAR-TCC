@@ -5,7 +5,8 @@ import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
 import Denuncia from '../components/Denuncia';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+// Correção inline para o TypeScript parar de acusar erro no import.meta.env
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
 type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
@@ -108,24 +109,39 @@ const Game = () => {
   const isHost = lado === 'esquerda';
   const tipoPartida = state?.tipoPartida || 'ONLINE';
 
+  const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+  const nomeLocal = usuarioSalvo.usuario || usuarioSalvo.nome || '';
+  const isLocalAnonimo = usuarioSalvo.is_anonimo === true || nomeLocal.toUpperCase() === 'ANÔNIMO';
+  const isAdversarioAnonimo = adversarioNome.toUpperCase() === 'ANÔNIMO';
+  const ocultarCameraAdversario = isLocalAnonimo || isAdversarioAnonimo;
+
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [showLandmarks, setShowLandmarks] = useState(true);
   const [showDenunciaModal, setShowDenunciaModal] = useState(false);
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [latency, setLatency] = useState(15);
-  const [fps, setFps] = useState(60);
+  const [fps, setFps] = useState(30);
+
+  // --- ESTADOS DE PRONTIDÃO (READY) E CONTAGEM ---
+  const [isReady, setIsReady] = useState(false);
+  const [isAdversarioReady, setIsAdversarioReady] = useState(false);
+  const [countdown, setCountdown] = useState<number | string | null>(null);
+  const [gameStarted, setGameStarted] = useState(false);
+  
+  const isReadyRef = useRef(false);
+  const gameStartedRef = useRef(false);
+  const placarRef = useRef({ p1: 0, p2: 0 });
+  const partidaFinalizadaRef = useRef(false);
+
   const [gameLogs, setGameLogs] = useState<string[]>([
     '[Socket] Connected to server',
     `[Room] Joined ${salaId}`,
     `[Match] Player 1 (${isHost ? 'Local' : adversarioNome}) vs Player 2 (${!isHost ? 'Local' : adversarioNome})`
   ]);
 
-  const placarRef = useRef({ p1: 0, p2: 0 });
-  const partidaFinalizadaRef = useRef(false);
-
   const game = useRef({
-    ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
+    ball: { x: 400, y: 225, dx: 12, dy: (Math.random() > 0.5 ? 8 : -8) },
     p1Y: 175,
     p2Y: 175
   });
@@ -136,7 +152,7 @@ const Game = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI; 
-    const velInicial = 7;
+    const velInicial = 14; 
     return {
       x: 400,
       y: 225,
@@ -145,31 +161,65 @@ const Game = () => {
     };
   };
 
-  // Função centralizada para finalizar a partida e calcular a pontuação
+  // Acionado ao clicar em "ESTOU PRONTO!"
+  const handleReady = () => {
+    setIsReady(true);
+    isReadyRef.current = true;
+    if (tipoPartida !== 'OFFLINE') {
+      socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
+    }
+  };
+
+  // Lógica da contagem regressiva
+  useEffect(() => {
+    const bothReady = tipoPartida === 'OFFLINE' ? isReady : (isReady && isAdversarioReady);
+    
+    if (bothReady && !gameStartedRef.current && countdown === null) {
+      setCountdown(3);
+      let cont = 3;
+      const interval = setInterval(() => {
+        cont -= 1;
+        if (cont > 0) {
+          setCountdown(cont);
+        } else if (cont === 0) {
+          setCountdown('COMEÇOU!');
+          
+          // O Host dá a "autorização" para o Node.js lançar a bola!
+          if (isHost && tipoPartida !== 'OFFLINE') {
+            socket.emit('iniciarFisica', { salaId });
+          }
+
+        } else {
+          setCountdown(null);
+          setGameStarted(true);
+          gameStartedRef.current = true; // Libera a física local para offline!
+          clearInterval(interval);
+        }
+      }, 1000);
+    }
+  }, [isReady, isAdversarioReady, tipoPartida, countdown, isHost, salaId]);
+
   const finalizarPartidaOnline = (vencedorMsg: string, p1Score: number, p2Score: number, abandonoLocal: boolean = false) => {
     if (partidaFinalizadaRef.current) return;
     partidaFinalizadaRef.current = true;
     setVencedor(vencedorMsg);
 
-    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
     const meuPlacar = isHost ? p1Score : p2Score;
     const adversarioPlacar = isHost ? p2Score : p1Score;
     
     let isVitoria = meuPlacar > adversarioPlacar;
     let resultadoFinal = isVitoria ? 'VITORIA' : (meuPlacar === adversarioPlacar ? 'EMPATE' : 'DERROTA');
 
-    // Se o próprio jogador desistiu, sobrescreve para abandono
     if (abandonoLocal) {
       resultadoFinal = 'ABANDONO';
       isVitoria = false;
     }
 
-    // Regras de pontuação do TCC
     let pontos = 0;
     if (resultadoFinal === 'VITORIA') pontos = 30;
     else if (resultadoFinal === 'EMPATE') pontos = 15;
     else if (resultadoFinal === 'DERROTA') pontos = 5;
-    else if (resultadoFinal === 'ABANDONO') pontos = -15; // Penalidade por desistir
+    else if (resultadoFinal === 'ABANDONO') pontos = -15;
 
     const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
     const novaEntrada = {
@@ -180,7 +230,6 @@ const Game = () => {
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
     if (usuarioSalvo?.id) {
-      // Envia os dados para o ranking
       fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,11 +240,10 @@ const Game = () => {
           pontuacao_adversario: adversarioPlacar,
           resultado: resultadoFinal,
           tipo_partida: tipoPartida,
-          pontos_ganhos: pontos // Adicionamos os pontos diretamente aqui!
+          pontos_ganhos: pontos 
         })
       }).catch(err => console.error("Erro ao registrar partida online:", err));
 
-      // Sincroniza os Desafios
       fetch(`${API_URL}/api/desafios/sincronizar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -209,7 +257,6 @@ const Game = () => {
     }
   };
 
-  // Função disparada ao clicar no botão "Sair da Partida"
   const handleSair = () => {
     if (partidaFinalizadaRef.current) {
       navigate('/home');
@@ -219,9 +266,7 @@ const Game = () => {
     const confirmacao = window.confirm("ATENÇÃO: Deseja realmente sair? Você perderá a partida e sofrerá penalidade nos seus pontos de ranking.");
     
     if (confirmacao) {
-      // Desconecta o socket imediatamente para o adversário ganhar por W.O.
       socket.disconnect(); 
-      // Finaliza localmente como Abandono (0 para você, 10 para oponente)
       finalizarPartidaOnline('VOCÊ DESISTIU (DERROTA)', isHost ? 0 : 10, isHost ? 10 : 0, true);
     }
   };
@@ -257,12 +302,10 @@ const Game = () => {
       }
     });
 
-    // Se o oponente fechar a aba ou clicar em "Sair"
     socket.on('adversarioDesconectou', () => {
       addLog('[Socket] Opponent disconnected');
       if (!partidaFinalizadaRef.current) {
         alert('O oponente desconectou-se da partida.');
-        // Você ganha de 10 a 0
         finalizarPartidaOnline('VITÓRIA POR W.O. (OPONENTE DESISTIU)', isHost ? 10 : 0, isHost ? 0 : 10);
       }
     });
@@ -304,23 +347,37 @@ const Game = () => {
         numHands: 1
       });
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: { ideal: 480, max: 480 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 30, max: 30 } }, 
+        audio: false 
+      });
       activeStream = stream;
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         
-        if (tipoPartida !== 'OFFLINE') {
+        if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
           const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+            ]
           });
           peerConnectionRef.current = pc;
 
-          stream.getTracks().forEach(track => pc.addTrack(track, stream));
+          stream.getTracks().forEach(track => {
+            const sender = pc.addTrack(track, stream);
+            const params = sender.getParameters();
+            if (!params.encodings) params.encodings = [{}];
+            params.encodings[0].maxBitrate = 400000; 
+            params.degradationPreference = 'maintain-framerate'; 
+            sender.setParameters(params).catch(e => console.error("Erro nos parâmetros WebRTC:", e));
+          });
 
           pc.ontrack = (event) => {
             if (remoteVideoRef.current && event.streams[0]) {
               remoteVideoRef.current.srcObject = event.streams[0];
+              remoteVideoRef.current.play().catch(e => console.error("Erro no play remoto:", e));
             }
           };
 
@@ -332,13 +389,27 @@ const Game = () => {
 
           socket.on('webrtc_signal', async (data) => {
             try {
+              // Verifica se é o sinal do botão "Estou Pronto"
+              if (data.type === 'game_ready') {
+                setIsAdversarioReady(true);
+                return;
+              }
+
               if (data.type === 'offer') {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
+                
+                // Se eu já cliquei em Pronto antes dele entrar, reenvio meu aviso!
+                if (isReadyRef.current) {
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
+                }
               } else if (data.type === 'answer') {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                if (isReadyRef.current) {
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
+                }
               } else if (data.type === 'ice') {
                 if (pc.remoteDescription) {
                   await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -351,10 +422,14 @@ const Game = () => {
 
           if (isHost) {
             setTimeout(async () => {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
-            }, 2000);
+              try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
+              } catch (err) {
+                console.error("Erro ao criar offer WebRTC:", err);
+              }
+            }, 3500); 
           }
         }
 
@@ -396,7 +471,8 @@ const Game = () => {
                 socket.emit('moverRaquete', { salaId, y: paddleY });
               }
 
-              if (isHost && !partidaFinalizadaRef.current) {
+              // FÍSICA NO FRONTEND SÓ FUNCIONA AGORA PARA O MODO OFFLINE (Treino Local)
+              if (tipoPartida === 'OFFLINE' && !partidaFinalizadaRef.current && gameStartedRef.current) {
                 game.current.ball.x += game.current.ball.dx;
                 game.current.ball.y += game.current.ball.dy;
 
@@ -419,7 +495,7 @@ const Game = () => {
                   const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
 
                   const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                  const newSpeed = Math.min(currentSpeed * 1.12, 24);
+                  const newSpeed = Math.min(currentSpeed * 1.12, 35); 
 
                   game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
                   game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
@@ -430,7 +506,7 @@ const Game = () => {
                   const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
 
                   const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                  const newSpeed = Math.min(currentSpeed * 1.12, 24);
+                  const newSpeed = Math.min(currentSpeed * 1.12, 35);
 
                   game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
                   game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
@@ -584,6 +660,14 @@ const Game = () => {
     };
   }, [isHost, salaId, showLandmarks, tipoPartida]);
 
+  const renderCameraOculta = () => (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#94a3b8', borderRight: isHost ? '2px solid rgba(59, 130, 246, 0.5)' : 'none' }}>
+       <span style={{ fontSize: '24px', marginBottom: '10px' }}>🕵️</span>
+       <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Câmera Oculta</div>
+       <div style={{ fontSize: '11px', marginTop: '4px' }}>(Modo Anônimo Ativo)</div>
+    </div>
+  );
+
   return (
     <div style={{
       background: '#0a0d14',
@@ -617,7 +701,7 @@ const Game = () => {
           {!isHost ? 'VOCÊ (P2)' : adversarioNome}
         </div>
 
-        {tipoPartida === 'ONLINE' && (
+        {tipoPartida === 'ONLINE' && !ocultarCameraAdversario && (
           <button
             onClick={() => setShowDenunciaModal(true)}
             style={{
@@ -639,34 +723,30 @@ const Game = () => {
           </button>
         )}
 
-        {/* CONTAINER DO SPLIT SCREEN WEBRTC */}
         <div style={{ position: 'absolute', width: '100%', height: '100%', display: 'flex', zIndex: 1 }}>
-          
-          {/* Lado Esquerdo (Player 1) */}
           <div style={{ width: '50%', height: '100%', borderRight: '2px solid rgba(59, 130, 246, 0.5)', position: 'relative' }}>
-             <video
-                ref={isHost ? localVideoRef : remoteVideoRef}
-                autoPlay
-                playsInline
-                muted={isHost}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-             />
-             {(!isHost && !remoteVideoRef.current?.srcObject) && (
-                <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando câmera do P1...</div>
+             {isHost ? (
+               <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+             ) : (
+               ocultarCameraAdversario ? renderCameraOculta() : (
+                 <>
+                   <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                   {!remoteVideoRef.current?.srcObject && <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando P1...</div>}
+                 </>
+               )
              )}
           </div>
 
-          {/* Lado Direito (Player 2) */}
           <div style={{ width: '50%', height: '100%', position: 'relative' }}>
-             <video
-                ref={!isHost ? localVideoRef : remoteVideoRef}
-                autoPlay
-                playsInline
-                muted={!isHost}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-             />
-             {(isHost && !remoteVideoRef.current?.srcObject) && (
-                <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando câmera do P2...</div>
+             {!isHost ? (
+               <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+             ) : (
+               ocultarCameraAdversario ? renderCameraOculta() : (
+                 <>
+                   <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                   {!remoteVideoRef.current?.srcObject && <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando P2...</div>}
+                 </>
+               )
              )}
           </div>
         </div>
@@ -677,6 +757,51 @@ const Game = () => {
           height={450}
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}
         />
+
+        {!gameStarted && !vencedor && (
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, width: '100%', height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 20
+          }}>
+            {countdown !== null ? (
+              <h1 style={{ fontSize: '6rem', color: '#4ade80', textShadow: '0 0 20px #4ade80', margin: 0 }}>
+                {countdown}
+              </h1>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <h2 style={{ color: '#fff', marginBottom: '20px', letterSpacing: '2px' }}>PREPARE-SE PARA A PARTIDA!</h2>
+                <button
+                  onClick={handleReady}
+                  disabled={isReady}
+                  style={{
+                    background: isReady ? '#475569' : '#22c55e',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '15px 30px',
+                    borderRadius: '8px',
+                    fontSize: '1.2rem',
+                    fontWeight: 'bold',
+                    cursor: isReady ? 'not-allowed' : 'pointer',
+                    boxShadow: isReady ? 'none' : '0 0 15px rgba(34, 197, 94, 0.5)'
+                  }}
+                >
+                  {isReady ? 'AGUARDANDO ADVERSÁRIO...' : 'ESTOU PRONTO!'}
+                </button>
+                {isAdversarioReady && !isReady && (
+                  <p style={{ color: '#38bdf8', marginTop: '15px', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>
+                    O adversário já está pronto!
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {vencedor && (
           <div style={{
@@ -752,11 +877,10 @@ const Game = () => {
             </label>
             <div style={{ marginTop: '5px', fontSize: '11px', color: '#94a3b8' }}>
               <div>MODERAÇÃO AUTOMATIZADA:</div>
-              <div>- Telemetria de Gestos Ativa</div>
-              <div>- {tipoPartida === 'ONLINE' ? 'Denúncia Habilitada' : 'Modo Casual (Amigo)'}</div>
+              <div>- Telemetria Ativa {ocultarCameraAdversario && '(Vídeo P2P Bloqueado)'}</div>
+              <div>- {tipoPartida === 'ONLINE' && !ocultarCameraAdversario ? 'Denúncia Habilitada' : 'Denúncia Oculta (Modo Privado)'}</div>
             </div>
             
-            {/* O BOTÃO SAIR DA PARTIDA AGORA EXECUTA O HANDLE_SAIR */}
             <button
               onClick={handleSair}
               style={{

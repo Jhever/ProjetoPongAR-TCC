@@ -8,18 +8,50 @@ interface Jogador {
   y: number;
 }
 
+// O estado que o servidor vai processar a 30 FPS
+interface EstadoJogo {
+  ball: { x: number; y: number; dx: number; dy: number };
+  p1Y: number;
+  p2Y: number;
+  placar: { esquerda: number; direita: number };
+  rodando: boolean;
+  intervalId?: NodeJS.Timeout;
+}
+
 interface Sala {
   id: string;
   jogadores: Jogador[];
   espectadores: { socketId: string; jogadorId: number | string; nome: string }[];
+  estadoJogo?: EstadoJogo;
 }
 
 const salas: Record<string, Sala> = {};
 let filaEspera: { socketId: string; jogadorId: number | string; nome: string } | null = null;
 
+// Sorteia um saque para o servidor rodar
+function lancarBola(direcaoX: number) {
+  const angulo = (Math.random() * 0.8 - 0.4) * Math.PI; 
+  const velInicial = 14;
+  return {
+    x: 400,
+    y: 225,
+    dx: direcaoX * velInicial * Math.cos(angulo),
+    dy: velInicial * Math.sin(angulo)
+  };
+}
+
 export function setupGameSocket(io: Server) {
   io.on('connection', (socket: Socket) => {
     console.log(`🔌 Cliente conectado ao socket: ${socket.id}`);
+
+    // Estado inicial zerado aguardando o "Começou!"
+    const estadoInicial = (): EstadoJogo => ({
+      ball: { x: 400, y: 225, dx: 0, dy: 0 },
+      p1Y: 175,
+      p2Y: 175,
+      placar: { esquerda: 0, direita: 0 },
+      rodando: false
+    });
 
     // Entrar na fila de Matchmaking (Procurar Partida)
     socket.on('entrarFila', (dados: { jogadorId: number | string; nome: string }) => {
@@ -32,10 +64,11 @@ export function setupGameSocket(io: Server) {
         salas[salaId] = {
           id: salaId,
           jogadores: [
-            { ...jogador1, lado: 'esquerda', y: 0.5 },
-            { ...jogador2, lado: 'direita', y: 0.5 },
+            { ...jogador1, lado: 'esquerda', y: 175 },
+            { ...jogador2, lado: 'direita', y: 175 },
           ],
-          espectadores: []
+          espectadores: [],
+          estadoJogo: estadoInicial()
         };
 
         socket.join(salaId);
@@ -65,8 +98,9 @@ export function setupGameSocket(io: Server) {
       const { codigo, jogadorId, nome } = dados;
       salas[codigo] = {
         id: codigo,
-        jogadores: [{ socketId: socket.id, jogadorId, nome, lado: 'esquerda', y: 0.5 }],
-        espectadores: []
+        jogadores: [{ socketId: socket.id, jogadorId, nome, lado: 'esquerda', y: 175 }],
+        espectadores: [],
+        estadoJogo: estadoInicial()
       };
       socket.join(codigo);
       socket.emit('salaCriada', { codigo });
@@ -105,7 +139,7 @@ export function setupGameSocket(io: Server) {
       }
 
       // 3. Segundo jogador entra normalmente (Player 2)
-      sala.jogadores.push({ socketId: socket.id, jogadorId, nome, lado: 'direita', y: 0.5 });
+      sala.jogadores.push({ socketId: socket.id, jogadorId, nome, lado: 'direita', y: 175 });
       socket.join(codigo);
 
       const j1 = sala.jogadores[0];
@@ -131,22 +165,100 @@ export function setupGameSocket(io: Server) {
       socket.join(dados.salaId);
     });
 
+    // ------------------------------------------------------------------
+    // MÁGICA DO SERVIDOR AUTORITATIVO: FÍSICA RODANDO NO NODE.JS
+    // ------------------------------------------------------------------
+    socket.on('iniciarFisica', (dados: { salaId: string }) => {
+      const sala = salas[dados.salaId];
+      if (!sala || !sala.estadoJogo || sala.estadoJogo.rodando) return;
+
+      sala.estadoJogo.rodando = true;
+      // Dá o primeiro saque aleatório
+      sala.estadoJogo.ball = lancarBola(Math.random() > 0.5 ? 1 : -1);
+
+      sala.estadoJogo.intervalId = setInterval(() => {
+        const estado = sala.estadoJogo;
+        if (!estado || !estado.rodando) return;
+
+        // Movimentação da bola
+        estado.ball.x += estado.ball.dx;
+        estado.ball.y += estado.ball.dy;
+
+        // Paredes Superior e Inferior
+        if (estado.ball.y <= 10) {
+          estado.ball.y = 10;
+          estado.ball.dy = Math.abs(estado.ball.dy) * 1.02;
+          estado.ball.dx += (Math.random() - 0.5) * 0.3;
+        } else if (estado.ball.y >= 440) {
+          estado.ball.y = 440;
+          estado.ball.dy = -Math.abs(estado.ball.dy) * 1.02;
+          estado.ball.dx += (Math.random() - 0.5) * 0.3;
+        }
+
+        // Colisão com as Raquetes (usando as posições Y guardadas no servidor)
+        const hitP1 = estado.ball.x <= 75 && estado.ball.x >= 45 && estado.ball.y > estado.p1Y && estado.ball.y < estado.p1Y + 100;
+        const hitP2 = estado.ball.x >= 725 && estado.ball.x <= 755 && estado.ball.y > estado.p2Y && estado.ball.y < estado.p2Y + 100;
+
+        if (hitP1) {
+          const impactOffset = (estado.ball.y - (estado.p1Y + 50)) / 50;
+          const bounceAngle = (impactOffset * (Math.PI / 3)) + ((Math.random() - 0.5) * 0.25);
+          const currentSpeed = Math.hypot(estado.ball.dx, estado.ball.dy);
+          const newSpeed = Math.min(currentSpeed * 1.12, 35);
+          estado.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
+          estado.ball.dy = Math.sin(bounceAngle) * newSpeed;
+          estado.ball.x = 76;
+        } else if (hitP2) {
+          const impactOffset = (estado.ball.y - (estado.p2Y + 50)) / 50;
+          const bounceAngle = (impactOffset * (Math.PI / 3)) + ((Math.random() - 0.5) * 0.25);
+          const currentSpeed = Math.hypot(estado.ball.dx, estado.ball.dy);
+          const newSpeed = Math.min(currentSpeed * 1.12, 35);
+          estado.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
+          estado.ball.dy = Math.sin(bounceAngle) * newSpeed;
+          estado.ball.x = 724;
+        }
+
+        // Marcação de Pontos
+        let pontoMarcado = false;
+        if (estado.ball.x < 0) {
+          estado.placar.direita += 1;
+          pontoMarcado = true;
+          if (estado.placar.direita < 10) estado.ball = lancarBola(1);
+        } else if (estado.ball.x > 800) {
+          estado.placar.esquerda += 1;
+          pontoMarcado = true;
+          if (estado.placar.esquerda < 10) estado.ball = lancarBola(-1);
+        }
+
+        // Se alguém marcou ponto, avisa os navegadores
+        if (pontoMarcado) {
+          io.to(dados.salaId).emit('placarAtualizado', estado.placar);
+          if (estado.placar.esquerda >= 10 || estado.placar.direita >= 10) {
+            estado.rodando = false;
+            if (estado.intervalId) clearInterval(estado.intervalId); // Fim de jogo
+          }
+        }
+
+        // Envia as coordenadas da bola a 30 FPS para ambos os navegadores desenharem
+        io.to(dados.salaId).emit('bolaAtualizada', estado.ball);
+      }, 1000 / 30);
+    });
+
     // Sincronização contínua do movimento da raquete
     socket.on('moverRaquete', (dados: { salaId: string; y: number }) => {
+      const sala = salas[dados.salaId];
+      if (sala && sala.estadoJogo) {
+        // Atualiza a posição Y da raquete no servidor para calcular a colisão com precisão
+        const jogador = sala.jogadores.find(j => j.socketId === socket.id);
+        if (jogador) {
+          if (jogador.lado === 'esquerda') sala.estadoJogo.p1Y = dados.y;
+          if (jogador.lado === 'direita') sala.estadoJogo.p2Y = dados.y;
+        }
+      }
+      // Repassa visualmente para o adversário
       socket.to(dados.salaId).emit('adversarioMoveu', { y: dados.y });
     });
 
-    // Sincronização da bola (Host calcula e retransmite para P2 e espectadores)
-    socket.on('atualizarBola', (dados: { salaId: string; bola: { x: number; y: number; dx: number; dy: number } }) => {
-      socket.to(dados.salaId).emit('bolaAtualizada', dados.bola);
-    });
-
-    // Atualização de pontuação
-    socket.on('pontoMarcado', (dados: { salaId: string; placar: { esquerda: number; direita: number } }) => {
-      io.to(dados.salaId).emit('placarAtualizado', dados.placar);
-    });
-
-    // Sincronização de Vídeo WebRTC (Câmeras P2P)
+    // Sincronização de Vídeo WebRTC (Câmeras P2P + Rádio do "Ready")
     socket.on('webrtc_signal', (dados: { salaId: string; signal: any }) => {
       // Repassa o sinal de vídeo diretamente para o adversário na sala
       socket.to(dados.salaId).emit('webrtc_signal', dados.signal);
@@ -166,6 +278,7 @@ export function setupGameSocket(io: Server) {
       for (const [salaId, sala] of Object.entries(salas)) {
         // Se um dos 2 jogadores ativos desconectar, encerra a partida
         if (sala.jogadores.some(j => j.socketId === socket.id)) {
+          if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId); // Para a física do servidor
           socket.to(salaId).emit('adversarioDesconectou');
           delete salas[salaId];
         } else {

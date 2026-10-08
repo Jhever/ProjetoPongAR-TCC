@@ -21,7 +21,7 @@ export interface ResultadoAuditoria {
 }
 
 // ==========================================
-// DETECÇÃO GEOMÉTRICA DE GESTO OBSCE NO (DEDO DO MEIO)
+// DETECÇÃO GEOMÉTRICA DE GESTO OBSCENO (DEDO DO MEIO)
 // ==========================================
 function dist2D(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -37,17 +37,13 @@ export function verificarDedoMedio(landmarks: Array<{ x: number; y: number }>): 
   const ringTip = landmarks[16];
   const pinkyTip = landmarks[20];
 
-  // Distâncias relativas ao punho
   const distMiddle = dist2D(wrist, middleTip);
   const distMiddleMcp = dist2D(wrist, middleMcp);
   const distIndex = dist2D(wrist, indexTip);
   const distRing = dist2D(wrist, ringTip);
   const distPinky = dist2D(wrist, pinkyTip);
 
-  // Dedo do meio esticado (ponta significativamente mais longe do que o nó da base)
   const middleEstendido = distMiddle > distMiddleMcp * 1.35;
-
-  // Demais dedos retraídos em relação ao comprimento do dedo médio
   const indexRetraido = distIndex < distMiddle * 0.65;
   const ringRetraido = distRing < distMiddle * 0.65;
   const pinkyRetraido = distPinky < distMiddle * 0.65;
@@ -60,7 +56,7 @@ export function verificarDedoMedio(landmarks: Array<{ x: number; y: number }>): 
 // ==========================================
 export class AuditoriaIA {
   private buffer: TelemetriaFrame[] = [];
-  private readonly maxFrames: number = 60; // Mantém os últimos ~2 a 3 segundos de frames
+  private readonly maxFrames: number = 60; 
 
   public registrarFrame(landmarks: Array<{ x: number; y: number; z?: number }>, snapshotBase64?: string) {
     this.buffer.push({
@@ -74,7 +70,17 @@ export class AuditoriaIA {
     }
   }
 
-  public async analisarIncidente(motivo: MotivoDenuncia): Promise<ResultadoAuditoria> {
+  // MÉTODO NECESSÁRIO: Devolve a gravação para o frontend repassar ao Node.js
+  public obterFrames(): TelemetriaFrame[] {
+    return this.buffer;
+  }
+
+  // ATUALIZADO: Recebe placares opcionais para julgar denúncias de raiva
+  public async analisarIncidente(
+    motivo: MotivoDenuncia, 
+    placarDenunciante: number = 0, 
+    placarDenunciado: number = 0
+  ): Promise<ResultadoAuditoria> {
     const totalFrames = this.buffer.length;
     if (totalFrames === 0) {
       return {
@@ -88,7 +94,7 @@ export class AuditoriaIA {
     let infracoesGeometricas = 0;
     const evidencias: string[] = [];
 
-    // 1. Verificação de gestos manuais via Landmarks do MediaPipe
+    // 1. Verificação de Gesto Obsceno
     if (motivo === 'GESTO_OBSCENO') {
       for (const frame of this.buffer) {
         if (verificarDedoMedio(frame.landmarks)) {
@@ -97,7 +103,7 @@ export class AuditoriaIA {
       }
 
       const percentual = infracoesGeometricas / totalFrames;
-      if (percentual >= 0.15) { // Se detectado em pelo menos 15% dos frames
+      if (percentual >= 0.15) { 
         evidencias.push(`Assinatura vetorial de dedo do meio identificada em ${infracoesGeometricas} quadros.`);
         return {
           procedente: true,
@@ -108,7 +114,7 @@ export class AuditoriaIA {
       }
     }
 
-    // 2. Verificação de Anti-Jogo / AFK (Mãos ausentes ou paralisadas por completo)
+    // 2. Verificação de Anti-Jogo / AFK
     if (motivo === 'ANTI_JOGO_AFK') {
       const framesSemMao = this.buffer.filter(f => f.landmarks.length === 0).length;
       const taxaAusencia = framesSemMao / totalFrames;
@@ -124,16 +130,30 @@ export class AuditoriaIA {
       }
     }
 
-    // 3. Verificação de Papel/Texto Ofensivo ou Conteúdo Impróprio Visual
+    // 3. Verificação de Texto ou Nudez (Encaminhamento estático)
     if (motivo === 'TEXTO_OFENSIVO' || motivo === 'CONTEUDO_IMPROPRIO') {
-      // Coleta o último snapshot do canvas com resolução reduzida para encaminhamento de análise
-      const snapshot = this.buffer[this.buffer.length - 1]?.snapshotBase64;
-      
-      evidencias.push("Quadro estático do momento foi marcado para auditoria OCR e classificador de imagem.");
+      evidencias.push("Quadro estático do momento foi marcado para auditoria OCR e classificador de imagem externo.");
       return {
         procedente: true,
         confianca: 0.85,
         detalhes: "Quadro capturado e encaminhado à fila de moderação de conteúdo impróprio.",
+        evidenciasDetectadas: evidencias
+      };
+    }
+
+    // ==========================================
+    // 4. LÓGICA ANTI-RAGE REPORT
+    // ==========================================
+    // Se chegou até aqui, nenhuma infração física foi confirmada pela IA.
+    const diferencaGols = placarDenunciado - placarDenunciante;
+    
+    // Se quem está denunciando está perdendo de 4 ou mais gols de diferença...
+    if (diferencaGols >= 4) {
+      evidencias.push(`Placar adverso detectado (${placarDenunciado}x${placarDenunciante}). Ausência total de infrações físicas nos últimos quadros.`);
+      return {
+        procedente: false,
+        confianca: 0.99, // Certeza quase absoluta que é "choro"
+        detalhes: "RAGE REPORT DETECTADO: A denúncia foi classificada como falsa, gerada por frustração com o placar. Denúncias falsas causam penalidades.",
         evidenciasDetectadas: evidencias
       };
     }

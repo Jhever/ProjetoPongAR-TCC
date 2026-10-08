@@ -1,17 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserCircle } from 'lucide-react';
-import { useConfig } from '../context/ConfigContext'; // Importando o contexto global
+import { useConfig } from '../context/ConfigContext'; 
+
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 const Home = () => {
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
-  
-  // NOVO ESTADO: Controla a exibição da mensagem de saída
   const [showExitModal, setShowExitModal] = useState(false);
   
-  // Usando os dados do "Cofre" global
+  // Novo estado para puxar as infrações e os pontos fresquinhos do banco
+  const [dadosAtualizados, setDadosAtualizados] = useState({ pontos: 0, infracoes: 0 });
+
   const { isDark, isAnonimo, userData, toggleAnonimo } = useConfig();
+
+  // Toda vez que abrir a Home, ele pergunta pro banco de dados: "Quantos pontos eu tenho?"
+  useEffect(() => {
+    if (userData?.id) {
+      fetch(`${API_URL}/api/usuario/${userData.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.error) {
+            setDadosAtualizados({ 
+              pontos: data.pontos_totais || 0, 
+              infracoes: data.total_infracoes || 0 
+            });
+          }
+        })
+        .catch(err => console.error("Erro ao buscar dados do perfil:", err));
+    }
+  }, [userData]);
 
   const theme = {
     bg: isDark ? '#000' : '#F5F5F5',
@@ -19,6 +38,7 @@ const Home = () => {
     card: isDark ? '#94a3b8' : '#e2e8f0',
     border: isDark ? 'white' : '#333',
     accent: '#87CEEB',
+    danger: '#ef4444' // Cor vermelha para alertas de infração
   };
 
   const styles = {
@@ -55,7 +75,7 @@ const Home = () => {
       backgroundColor: theme.card,
       padding: '15px',
       borderRadius: '8px',
-      width: '240px',
+      width: '260px', // Aumentei um pouquinho para caber as infos novas
       color: isDark ? '#fff' : '#000',
       zIndex: 100,
       display: showProfile ? 'block' : 'none',
@@ -67,6 +87,17 @@ const Home = () => {
       fontWeight: 'bold' as const,
       borderBottom: isDark ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.2)',
       paddingBottom: '5px',
+    },
+    // Estilo para o aviso de infração
+    alertaInfracao: {
+      margin: '8px 0',
+      fontSize: '0.9rem',
+      fontWeight: 'bold' as const,
+      color: theme.danger,
+      padding: '8px',
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderRadius: '4px',
+      border: `1px solid ${theme.danger}`
     },
     labelStyle: {
       display: 'flex',
@@ -105,18 +136,17 @@ const Home = () => {
       textAlign: 'left' as const,
       textTransform: 'uppercase' as const,
     },
-    // --- ESTILOS DO MODAL DE SAÍDA ---
     modalBackdrop: {
       position: 'fixed' as const,
       top: 0,
       left: 0,
       width: '100vw',
       height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.8)', // Fundo escurecido
+      backgroundColor: 'rgba(0, 0, 0, 0.8)', 
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 9999, // Fica por cima de absolutamente tudo
+      zIndex: 9999, 
     },
     modalCard: {
       backgroundColor: isDark ? '#1e293b' : '#ffffff',
@@ -141,7 +171,7 @@ const Home = () => {
     },
     modalBtnYes: {
       padding: '12px 30px',
-      backgroundColor: '#ef4444', // Vermelho para a ação destrutiva (sair)
+      backgroundColor: '#ef4444', 
       color: '#fff',
       border: 'none',
       borderRadius: '8px',
@@ -152,7 +182,7 @@ const Home = () => {
     },
     modalBtnNo: {
       padding: '12px 30px',
-      backgroundColor: theme.accent, // Azul do tema para manter no jogo
+      backgroundColor: theme.accent, 
       color: '#000',
       border: 'none',
       borderRadius: '8px',
@@ -173,10 +203,7 @@ const Home = () => {
       case "INFORMAÇÕES": navigate('/informacoes'); break;
       case "SUPORTE E AJUDA": navigate('/suporte'); break;
       case "DESAFIOS": navigate('/desafios'); break;
-      
-      // ⚠️ MUDANÇA AQUI: Abre o modal em vez de sair direto
       case "SAIR DO JOGO": setShowExitModal(true); break;
-      
       default: console.log(`${item} em breve.`);
     }
   };
@@ -191,6 +218,16 @@ const Home = () => {
     <div style={styles.screen}>
       <header style={styles.header}>
         <div style={styles.profileContainer} onClick={() => setShowProfile(!showProfile)}>
+          
+          {/* Bolinha vermelha de notificação se o cara tiver infrações! */}
+          {dadosAtualizados.infracoes > 0 && !showProfile && (
+            <div style={{
+              position: 'absolute', top: 5, right: 5, width: 14, height: 14, 
+              backgroundColor: '#ef4444', borderRadius: '50%', zIndex: 10,
+              boxShadow: '0 0 10px #ef4444', animation: 'pulse 2s infinite'
+            }} />
+          )}
+          
           <UserCircle size={80} color={theme.text} strokeWidth={1} />
           
           <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
@@ -198,13 +235,24 @@ const Home = () => {
               USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
             </p>
 
-           <p style={styles.menuItemText}>
+            <p style={styles.menuItemText}>
               ID: {userData?.id ? String(userData.id).padStart(8, '0') : "00000000"}
             </p>
-
-            <p style={{...styles.menuItemText, border: 'none'}}>MODO ANÔNIMO:</p>
             
-            <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+            <p style={styles.menuItemText}>
+              PONTOS: {dadosAtualizados.pontos} ⭐
+            </p>
+
+            {/* SE ELE TIVER INFRAÇÕES, MOSTRA O AVISO LOGO AQUI */}
+            {dadosAtualizados.infracoes > 0 && (
+              <div style={styles.alertaInfracao}>
+                ⚠️ ATENÇÃO: {dadosAtualizados.infracoes}/3 Infrações registradas na sua conta.
+              </div>
+            )}
+
+            <p style={{...styles.menuItemText, border: 'none', marginTop: '15px'}}>MODO ANÔNIMO:</p>
+            
+            <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
               <label style={styles.labelStyle}>
                 <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
               </label>
@@ -240,7 +288,10 @@ const Home = () => {
             <div style={styles.modalButtonsDiv}>
               <button 
                 style={styles.modalBtnYes} 
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  // Aqui além do navigate('/'), a gente poderia até limpar o localStorage do usuário se quisesse deslogar
+                  navigate('/');
+                }}
                 onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
                 onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
               >

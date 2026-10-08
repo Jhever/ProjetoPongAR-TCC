@@ -7,11 +7,17 @@ const router = Router();
 
 const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel.app';
 
+// =====================================
+// REGISTRO
+// =====================================
 router.post('/register', async (req: Request, res: Response) => {
   const { usuario, email, senha } = req.body;
   try {
+    // Agora o banco também tem status_conta e total_infracoes
     await pool.query(
-      'INSERT INTO jogadores (usuario, email, senha, pontos_totais, is_anonimo) VALUES ($1, $2, $3, 0, false)',
+      `INSERT INTO jogadores 
+      (usuario, email, senha, pontos_totais, is_anonimo, status_conta, total_infracoes) 
+      VALUES ($1, $2, $3, 0, false, 'ATIVA', 0)`,
       [usuario, email, senha]
     );
     res.status(201).json({ message: "Conta criada com sucesso!" });
@@ -20,15 +26,31 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
+// =====================================
+// LOGIN (Verifica Banimento)
+// =====================================
 router.post('/login', async (req: Request, res: Response) => {
   const { email, senha } = req.body;
   try {
+    // Puxa as colunas novas também
     const result = await pool.query(
-      'SELECT id, usuario, email, is_anonimo, pontos_totais FROM jogadores WHERE (email = $1 OR usuario = $1) AND senha = $2',
+      `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes 
+       FROM jogadores 
+       WHERE (email = $1 OR usuario = $1) AND senha = $2`,
       [email, senha]
     );
+
     if (result.rows.length > 0) {
-      res.json(result.rows[0]);
+      const jogador = result.rows[0];
+
+      // SE ESTIVER BANIDO, BLOQUEIA O LOGIN AQUI MESMO
+      if (jogador.status_conta === 'BANIDA') {
+        return res.status(403).json({ 
+          error: "Sua conta foi banida por violação grave das regras da comunidade." 
+        });
+      }
+
+      res.json(jogador);
     } else {
       res.status(401).json({ error: "Credenciais inválidas!" });
     }
@@ -37,20 +59,33 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
+// =====================================
+// BUSCAR DADOS DO USUÁRIO
+// =====================================
 router.get('/api/usuario/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
-      'SELECT id, usuario, email, is_anonimo, pontos_totais FROM jogadores WHERE id = $1',
+      `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes 
+       FROM jogadores WHERE id = $1`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Usuário não encontrado." });
+    
+    // Se a conta já estiver banida, avisa quem buscou
+    if (result.rows[0].status_conta === 'BANIDA') {
+       return res.status(403).json({ error: "Conta Banida." });
+    }
+
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// =====================================
+// ALTERAR ANONIMATO
+// =====================================
 router.patch('/api/usuario/:id/anonimo', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { is_anonimo } = req.body;
@@ -62,6 +97,9 @@ router.patch('/api/usuario/:id/anonimo', async (req: Request, res: Response) => 
   }
 });
 
+// =====================================
+// TROCAR SENHA
+// =====================================
 router.post('/update-user', async (req: Request, res: Response) => {
   const { id, currentPassword, newPassword } = req.body;
   try {
@@ -76,11 +114,19 @@ router.post('/update-user', async (req: Request, res: Response) => {
   }
 });
 
+// =====================================
+// RECUPERAÇÃO DE SENHA (MAILER)
+// =====================================
 router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body;
   try {
     const result = await pool.query('SELECT * FROM jogadores WHERE email = $1', [email]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Email não encontrado.' });
+
+    // Não deixa conta banida recuperar senha
+    if (result.rows[0].status_conta === 'BANIDA') {
+        return res.status(403).json({ error: 'Contas banidas não podem solicitar redefinição de senha.' });
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     await pool.query(

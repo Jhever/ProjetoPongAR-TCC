@@ -181,7 +181,7 @@ const Informacoes: React.FC = () => {
             <h3 style={styles.modalTitle}>SISTEMA DE PONTUAÇÃO</h3>
             <div style={styles.card}>
               <span style={styles.cardHeader}>🏆 VITÓRIAS</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>Ao ganhar partidas voce garante 50 pontos, caso empate 25 pontos e caso perca ganha 10 pontos para não ficar desanimado com o jogo.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>Ao ganhar partidas voce garante 30 pontos, caso empate 15 pontos e caso perca ganha 5 pontos para não ficar desanimado com o jogo.</p>
             </div>
             <div style={styles.card}>
               <span style={styles.cardHeader}>🎯 MISSÕES E DESAFIOS</span>
@@ -195,11 +195,29 @@ const Informacoes: React.FC = () => {
             <h3 style={styles.modalTitle}>REGRAS DE CONDUTA</h3>
             <div style={styles.card}>
               <span style={styles.cardHeader}>⏱️ DESCONEXÕES INVOLUNTÁRIAS</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>Sair intencionalmente de uma partida em andamento conta como derrota automática e deduz pontos do ranking global.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>Sair intencionalmente de uma partida em andamento conta como derrota automática (W.O.) e deduz -15 pontos do ranking global.</p>
             </div>
             <div style={styles.card}>
               <span style={styles.cardHeader}>🤝 FAIR PLAY (JOGO LIMPO)</span>
               <p style={{ margin: 0, opacity: 0.8 }}>O uso de qualquer artifício externo para travar o sinal da webcam ou burlar o rastreamento gerará suspensão automática.</p>
+            </div>
+          </>
+        );
+      case 'denuncias':
+        return (
+          <>
+            <h3 style={styles.modalTitle}>MODERAÇÃO POR IA</h3>
+            <div style={{ ...styles.card, borderLeftColor: '#ef4444' }}>
+              <span style={{ ...styles.cardHeader, color: '#ef4444' }}>🤖 DETECÇÃO DE INFRAÇÕES</span>
+              <p style={{ margin: 0, opacity: 0.8 }}>Nossas partidas são monitoradas por uma Inteligência Artificial (FastAPI). Ao registrar uma denúncia de "Gesto Obsceno" ou "AFK", a IA escaneia os últimos frames da sua câmera para confirmar a infração baseada na geometria da mão.</p>
+            </div>
+            <div style={{ ...styles.card, borderLeftColor: '#f59e0b' }}>
+              <span style={{ ...styles.cardHeader, color: '#f59e0b' }}>⚠️ PUNIÇÃO PROGRESSIVA</span>
+              <p style={{ margin: 0, opacity: 0.8 }}>As penalidades ocorrem em níveis: o 1º caso gera apenas um aviso, o 2º retira 30 pontos do ranking do infrator, e a 3ª infração resulta no banimento automático da conta.</p>
+            </div>
+            <div style={{ ...styles.card, borderLeftColor: '#3b82f6' }}>
+              <span style={{ ...styles.cardHeader, color: '#3b82f6' }}>🛡️ FILTRO ANTI-RAGE REPORT</span>
+              <p style={{ margin: 0, opacity: 0.8 }}>Para evitar denúncias falsas por frustração, nossa IA cruza as denúncias com o placar do jogo. Se um jogador perdendo de goleada relatar uma infração inexistente, a denúncia é bloqueada.</p>
             </div>
           </>
         );
@@ -209,11 +227,11 @@ const Informacoes: React.FC = () => {
             <h3 style={styles.modalTitle}>REALIDADE AUMENTADA (AR)</h3>
             <div style={styles.card}>
               <span style={styles.cardHeader}>👁️ VISÃO COMPUTACIONAL</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>O sistema utiliza redes neurais em tempo real para ler a transmissão da sua câmera e isolar as coordenadas de movimento da sua mão.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>O sistema utiliza redes neurais em tempo real (MediaPipe) para ler a transmissão da sua câmera e isolar os 21 pontos (landmarks) da sua mão.</p>
             </div>
             <div style={{ ...styles.card, borderLeftColor: '#00ffff' }}>
               <span style={styles.cardHeader}>🔄 MAPEAMENTO DIGITAL</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>Essas coordenadas físicas são projetadas e convertidas instantaneamente na movimentação vertical da barra do seu goleiro na tela.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>Essas coordenadas físicas são projetadas e convertidas instantaneamente na movimentação vertical da raquete no jogo.</p>
             </div>
           </>
         );
@@ -223,11 +241,11 @@ const Informacoes: React.FC = () => {
             <h3 style={styles.modalTitle}>REQUISITOS MÍNIMOS</h3>
             <div style={styles.card}>
               <span style={styles.cardHeader}>📷 WEBCAM</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>Resolução mínima de 720p operando estável a 30 FPS para evitar lag e quebras na leitura dos seus gestos.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>Resolução mínima de 480p operando estável a 30 FPS para evitar lag e quebras na leitura dos seus gestos durante o WebRTC.</p>
             </div>
             <div style={styles.card}>
               <span style={styles.cardHeader}>💻 PROCESSAMENTO</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>Processador dual-core moderno com aceleração de hardware ativa no navegador web para processar os nós de IA.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>Processador dual-core moderno com aceleração de hardware ativa no navegador web para processar os nós de IA sem sobrecarregar a CPU.</p>
             </div>
           </>
         );
@@ -241,7 +259,7 @@ const Informacoes: React.FC = () => {
             </div>
             <div style={{ ...styles.card, borderLeftColor: '#00ffff' }}>
               <span style={styles.cardHeader}>📚 ARQUITETURA DO PROJETO</span>
-              <p style={{ margin: 0, opacity: 0.8 }}>Desenvolvido como software interativo combinando React, Inteligência Artificial para tracking de gestos, NodeJS/PostgreSQL no Backend e uma implementação do Postgresql.</p>
+              <p style={{ margin: 0, opacity: 0.8 }}>Desenvolvido como software de TCC combinando Frontend em React (TypeScript), Backend Node.js (Servidor Autoritativo e WebSocket), IA em Python (FastAPI/MediaPipe) e banco de dados PostgreSQL via Supabase.</p>
             </div>
           </>
         );
@@ -277,6 +295,17 @@ const Informacoes: React.FC = () => {
         >
           <div className="bullet-item" style={styles.bullet} />
           REGRAS DE CONDUTA EM PARTIDAS ONLINE
+        </button>
+
+        {/* 🚨 NOVO BOTÃO: SISTEMA DE DENÚNCIAS */}
+        <button 
+          style={styles.menuItem} 
+          onClick={() => setModalAtivo('denuncias')}
+          onMouseEnter={(e) => handleHover(e, true)}
+          onMouseLeave={(e) => handleHover(e, false)}
+        >
+          <div className="bullet-item" style={styles.bullet} />
+          SISTEMA DE DENÚNCIAS E MODERAÇÃO POR IA
         </button>
 
         <button 

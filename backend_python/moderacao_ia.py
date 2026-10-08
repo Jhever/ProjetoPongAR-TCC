@@ -27,6 +27,9 @@ class InspecaoRequest(BaseModel):
     jogador_id: Optional[int] = None
     tipo_denuncia: str
     historico_frames: List[FrameTelemetria]
+    # NOVOS CAMPOS: Recebendo o placar para contexto
+    placar_denunciante: Optional[int] = 0
+    placar_denunciado: Optional[int] = 0
 
 # Rota raiz para diagnóstico no navegador e health check
 @app.get("/")
@@ -34,7 +37,7 @@ def health_check():
     return {
         "status": "online",
         "servico": "Moderador AR - Pong TCC",
-        "versao": "1.0.0"
+        "versao": "1.1.0 (Com Anti-Rage Report)"
     }
 
 def dist_euclidiana(p1: Landmark, p2: Landmark) -> float:
@@ -43,13 +46,6 @@ def dist_euclidiana(p1: Landmark, p2: Landmark) -> float:
 def verificar_dedo_medio_frame(landmarks: List[Landmark]) -> bool:
     """
     Avalia a geometria dos 21 pontos do MediaPipe no plano 2D normalizado.
-    Landmarks-chave:
-      0: Pulso
-      4: Polegar Tip
-      8: Indicador Tip, 5: Indicador MCP
-      12: Médio Tip, 9: Médio MCP
-      16: Anelar Tip, 13: Anelar MCP
-      20: Mínimo Tip, 17: Mínimo MCP
     """
     if len(landmarks) < 21:
         return False
@@ -62,7 +58,6 @@ def verificar_dedo_medio_frame(landmarks: List[Landmark]) -> bool:
     anelar_tip = landmarks[16]
     minimo_tip = landmarks[20]
 
-    # Distâncias euclidianas em relação ao pulso
     dist_medio = dist_euclidiana(pulso, medio_tip)
     dist_medio_base = dist_euclidiana(pulso, medio_mcp)
 
@@ -70,10 +65,8 @@ def verificar_dedo_medio_frame(landmarks: List[Landmark]) -> bool:
     dist_anelar = dist_euclidiana(pulso, anelar_tip)
     dist_minimo = dist_euclidiana(pulso, minimo_tip)
 
-    # 1. Dedo médio totalmente estendido
     medio_estendido = dist_medio > (dist_medio_base * 1.35)
 
-    # 2. Demais dedos recolhidos/fechados em direção à palma
     outros_recolhidos = (
         dist_indicador < (dist_medio * 0.68) and
         dist_anelar < (dist_medio * 0.68) and
@@ -102,7 +95,7 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
     max_consecutivos = 0
     consecutivos_atuais = 0
 
-    # Varredura temporal dos quadros
+    # 1. Varredura temporal dos quadros procurando a infração
     for frame in frames:
         if verificar_dedo_medio_frame(frame.landmarks):
             ocorrencias += 1
@@ -116,23 +109,47 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
 
     # Critério de detecção: presente em >= 25% dos quadros OU 8 frames consecutivos
     infracao_detectada = taxa_presenca >= 0.25 or max_consecutivos >= 8
-    confianca = min(0.99, float(0.60 + (taxa_presenca * 0.35))) if infracao_detectada else 0.15
+    
+    # 2. SE FOI CULPADO DE VERDADE
+    if infracao_detectada:
+        confianca = min(0.99, float(0.60 + (taxa_presenca * 0.35)))
+        return {
+            "procedente": True,
+            "confianca": round(confianca * 100, 1),
+            "estatisticas": {
+                "total_frames_analisados": total_frames,
+                "frames_com_gesto": ocorrencias,
+                "max_frames_consecutivos": max_consecutivos,
+                "taxa_recorrencia": f"{round(taxa_presenca * 100, 1)}%"
+            },
+            "detalhes": f"Gesto obsceno detectado de forma recorrente em {ocorrencias} quadros (pico de {max_consecutivos} consecutivos)."
+        }
 
+    # ==========================================
+    # 3. LÓGICA ANTI-RAGE REPORT
+    # (Se chegou aqui, ele NÃO fez gesto nenhum. Vamos ver o placar)
+    # ==========================================
+    diferenca_gols = payload.placar_denunciado - payload.placar_denunciante
+
+    if diferenca_gols >= 4:
+        return {
+            "procedente": False,
+            "confianca": 99.9, # Certeza quase absoluta que é "choro"
+            "estatisticas": {
+                "total_frames_analisados": total_frames,
+                "diferenca_placar": diferenca_gols
+            },
+            "detalhes": f"RAGE REPORT DETECTADO: A denúncia foi classificada como falsa, gerada por frustração com o placar adverso ({payload.placar_denunciado}x{payload.placar_denunciante}). Denúncias falsas causam penalidades ao denunciante."
+        }
+
+    # 4. Inocente comum (não fez gesto, e o placar está equilibrado)
     return {
-        "procedente": infracao_detectada,
-        "confianca": round(confianca * 100, 1),
+        "procedente": False,
+        "confianca": 85.0,
         "estatisticas": {
-            "total_frames_analisados": total_frames,
-            "frames_com_gesto": ocorrencias,
-            "max_frames_consecutivos": max_consecutivos,
-            "taxa_recorrencia": f"{round(taxa_presenca * 100, 1)}%"
+            "total_frames_analisados": total_frames
         },
-        "detalhes": (
-            f"Gesto obsceno detectado de forma recorrente em {ocorrencias} quadros "
-            f"(pico de {max_consecutivos} quadros consecutivos)."
-            if infracao_detectada
-            else "Nenhum padrão ofensivo sustentado foi encontrado nos dados analisados."
-        )
+        "detalhes": "Nenhum padrão ofensivo sustentado foi encontrado nos dados analisados."
     }
 
 if __name__ == "__main__":
