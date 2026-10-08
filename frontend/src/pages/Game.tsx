@@ -277,7 +277,6 @@ const Game = () => {
       }
     });
 
-    // ✅ CORREÇÃO 1 APLICADA: Agora os DOIS jogadores escutam a bola do servidor Node.js
     socket.on('bolaAtualizada', (novaBola: { x: number; y: number; dx: number; dy: number }) => {
       game.current.ball = novaBola;
     });
@@ -381,7 +380,6 @@ const Game = () => {
 
           socket.on('webrtc_signal', async (data) => {
             try {
-              // ✅ CORREÇÃO 2 APLICADA: O Player 1 (Host) envia o vídeo só quando o Player 2 pedir
               if (data.type === 'request_offer' && isHost) {
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
@@ -418,7 +416,6 @@ const Game = () => {
             }
           });
 
-          // ✅ CORREÇÃO 2 APLICADA: O Player 2 pede o vídeo quando entra na sala
           if (!isHost) {
             setTimeout(() => {
               socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
@@ -464,7 +461,6 @@ const Game = () => {
                 socket.emit('moverRaquete', { salaId, y: paddleY });
               }
 
-              // ✅ CORREÇÃO 3: FÍSICA NO FRONTEND AGORA É EXCLUSIVA PARA MODO OFFLINE
               if (tipoPartida === 'OFFLINE' && !partidaFinalizadaRef.current && gameStartedRef.current) {
                 game.current.ball.x += game.current.ball.dx;
                 game.current.ball.y += game.current.ball.dy;
@@ -483,26 +479,16 @@ const Game = () => {
                 const hitP2 = game.current.ball.x >= 725 && game.current.ball.x <= 755 && game.current.ball.y > game.current.p2Y && game.current.ball.y < game.current.p2Y + 100;
 
                 if (hitP1) {
-                  const impactOffset = (game.current.ball.y - (game.current.p1Y + 50)) / 50;
-                  const randomVariance = (Math.random() - 0.5) * 0.25;
-                  const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
-
-                  const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                  const newSpeed = Math.min(currentSpeed * 1.12, 35); 
-
-                  game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
-                  game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
+                  const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
+                  const currentSpeed = Math.min(Math.hypot(game.current.ball.dx, game.current.ball.dy) * 1.05, 30);
+                  game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * currentSpeed);
+                  game.current.ball.dy = Math.sin(bounceAngle) * currentSpeed;
                   game.current.ball.x = 76;
                 } else if (hitP2) {
-                  const impactOffset = (game.current.ball.y - (game.current.p2Y + 50)) / 50;
-                  const randomVariance = (Math.random() - 0.5) * 0.25;
-                  const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
-
-                  const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                  const newSpeed = Math.min(currentSpeed * 1.12, 35);
-
-                  game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
-                  game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
+                  const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
+                  const currentSpeed = Math.min(Math.hypot(game.current.ball.dx, game.current.ball.dy) * 1.05, 30);
+                  game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * currentSpeed);
+                  game.current.ball.dy = Math.sin(bounceAngle) * currentSpeed;
                   game.current.ball.x = 724;
                 }
 
