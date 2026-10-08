@@ -150,7 +150,7 @@ const Game = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI; 
-    const velInicial = 14; 
+    const velInicial = 5; 
     return {
       x: 400,
       y: 225,
