@@ -5,7 +5,6 @@ import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
 import Denuncia from '../components/Denuncia';
 
-// Correção inline para o TypeScript parar de acusar erro no import.meta.env
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
 
 type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
@@ -123,7 +122,6 @@ const Game = () => {
   const [latency, setLatency] = useState(15);
   const [fps, setFps] = useState(30);
 
-  // --- ESTADOS DE PRONTIDÃO (READY) E CONTAGEM ---
   const [isReady, setIsReady] = useState(false);
   const [isAdversarioReady, setIsAdversarioReady] = useState(false);
   const [countdown, setCountdown] = useState<number | string | null>(null);
@@ -141,7 +139,7 @@ const Game = () => {
   ]);
 
   const game = useRef({
-    ball: { x: 400, y: 225, dx: 12, dy: (Math.random() > 0.5 ? 8 : -8) },
+    ball: { x: 400, y: 225, dx: 12, dy: 8 },
     p1Y: 175,
     p2Y: 175
   });
@@ -161,7 +159,6 @@ const Game = () => {
     };
   };
 
-  // Acionado ao clicar em "ESTOU PRONTO!"
   const handleReady = () => {
     setIsReady(true);
     isReadyRef.current = true;
@@ -170,7 +167,6 @@ const Game = () => {
     }
   };
 
-  // Lógica da contagem regressiva
   useEffect(() => {
     const bothReady = tipoPartida === 'OFFLINE' ? isReady : (isReady && isAdversarioReady);
     
@@ -183,16 +179,13 @@ const Game = () => {
           setCountdown(cont);
         } else if (cont === 0) {
           setCountdown('COMEÇOU!');
-          
-          // O Host dá a "autorização" para o Node.js lançar a bola!
           if (isHost && tipoPartida !== 'OFFLINE') {
             socket.emit('iniciarFisica', { salaId });
           }
-
         } else {
           setCountdown(null);
           setGameStarted(true);
-          gameStartedRef.current = true; // Libera a física local para offline!
+          gameStartedRef.current = true;
           clearInterval(interval);
         }
       }, 1000);
@@ -284,11 +277,10 @@ const Game = () => {
       }
     });
 
-    if (!isHost) {
-      socket.on('bolaAtualizada', (novaBola: { x: number; y: number; dx: number; dy: number }) => {
-        game.current.ball = novaBola;
-      });
-    }
+    // ✅ CORREÇÃO 1 APLICADA: Agora os DOIS jogadores escutam a bola do servidor Node.js
+    socket.on('bolaAtualizada', (novaBola: { x: number; y: number; dx: number; dy: number }) => {
+      game.current.ball = novaBola;
+    });
 
     socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
       placarRef.current = { p1: novoPlacar.esquerda, p2: novoPlacar.direita };
@@ -389,7 +381,14 @@ const Game = () => {
 
           socket.on('webrtc_signal', async (data) => {
             try {
-              // Verifica se é o sinal do botão "Estou Pronto"
+              // ✅ CORREÇÃO 2 APLICADA: O Player 1 (Host) envia o vídeo só quando o Player 2 pedir
+              if (data.type === 'request_offer' && isHost) {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
+                return;
+              }
+
               if (data.type === 'game_ready') {
                 setIsAdversarioReady(true);
                 return;
@@ -401,7 +400,6 @@ const Game = () => {
                 await pc.setLocalDescription(answer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
                 
-                // Se eu já cliquei em Pronto antes dele entrar, reenvio meu aviso!
                 if (isReadyRef.current) {
                   socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
                 }
@@ -420,16 +418,11 @@ const Game = () => {
             }
           });
 
-          if (isHost) {
-            setTimeout(async () => {
-              try {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
-              } catch (err) {
-                console.error("Erro ao criar offer WebRTC:", err);
-              }
-            }, 3500); 
+          // ✅ CORREÇÃO 2 APLICADA: O Player 2 pede o vídeo quando entra na sala
+          if (!isHost) {
+            setTimeout(() => {
+              socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
+            }, 1500); 
           }
         }
 
@@ -471,7 +464,7 @@ const Game = () => {
                 socket.emit('moverRaquete', { salaId, y: paddleY });
               }
 
-              // FÍSICA NO FRONTEND SÓ FUNCIONA AGORA PARA O MODO OFFLINE (Treino Local)
+              // ✅ CORREÇÃO 3: FÍSICA NO FRONTEND AGORA É EXCLUSIVA PARA MODO OFFLINE
               if (tipoPartida === 'OFFLINE' && !partidaFinalizadaRef.current && gameStartedRef.current) {
                 game.current.ball.x += game.current.ball.dx;
                 game.current.ball.y += game.current.ball.dy;
@@ -517,7 +510,6 @@ const Game = () => {
                   const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
-                  socket.emit('pontoMarcado', { salaId, placar: { esquerda: novoPlacar.p1, direita: novoPlacar.p2 } });
                   
                   if (novoPlacar.p2 >= 10) {
                     finalizarPartidaOnline('PLAYER 2 VENCEU!', novoPlacar.p1, novoPlacar.p2);
@@ -528,7 +520,6 @@ const Game = () => {
                   const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
-                  socket.emit('pontoMarcado', { salaId, placar: { esquerda: novoPlacar.p1, direita: novoPlacar.p2 } });
                   
                   if (novoPlacar.p1 >= 10) {
                     finalizarPartidaOnline('PLAYER 1 VENCEU!', novoPlacar.p1, novoPlacar.p2);
@@ -536,8 +527,6 @@ const Game = () => {
                     game.current.ball = lancarBola(-1);
                   }
                 }
-
-                socket.emit('atualizarBola', { salaId, bola: game.current.ball });
               }
 
               ctx.clearRect(0, 0, 800, 450);
