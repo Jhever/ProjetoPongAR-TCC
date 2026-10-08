@@ -712,7 +712,7 @@ const Game = () => {
              )}
           </div>
 
-          {/* <div style={{ width: '50%', height: '100%', position: 'relative' }}>
+          <div style={{ width: '50%', height: '100%', position: 'relative' }}>
              {!isHost ? (
                <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
              ) : (
@@ -723,7 +723,7 @@ const Game = () => {
                  </>
                )
              )}
-          </div> */}
+          </div>
         </div>
 
         <canvas
