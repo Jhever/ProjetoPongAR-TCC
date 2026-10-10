@@ -105,78 +105,79 @@ const Desafios: React.FC = () => {
       alignItems: 'center',
       boxSizing: 'border-box'
     }}>
-      {/* 📌 CABEÇALHO FIXO CORRIGIDO (COMPACTO E VISÍVEL) */}
+      {/* 📌 CABEÇALHO FIXO COM BOTÃO VOLTAR E CONTADOR INTEGRADOS */}
       <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 100,
         width: '100%',
-        maxWidth: '700px',
+        maxWidth: '650px',
         backgroundColor: isDark ? 'rgba(9, 6, 18, 0.9)' : 'rgba(248, 250, 252, 0.9)',
         backdropFilter: 'blur(12px)',
         borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
         padding: '15px 10px',
         display: 'flex',
-        flexDirection: 'column',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: '25px',
         boxSizing: 'border-box'
       }}>
-        <h1 style={{
-          fontSize: '1.8rem',
-          fontWeight: '900',
-          letterSpacing: '2px',
-          background: 'linear-gradient(135deg, #c084fc, #9333ea, #e879f9)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          margin: '0 0 6px 0',
-          textAlign: 'center',
-          textShadow: '0 0 20px rgba(147, 51, 234, 0.3)'
-        }}>
-          DESAFIOS DIÁRIOS
-        </h1>
-        <div style={{
-          display: 'inline-block',
-          background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(147, 51, 234, 0.08)',
-          border: '1px solid rgba(147, 51, 234, 0.3)',
-          padding: '4px 14px',
-          borderRadius: '20px',
-          fontSize: '0.85rem',
-          fontWeight: 'bold',
-        }}>
-          ⚡ Pulos Realizados: <span style={{ color: '#c084fc' }}>{pulosFeitos}</span> / {limiteMaximo}
+        {/* Botão Voltar Compacto no Topo */}
+        <button 
+          onClick={() => navigate('/home')}
+          style={{
+            background: 'transparent',
+            border: '1px solid rgba(239, 68, 68, 0.5)',
+            color: '#ef4444',
+            borderRadius: '8px',
+            padding: '6px 12px',
+            fontSize: '0.8rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#ef4444';
+            e.currentTarget.style.color = '#fff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#ef4444';
+          }}
+        >
+          ← MENU
+        </button>
+
+        {/* Título e Contador Centralizados */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: '900',
+            letterSpacing: '2px',
+            background: 'linear-gradient(135deg, #c084fc, #9333ea, #e879f9)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            margin: '0 0 4px 0',
+            textAlign: 'center',
+            textShadow: '0 0 20px rgba(147, 51, 234, 0.3)'
+          }}>
+            DESAFIOS DIÁRIOS
+          </h1>
+          <div style={{
+            display: 'inline-block',
+            background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(147, 51, 234, 0.08)',
+            border: '1px solid rgba(147, 51, 234, 0.3)',
+            padding: '3px 12px',
+            borderRadius: '20px',
+            fontSize: '0.75rem',
+            fontWeight: 'bold',
+          }}>
+            ⚡ Pulos: <span style={{ color: '#c084fc' }}>{pulosFeitos}</span> / {limiteMaximo}
+          </div>
         </div>
 
-         <button 
-        style={{
-          marginTop: '40px',
-          background: isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0',
-          color: isDark ? '#fff' : '#334155',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '14px 40px',
-          fontSize: '1rem',
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          transition: 'all 0.3s',
-          backdropFilter: 'blur(10px)'
-        }} 
-        onClick={() => navigate('/home')}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#ef4444';
-          e.currentTarget.style.color = '#fff';
-          e.currentTarget.style.borderColor = '#ef4444';
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(239, 68, 68, 0.4)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0';
-          e.currentTarget.style.color = isDark ? '#fff' : '#334155';
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-          e.currentTarget.style.boxShadow = 'none';
-        }}
-      >
-        VOLTAR AO MENU
-      </button>
+        {/* Espaçador invisível para manter o título perfeitamente centralizado */}
+        <div style={{ width: '65px' }} />
       </div>
 
       {/* BOTÃO MESTRE: RECOLHER TODAS */}
@@ -301,7 +302,7 @@ const Desafios: React.FC = () => {
                         transition: '0.2s'
                       }}
                     >
-                      {limiteAtingido ? "LIMITE ATINGIDO" : `PULAR`}
+                      {limiteAtingido ? "LIMITE ATINGIDO" : `PULAR (${pulosFeitos}/${limiteMaximo})`}
                     </button>
                   )}
                   {d.status === 'concluido' && (
@@ -339,38 +340,6 @@ const Desafios: React.FC = () => {
           )}
         </div>
       )}
-
-      {/* BOTÃO VOLTAR */}
-      <button 
-        style={{
-          marginTop: '40px',
-          background: isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0',
-          color: isDark ? '#fff' : '#334155',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '12px',
-          padding: '14px 40px',
-          fontSize: '1rem',
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          transition: 'all 0.3s',
-          backdropFilter: 'blur(10px)'
-        }} 
-        onClick={() => navigate('/home')}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#ef4444';
-          e.currentTarget.style.color = '#fff';
-          e.currentTarget.style.borderColor = '#ef4444';
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(239, 68, 68, 0.4)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0';
-          e.currentTarget.style.color = isDark ? '#fff' : '#334155';
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-          e.currentTarget.style.boxShadow = 'none';
-        }}
-      >
-        VOLTAR AO MENU
-      </button>
     </div>
   );
 };
