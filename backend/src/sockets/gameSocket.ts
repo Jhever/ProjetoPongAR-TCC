@@ -27,7 +27,6 @@ interface Sala {
 const salas: Record<string, Sala> = {};
 let filaEspera: { socketId: string; jogadorId: number | string; nome: string } | null = null;
 
-// Lança a bola com a velocidade inicial igual ao Modo Treino (velInicial = 8)
 function lancarBola(direcaoX: number) {
   const isCima = Math.random() > 0.5 ? 1 : -1;
   const angulo = (Math.PI / 4) * isCima + (Math.random() * 0.2 - 0.1); 
@@ -131,7 +130,7 @@ export function setupGameSocket(io: Server) {
     });
 
     // ------------------------------------------------------------------
-    // MOTOR DE FÍSICA NO NODE.JS A 60 FPS (~16ms) - COM ANTI-TUNNELING
+    // MOTOR DE FÍSICA NO NODE.JS A 60 FPS COM INTERPOLAÇÃO DE RAQUETE
     // ------------------------------------------------------------------
     socket.on('iniciarFisica', (dados: { salaId: string }) => {
       const sala = salas[dados.salaId];
@@ -156,15 +155,17 @@ export function setupGameSocket(io: Server) {
           estado.ball.dy = -Math.abs(estado.ball.dy);
         }
 
-        // Colisões BLINDADAS contra o Efeito Túnel (Tunneling)
         const p1Front = 75;  
         const p2Front = 725; 
 
-        const hitP1 = (estado.ball.x - 10 <= p1Front && estado.ball.x >= p1Front - Math.abs(estado.ball.dx) - 5) && 
-                      (estado.ball.y >= estado.p1Y && estado.ball.y <= estado.p1Y + 100);
+        // 🎯 TOLERÂNCIA TÉCNICA DE LATÊNCIA (Apenas 4 pixels extras para compensar o atraso da internet sem parecer bugado)
+        const margemCompensacao = 4;
 
-        const hitP2 = (estado.ball.x + 10 >= p2Front && estado.ball.x <= p2Front + Math.abs(estado.ball.dx) + 5) && 
-                      (estado.ball.y >= estado.p2Y && estado.ball.y <= estado.p2Y + 100);
+        const hitP1 = (estado.ball.x - 10 <= p1Front + margemCompensacao && estado.ball.x >= p1Front - Math.abs(estado.ball.dx) - 2) && 
+                      (estado.ball.y >= estado.p1Y - 5 && estado.ball.y <= estado.p1Y + 105);
+
+        const hitP2 = (estado.ball.x + 10 >= p2Front - margemCompensacao && estado.ball.x <= p2Front + Math.abs(estado.ball.dx) + 2) && 
+                      (estado.ball.y >= estado.p2Y - 5 && estado.ball.y <= estado.p2Y + 105);
 
         if (hitP1) {
           const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2); 
@@ -172,7 +173,7 @@ export function setupGameSocket(io: Server) {
           
           estado.ball.dx = Math.abs(Math.cos(bounceAngle) * currentSpeed);
           estado.ball.dy = Math.sin(bounceAngle) * currentSpeed;
-          estado.ball.x = p1Front + 12; // Reseta posição para fora da raquete com segurança
+          estado.ball.x = p1Front + 12; 
         } 
         else if (hitP2) {
           const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
@@ -180,10 +181,9 @@ export function setupGameSocket(io: Server) {
           
           estado.ball.dx = -Math.abs(Math.cos(bounceAngle) * currentSpeed);
           estado.ball.dy = Math.sin(bounceAngle) * currentSpeed;
-          estado.ball.x = p2Front - 12; // Reseta posição para fora da raquete com segurança
+          estado.ball.x = p2Front - 12; 
         }
 
-        // Marcar pontos
         let pontoMarcado = false;
         if (estado.ball.x < 0) {
           estado.placar.direita += 1;
@@ -207,13 +207,19 @@ export function setupGameSocket(io: Server) {
       }, 1000 / 60);
     });
 
+    // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO (Evita saltos secos de rede)
     socket.on('moverRaquete', (dados: { salaId: string; y: number }) => {
       const sala = salas[dados.salaId];
       if (sala && sala.estadoJogo) {
         const jogador = sala.jogadores.find(j => j.socketId === socket.id);
         if (jogador) {
-          if (jogador.lado === 'esquerda') sala.estadoJogo.p1Y = dados.y;
-          if (jogador.lado === 'direita') sala.estadoJogo.p2Y = dados.y;
+          // Suaviza a transição de Y no servidor para casar com a câmera do cliente (Lerp de 70%)
+          if (jogador.lado === 'esquerda') {
+            sala.estadoJogo.p1Y += (dados.y - sala.estadoJogo.p1Y) * 0.7;
+          }
+          if (jogador.lado === 'direita') {
+            sala.estadoJogo.p2Y += (dados.y - sala.estadoJogo.p2Y) * 0.7;
+          }
         }
       }
       socket.to(dados.salaId).emit('adversarioMoveu', { y: dados.y });

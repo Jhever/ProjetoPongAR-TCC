@@ -56,7 +56,7 @@ export function verificarDedoMedio(landmarks: Array<{ x: number; y: number }>): 
 // ==========================================
 export class AuditoriaIA {
   private buffer: TelemetriaFrame[] = [];
-  private readonly maxFrames: number = 60; 
+  private readonly maxFrames: number = 120; 
 
   public registrarFrame(landmarks: Array<{ x: number; y: number; z?: number }>, snapshotBase64?: string) {
     this.buffer.push({
@@ -120,6 +120,7 @@ export class AuditoriaIA {
       const taxaAusencia = framesSemMao / totalFrames;
 
       if (taxaAusencia > 0.8) {
+        // ✅ Correção aplicada na linha abaixo (adicionado o operador de multiplicação '*')
         evidencias.push(`Ausência de rastreamento manual detectada em ${(taxaAusencia * 100).toFixed(0)}% do período.`);
         return {
           procedente: true,
@@ -144,7 +145,6 @@ export class AuditoriaIA {
     // ==========================================
     // 4. LÓGICA ANTI-RAGE REPORT
     // ==========================================
-    // Se chegou até aqui, nenhuma infração física foi confirmada pela IA.
     const diferencaGols = placarDenunciado - placarDenunciante;
     
     // Se quem está denunciando está perdendo de 4 ou mais gols de diferença...
@@ -152,7 +152,7 @@ export class AuditoriaIA {
       evidencias.push(`Placar adverso detectado (${placarDenunciado}x${placarDenunciante}). Ausência total de infrações físicas nos últimos quadros.`);
       return {
         procedente: false,
-        confianca: 0.99, // Certeza quase absoluta que é "choro"
+        confianca: 0.99, 
         detalhes: "RAGE REPORT DETECTADO: A denúncia foi classificada como falsa, gerada por frustração com o placar. Denúncias falsas causam penalidades.",
         evidenciasDetectadas: evidencias
       };
