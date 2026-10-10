@@ -31,7 +31,7 @@ let filaEspera: { socketId: string; jogadorId: number | string; nome: string } |
 function lancarBola(direcaoX: number) {
   const isCima = Math.random() > 0.5 ? 1 : -1;
   const angulo = (Math.PI / 4) * isCima + (Math.random() * 0.2 - 0.1); 
-  const velInicial = 18; // Velocidade maior para não parecer travada
+  const velInicial = 8;
   return {
     x: 400,
     y: 225,
