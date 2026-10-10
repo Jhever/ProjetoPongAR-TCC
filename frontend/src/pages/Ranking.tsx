@@ -108,7 +108,7 @@ const Ranking = () => {
           onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          📜 HISTÓRICO
+          HISTÓRICO
         </button>
 
         {/* Títulos Centralizados */}
@@ -154,7 +154,7 @@ const Ranking = () => {
           onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          🏠 VOLTAR AO MENU
+          VOLTAR AO MENU
         </button>
       </div>
 
