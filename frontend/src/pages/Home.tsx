@@ -1,315 +1,177 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserCircle } from 'lucide-react';
-import { useConfig } from '../context/ConfigContext'; 
+import { useConfig } from '../context/ConfigContext';
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
-
-const Home = () => {
+const Home: React.FC = () => {
   const navigate = useNavigate();
-  const [showProfile, setShowProfile] = useState(false);
-  const [showExitModal, setShowExitModal] = useState(false);
-  
-  // Novo estado para puxar as infrações e os pontos fresquinhos do banco
-  const [dadosAtualizados, setDadosAtualizados] = useState({ pontos: 0, infracoes: 0 });
+  const { userData, isAnonimo, isDark } = useConfig();
 
-  const { isDark, isAnonimo, userData, toggleAnonimo } = useConfig();
+  const avatarFoto = (userData as any)?.foto || '👤';
+  const nomeExibido = isAnonimo ? 'ANÔNIMO' : (userData?.usuario || 'Jogador');
 
-  // Toda vez que abrir a Home, ele pergunta pro banco de dados: "Quantos pontos eu tenho?"
-  useEffect(() => {
-    if (userData?.id) {
-      fetch(`${API_URL}/api/usuario/${userData.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (!data.error) {
-            setDadosAtualizados({ 
-              pontos: data.pontos_totais || 0, 
-              infracoes: data.total_infracoes || 0 
-            });
-          }
-        })
-        .catch(err => console.error("Erro ao buscar dados do perfil:", err));
-    }
-  }, [userData]);
-
+  // Paleta controlada e sofisticada
   const theme = {
-    bg: isDark ? '#000' : '#F5F5F5',
-    text: isDark ? '#FFF' : '#333',
-    card: isDark ? '#94a3b8' : '#e2e8f0',
-    border: isDark ? 'white' : '#333',
-    accent: '#87CEEB',
-    danger: '#ef4444' // Cor vermelha para alertas de infração
-  };
-
-  const styles = {
-    screen: {
-      width: '100%',
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column' as const,
-      alignItems: 'center',
-      padding: '40px',
-      position: 'relative' as const,
-      backgroundColor: theme.bg,
-      color: theme.text,
-      transition: '0.3s all ease',
-      boxSizing: 'border-box' as const,
-    },
-    header: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '20px',
-      marginBottom: '80px',
-      width: '100%',
-      maxWidth: '1200px',
-      position: 'relative' as const,
-    },
-    profileContainer: {
-      position: 'relative' as const,
-      cursor: 'pointer',
-    },
-    profileMenu: {
-      position: 'absolute' as const,
-      top: '90px',
-      left: '0',
-      backgroundColor: theme.card,
-      padding: '15px',
-      borderRadius: '8px',
-      width: '260px', // Aumentei um pouquinho para caber as infos novas
-      color: isDark ? '#fff' : '#000',
-      zIndex: 100,
-      display: showProfile ? 'block' : 'none',
-      boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    },
-    menuItemText: {
-      margin: '8px 0',
-      fontSize: '1rem',
-      fontWeight: 'bold' as const,
-      borderBottom: isDark ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.2)',
-      paddingBottom: '5px',
-    },
-    // Estilo para o aviso de infração
-    alertaInfracao: {
-      margin: '8px 0',
-      fontSize: '0.9rem',
-      fontWeight: 'bold' as const,
-      color: theme.danger,
-      padding: '8px',
-      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-      borderRadius: '4px',
-      border: `1px solid ${theme.danger}`
-    },
-    labelStyle: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '5px',
-      cursor: 'pointer',
-      fontSize: '0.9rem',
-    },
-    title: {
-      color: theme.accent,
-      fontSize: '4.5rem',
-      fontFamily: '"Arial Black", sans-serif',
-      fontStyle: 'italic',
-      textTransform: 'uppercase' as const,
-      margin: 0,
-      flex: 1,
-      textAlign: 'center' as const,
-    },
-    grid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: '60px 40px',
-      width: '100%',
-      maxWidth: '1200px',
-    },
-    button: {
-      background: 'transparent',
-      color: theme.text,
-      border: 'none',
-      borderBottom: `6px solid ${theme.text}`,
-      paddingBottom: '10px',
-      fontSize: '1.1rem',
-      fontWeight: 'bold' as const,
-      cursor: 'pointer',
-      transition: '0.3s',
-      textAlign: 'left' as const,
-      textTransform: 'uppercase' as const,
-    },
-    modalBackdrop: {
-      position: 'fixed' as const,
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.8)', 
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999, 
-    },
-    modalCard: {
-      backgroundColor: isDark ? '#1e293b' : '#ffffff',
-      padding: '40px',
-      borderRadius: '15px',
-      textAlign: 'center' as const,
-      boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-      border: `2px solid ${theme.accent}`,
-      maxWidth: '400px',
-      width: '90%',
-    },
-    modalText: {
-      fontSize: '1.4rem',
-      fontWeight: 'bold' as const,
-      marginBottom: '30px',
-      color: theme.text,
-    },
-    modalButtonsDiv: {
-      display: 'flex',
-      justifyContent: 'center',
-      gap: '20px',
-    },
-    modalBtnYes: {
-      padding: '12px 30px',
-      backgroundColor: '#ef4444', 
-      color: '#fff',
-      border: 'none',
-      borderRadius: '8px',
-      fontWeight: 'bold' as const,
-      cursor: 'pointer',
-      fontSize: '1.1rem',
-      transition: '0.2s',
-    },
-    modalBtnNo: {
-      padding: '12px 30px',
-      backgroundColor: theme.accent, 
-      color: '#000',
-      border: 'none',
-      borderRadius: '8px',
-      fontWeight: 'bold' as const,
-      cursor: 'pointer',
-      fontSize: '1.1rem',
-      transition: '0.2s',
-    }
-  };
-
-  const handleMenuClick = (item: string) => {
-    switch (item) {
-      case "JOGAR MULTIPLAYER": navigate('/modo-jogo'); break;
-      case "TESTAR CAMERA (AR)": navigate('/testar-camera'); break;
-      case "PARTIDA TREINO": navigate('/game-treino'); break;
-      case "RANKING GLOBAL": navigate('/ranking'); break;
-      case "CONFIGURAÇÃO": navigate('/configuracao'); break;
-      case "INFORMAÇÕES": navigate('/informacoes'); break;
-      case "SUPORTE E AJUDA": navigate('/suporte'); break;
-      case "DESAFIOS": navigate('/desafios'); break;
-      case "SAIR DO JOGO": setShowExitModal(true); break;
-      default: console.log(`${item} em breve.`);
-    }
+    bg: isDark ? '#07080b' : '#f8fafc',
+    cardBg: isDark ? '#111318' : '#ffffff',
+    cardHover: isDark ? '#181b22' : '#f1f5f9',
+    text: isDark ? '#f1f5f9' : '#0f172a',
+    muted: isDark ? '#64748b' : '#64748b',
+    border: isDark ? '#1f242d' : '#e2e8f0',
+    borderHover: isDark ? '#38bdf8' : '#0284c7',
+    accent: '#38bdf8',
   };
 
   const menuItems = [
-    "JOGAR MULTIPLAYER", "PARTIDA TREINO", "TESTAR CAMERA (AR)",
-    "RANKING GLOBAL", "CONFIGURAÇÃO", "INFORMAÇÕES",
-    "SUPORTE E AJUDA", "DESAFIOS", "SAIR DO JOGO"
+    { title: 'JOGAR MULTIPLAYER', route: '/modo-jogo', tag: 'ONLINE' },
+    { title: 'PARTIDA TREINO', route: '/game-treino', tag: 'SOLO' },
+    { title: 'TESTAR CÂMERA (AR)', route: '/testar-camera', tag: 'WEBCAM' },
+    { title: 'RANKING GLOBAL', route: '/ranking', tag: 'TOP 10' },
+    { title: 'CONFIGURAÇÃO', route: '/configuracao', tag: 'AJUSTES' },
+    { title: 'INFORMAÇÕES', route: '/informacoes', tag: 'REGRAS' },
+    { title: 'SUPORTE E AJUDA', route: '/suporte', tag: 'CONTATO' },
+    { title: 'DESAFIOS', route: '/desafios', tag: 'DIÁRIO' },
+    { title: 'SAIR DO JOGO', route: '/', tag: 'SAIR', danger: true },
   ];
 
   return (
-    <div style={styles.screen}>
-      <header style={styles.header}>
-        <div style={styles.profileContainer} onClick={() => setShowProfile(!showProfile)}>
-          
-          {/* Bolinha vermelha de notificação se o cara tiver infrações! */}
-          {dadosAtualizados.infracoes > 0 && !showProfile && (
-            <div style={{
-              position: 'absolute', top: 5, right: 5, width: 14, height: 14, 
-              backgroundColor: '#ef4444', borderRadius: '50%', zIndex: 10,
-              boxShadow: '0 0 10px #ef4444', animation: 'pulse 2s infinite'
-            }} />
-          )}
-          
-          <UserCircle size={80} color={theme.text} strokeWidth={1} />
-          
-          <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
-            <p style={styles.menuItemText}>
-              USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
-            </p>
-
-            <p style={styles.menuItemText}>
-              ID: {userData?.id ? String(userData.id).padStart(8, '0') : "00000000"}
-            </p>
-            
-            <p style={styles.menuItemText}>
-              PONTOS: {dadosAtualizados.pontos} ⭐
-            </p>
-
-            {/* SE ELE TIVER INFRAÇÕES, MOSTRA O AVISO LOGO AQUI */}
-            {dadosAtualizados.infracoes > 0 && (
-              <div style={styles.alertaInfracao}>
-                ⚠️ ATENÇÃO: {dadosAtualizados.infracoes}/3 Infrações registradas na sua conta.
-              </div>
+    <div style={{
+      width: '100vw',
+      minHeight: '100vh',
+      backgroundColor: theme.bg,
+      color: theme.text,
+      fontFamily: '"Courier New", Courier, monospace',
+      padding: '40px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      boxSizing: 'border-box',
+      transition: 'background 0.3s, color 0.3s'
+    }}>
+      {/* CABEÇALHO DO USUÁRIO */}
+      <div style={{
+        width: '100%',
+        maxWidth: '960px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '16px 24px',
+        backgroundColor: theme.cardBg,
+        border: `1px solid ${theme.border}`,
+        borderRadius: '12px',
+        marginBottom: '40px',
+        boxSizing: 'border-box',
+        boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{
+            width: '50px', height: '50px',
+            borderRadius: '10px',
+            backgroundColor: isDark ? '#1a1f2c' : '#f1f5f9',
+            border: `1px solid ${theme.border}`,
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            fontSize: '1.5rem', overflow: 'hidden'
+          }}>
+            {avatarFoto.startsWith('data:image') ? (
+              <img src={avatarFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              avatarFoto
             )}
-
-            <p style={{...styles.menuItemText, border: 'none', marginTop: '15px'}}>MODO ANÔNIMO:</p>
-            
-            <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
-              <label style={styles.labelStyle}>
-                <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
-              </label>
-              <label style={styles.labelStyle}>
-                <input type="radio" name="anonimo" checked={!isAnonimo} onChange={toggleAnonimo} /> NÃO
-              </label>
-            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.7rem', color: theme.muted, letterSpacing: '1.5px', fontWeight: 'bold' }}>USUÁRIO LOGADO</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: '700', marginTop: '2px' }}>{nomeExibido}</div>
           </div>
         </div>
+        <div style={{
+          fontSize: '0.75rem',
+          letterSpacing: '1px',
+          padding: '6px 12px',
+          borderRadius: '6px',
+          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(2, 132, 199, 0.08)',
+          color: theme.accent,
+          border: `1px solid ${theme.accent}33`,
+          fontWeight: 'bold'
+        }}>
+          {isAnonimo ? 'MODO ANÔNIMO' : 'STATUS: ONLINE'}
+        </div>
+      </div>
 
-        <h1 style={styles.title}>PONG COM AR</h1>
-      </header>
+      {/* TÍTULO PRINCIPAL */}
+      <div style={{ textAlign: 'center', marginBottom: '45px' }}>
+        <h1 style={{
+          fontSize: '3.2rem',
+          fontWeight: '900',
+          letterSpacing: '4px',
+          color: theme.text,
+          margin: 0,
+          textTransform: 'uppercase'
+        }}>
+          PONG <span style={{ color: theme.accent }}>COM AR</span>
+        </h1>
+        <div style={{ fontSize: '0.8rem', color: theme.muted, marginTop: '8px', letterSpacing: '2.5px' }}>
+          INTERFACE DE CONTROLE E ACESSO RÁPIDO
+        </div>
+      </div>
 
-      <main style={styles.grid}>
+      {/* GRID DE BOTÕES POLIDO */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gap: '16px',
+        width: '100%',
+        maxWidth: '960px'
+      }}>
         {menuItems.map((item, index) => (
-          <button 
-            key={index} 
-            style={styles.button}
-            onClick={() => handleMenuClick(item)}
-            onMouseOver={(e) => { e.currentTarget.style.borderBottomColor = theme.accent; e.currentTarget.style.color = theme.accent; }}
-            onMouseOut={(e) => { e.currentTarget.style.borderBottomColor = theme.text; e.currentTarget.style.color = theme.text; }}
+          <button
+            key={index}
+            onClick={() => navigate(item.route)}
+            style={{
+              backgroundColor: theme.cardBg,
+              color: item.danger ? '#ef4444' : theme.text,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '10px',
+              padding: '22px 24px',
+              fontSize: '0.95rem',
+              fontWeight: '700',
+              textAlign: 'left',
+              cursor: 'pointer',
+              letterSpacing: '1px',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.02)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = item.danger ? '#ef4444' : theme.borderHover;
+              e.currentTarget.style.backgroundColor = theme.cardHover;
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = theme.border;
+              e.currentTarget.style.backgroundColor = theme.cardBg;
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
           >
-            {item}
+            <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {item.title}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ 
+                fontSize: '0.7rem', 
+                color: item.danger ? '#ef4444' : theme.muted, 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                letterSpacing: '1px'
+              }}>
+                {item.tag}
+              </span>
+              <span style={{ color: item.danger ? '#ef4444' : theme.accent, fontSize: '0.85rem' }}>→</span>
+            </div>
           </button>
         ))}
-      </main>
-
-      {/* --- CÓDIGO DO MODAL DE CONFIRMAÇÃO --- */}
-      {showExitModal && (
-        <div style={styles.modalBackdrop}>
-          <div style={styles.modalCard}>
-            <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
-            <div style={styles.modalButtonsDiv}>
-              <button 
-                style={styles.modalBtnYes} 
-                onClick={() => {
-                  // Aqui além do navigate('/'), a gente poderia até limpar o localStorage do usuário se quisesse deslogar
-                  navigate('/');
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
-                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
-              >
-                SIM
-              </button>
-              <button 
-                style={styles.modalBtnNo} 
-                onClick={() => setShowExitModal(false)}
-                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
-                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
-              >
-                NÃO
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 };
