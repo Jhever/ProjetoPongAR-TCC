@@ -29,41 +29,65 @@ const Informacoes: React.FC = () => {
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'flex-start',
-      padding: '50px 20px',
+      padding: '40px 20px',
       fontFamily: '"Courier New", Courier, monospace',
       position: 'relative' as const,
       boxSizing: 'border-box' as const,
       transition: 'background 0.3s, color 0.3s',
     },
+    // Top bar para alinhar o botão de voltar no topo
+    topBar: {
+      width: '100%',
+      maxWidth: '700px',
+      display: 'flex',
+      justifyContent: 'flex-start',
+      marginBottom: '10px',
+    },
+    backButtonTop: {
+      backgroundColor: theme.cardBg,
+      color: theme.text,
+      border: `1px solid ${theme.border}`,
+      borderRadius: '8px',
+      padding: '10px 18px',
+      fontSize: '0.85rem',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      letterSpacing: '1px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.02)',
+      transition: 'all 0.2s',
+    },
     headerContainer: {
       textAlign: 'center' as const,
-      marginBottom: '35px',
+      marginBottom: '30px',
     },
     mainTitle: {
       color: theme.text,
-      fontSize: 'clamp(2.2rem, 4vw, 3.2rem)',
+      fontSize: 'clamp(2rem, 3.5vw, 2.8rem)',
       fontWeight: '900',
       fontStyle: 'italic',
       textTransform: 'uppercase' as const,
       margin: '0',
-      letterSpacing: '3px',
+      letterSpacing: '2px',
     },
     subTitleText: {
       color: theme.accent,
-      fontSize: 'clamp(2.5rem, 5vw, 3.8rem)',
+      fontSize: 'clamp(2.2rem, 4.5vw, 3.4rem)',
       fontWeight: '900',
       textTransform: 'uppercase' as const,
       lineHeight: '1.1',
-      marginTop: '5px',
+      marginTop: '4px',
       letterSpacing: '2px',
     },
     headerText: {
       color: theme.muted,
-      fontSize: '0.85rem',
+      fontSize: '0.8rem',
       fontWeight: 'bold' as const,
       textTransform: 'uppercase' as const,
-      marginBottom: '30px',
-      letterSpacing: '2px',
+      marginBottom: '25px',
+      letterSpacing: '1.5px',
       textAlign: 'center' as const,
       maxWidth: '600px',
     },
@@ -175,21 +199,6 @@ const Informacoes: React.FC = () => {
       fontSize: '1rem',
       letterSpacing: '0.5px',
     },
-    backButton: {
-      marginTop: '10px',
-      marginBottom: '30px',
-      background: theme.cardBg,
-      color: '#ef4444',
-      border: '1px solid #ef4444',
-      borderRadius: '10px',
-      padding: '14px 40px',
-      fontSize: '0.95rem',
-      fontWeight: 'bold' as const,
-      cursor: 'pointer',
-      letterSpacing: '1px',
-      boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.02)',
-      transition: 'all 0.2s',
-    }
   };
 
   const handleHover = (e: React.MouseEvent<HTMLButtonElement>, isEnter: boolean) => {
@@ -305,8 +314,26 @@ const Informacoes: React.FC = () => {
 
   return (
     <div style={styles.screen}>
+      {/* BARRA SUPERIOR COM BOTÃO DE VOLTAR AO MENU FIXADO */}
+      <div style={styles.topBar}>
+        <button 
+          style={styles.backButtonTop} 
+          onClick={() => navigate('/home')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = theme.accent;
+            e.currentTarget.style.backgroundColor = theme.cardHover;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = theme.border;
+            e.currentTarget.style.backgroundColor = theme.cardBg;
+          }}
+        >
+          ← VOLTAR AO MENU
+        </button>
+      </div>
+
       <div style={styles.headerContainer}>
-        <h1 style={styles.mainTitle}>PONG COM AR</h1>
+        <h1 style={styles.mainTitle}>PONG COM REALIDADE AUMENTADA</h1>
         <h2 style={styles.subTitleText}>INFORMAÇÕES</h2>
       </div>
 
@@ -373,23 +400,6 @@ const Informacoes: React.FC = () => {
           CRÉDITOS E DESENVOLVEDORES
         </button>
       </div>
-
-      <button 
-        style={styles.backButton} 
-        onClick={() => navigate('/home')}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#ef4444';
-          e.currentTarget.style.color = '#fff';
-          e.currentTarget.style.transform = 'translateY(-2px)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = theme.cardBg;
-          e.currentTarget.style.color = '#ef4444';
-          e.currentTarget.style.transform = 'translateY(0)';
-        }}
-      >
-        VOLTAR AO MENU
-      </button>
 
       <div style={styles.overlay} onClick={() => setModalAtivo(null)}>
         <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
