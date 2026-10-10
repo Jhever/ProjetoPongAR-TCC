@@ -217,7 +217,6 @@ const TestarCamera = () => {
     lastVideoTimeRef.current = -1;
   }, []);
 
-  // Função para alternar o modo de tela cheia do container da câmera
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
@@ -330,8 +329,8 @@ const TestarCamera = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
           frameRate: { ideal: 60 },
           facingMode: 'user',
         },
@@ -346,8 +345,9 @@ const TestarCamera = () => {
       video.srcObject = stream;
       await video.play();
 
-      canvas.width = 1280;
-      canvas.height = 720;
+      // Mantido rigorosamente 640x480 como no original para não afetar o rastreamento da mão
+      canvas.width = 640;
+      canvas.height = 480;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
@@ -515,7 +515,7 @@ const TestarCamera = () => {
         </div>
       </div>
 
-      {/* CONTAINER PRINCIPAL (VÍDEO + BOTÕES LATERAIS) */}
+      {/* CONTAINER PRINCIPAL */}
       <div
         style={{
           display: 'flex',
@@ -526,13 +526,13 @@ const TestarCamera = () => {
           alignItems: 'stretch',
         }}
       >
-        {/* VÍDEO / CANVAS EM DESTAQUE (COM SUPORTE A TELA CHEIA) */}
+        {/* VÍDEO / CANVAS COM PROPORÇÃO ORIGINAL 4/3 E TELA CHEIA */}
         <div
           ref={containerRef}
           style={{
             position: 'relative',
             flex: 1,
-            aspectRatio: '16/9',
+            aspectRatio: '4/3',
             background: '#000',
             border: `1px solid ${theme.border}`,
             borderRadius: '16px',
@@ -568,7 +568,6 @@ const TestarCamera = () => {
             }}
           />
 
-          {/* Botão flutuante de Tela Cheia no canto do vídeo */}
           <button
             onClick={toggleFullscreen}
             style={{
@@ -598,7 +597,7 @@ const TestarCamera = () => {
           </button>
         </div>
 
-        {/* PAINEL LATERAL DE CONTROLE */}
+        {/* PAINEL LATERAL */}
         <div
           style={{
             display: 'flex',
