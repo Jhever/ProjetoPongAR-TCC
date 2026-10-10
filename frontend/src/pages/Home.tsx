@@ -15,6 +15,9 @@ const Home = () => {
 
   const { isDark, isAnonimo, userData, toggleAnonimo } = useConfig();
 
+  // Recupera a foto salva nas configurações (emoji ou Base64)
+  const avatarFoto = (userData as any)?.foto;
+
   useEffect(() => {
     if (userData?.id) {
       fetch(`${API_URL}/api/usuario/${userData.id}`)
@@ -83,9 +86,30 @@ const Home = () => {
       display: showProfile ? 'block' : 'none',
       boxShadow: isDark ? '0 10px 30px rgba(0,0,0,0.6)' : '0 10px 30px rgba(0,0,0,0.08)',
     },
+    profileHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      marginBottom: '15px',
+      paddingBottom: '12px',
+      borderBottom: `1px solid ${theme.border}`,
+    },
+    avatarBox: {
+      width: '45px',
+      height: '45px',
+      borderRadius: '50%',
+      backgroundColor: isDark ? '#1a1f2c' : '#f1f5f9',
+      border: `1px solid ${theme.border}`,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      fontSize: '1.4rem',
+      overflow: 'hidden',
+      flexShrink: 0,
+    },
     menuItemText: {
       margin: '10px 0',
-      fontSize: '0.95rem',
+      fontSize: '0.90rem',
       fontWeight: 'bold' as const,
       borderBottom: `1px solid ${theme.border}`,
       paddingBottom: '8px',
@@ -234,12 +258,47 @@ const Home = () => {
             }} />
           )}
           
-          <UserCircle size={55} color={theme.text} strokeWidth={1.5} />
+          {/* Ícone ou Foto customizada no Header */}
+          {avatarFoto ? (
+            <div style={{
+              width: '55px', height: '55px', borderRadius: '50%',
+              border: `2px solid ${theme.accent}`, display: 'flex',
+              justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
+              backgroundColor: theme.card
+            }}>
+              {avatarFoto.startsWith('data:image') ? (
+                <img src={avatarFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '1.8rem' }}>{avatarFoto}</span>
+              )}
+            </div>
+          ) : (
+            <UserCircle size={55} color={theme.text} strokeWidth={1.5} />
+          )}
           
+          {/* Menu Flutuante do Perfil */}
           <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
-            <p style={styles.menuItemText}>
-              USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
-            </p>
+            
+            {/* Cabeçalho do menu flutuante com a foto e nome resumido */}
+            <div style={styles.profileHeader}>
+              <div style={styles.avatarBox}>
+                {avatarFoto ? (
+                  avatarFoto.startsWith('data:image') ? (
+                    <img src={avatarFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span>{avatarFoto}</span>
+                  )
+                ) : (
+                  '👤'
+                )}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.75rem', color: theme.accent, fontWeight: 'bold' }}>PERFIL ATIVO</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 'bold', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
+                </div>
+              </div>
+            </div>
 
             <p style={styles.menuItemText}>
               ID: {userData?.id ? String(userData.id).padStart(8, '0') : "00000000"}
