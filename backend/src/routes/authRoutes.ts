@@ -13,11 +13,10 @@ const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel
 router.post('/register', async (req: Request, res: Response) => {
   const { usuario, email, senha } = req.body;
   try {
-    // Agora o banco também tem status_conta e total_infracoes
     await pool.query(
       `INSERT INTO jogadores 
-      (usuario, email, senha, pontos_totais, is_anonimo, status_conta, total_infracoes) 
-      VALUES ($1, $2, $3, 0, false, 'ATIVA', 0)`,
+      (usuario, email, senha, pontos_totais, is_anonimo, status_conta, total_infracoes, foto) 
+      VALUES ($1, $2, $3, 0, false, 'ATIVA', 0, NULL)`,
       [usuario, email, senha]
     );
     res.status(201).json({ message: "Conta criada com sucesso!" });
@@ -32,7 +31,6 @@ router.post('/register', async (req: Request, res: Response) => {
 router.post('/login', async (req: Request, res: Response) => {
   const { email, senha } = req.body;
   try {
-    // Puxa as colunas novas também
     const result = await pool.query(
       `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes, foto
        FROM jogadores 
@@ -43,7 +41,6 @@ router.post('/login', async (req: Request, res: Response) => {
     if (result.rows.length > 0) {
       const jogador = result.rows[0];
 
-      // SE ESTIVER BANIDO, BLOQUEIA O LOGIN AQUI MESMO
       if (jogador.status_conta === 'BANIDA') {
         return res.status(403).json({ 
           error: "Sua conta foi banida por violação grave das regras da comunidade." 
@@ -72,12 +69,25 @@ router.get('/api/usuario/:id', async (req: Request, res: Response) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Usuário não encontrado." });
     
-    // Se a conta já estiver banida, avisa quem buscou
     if (result.rows[0].status_conta === 'BANIDA') {
        return res.status(403).json({ error: "Conta Banida." });
     }
 
     res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================================
+// ATUALIZAR FOTO DE PERFIL
+// =====================================
+router.patch('/api/usuario/:id/foto', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { foto } = req.body;
+  try {
+    await pool.query('UPDATE jogadores SET foto = $1 WHERE id = $2', [foto, id]);
+    res.json({ message: "Foto de perfil atualizada com sucesso!" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -123,7 +133,6 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     const result = await pool.query('SELECT * FROM jogadores WHERE email = $1', [email]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Email não encontrado.' });
 
-    // Não deixa conta banida recuperar senha
     if (result.rows[0].status_conta === 'BANIDA') {
         return res.status(403).json({ error: 'Contas banidas não podem solicitar redefinição de senha.' });
     }
