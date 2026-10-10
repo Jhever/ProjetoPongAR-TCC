@@ -27,11 +27,11 @@ interface Sala {
 const salas: Record<string, Sala> = {};
 let filaEspera: { socketId: string; jogadorId: number | string; nome: string } | null = null;
 
-// Lança a bola com um ângulo aberto para cima ou para baixo (evita a bola reta morta)
+// Lança a bola com a velocidade inicial igual ao Modo Treino (velInicial = 8)
 function lancarBola(direcaoX: number) {
   const isCima = Math.random() > 0.5 ? 1 : -1;
   const angulo = (Math.PI / 4) * isCima + (Math.random() * 0.2 - 0.1); 
-  const velInicial = 8;
+  const velInicial = 8; 
   return {
     x: 400,
     y: 225,
@@ -131,7 +131,7 @@ export function setupGameSocket(io: Server) {
     });
 
     // ------------------------------------------------------------------
-    // MOTOR DE FÍSICA NO NODE.JS A 60 FPS (~16ms)
+    // MOTOR DE FÍSICA NO NODE.JS A 60 FPS (~16ms) - COM ANTI-TUNNELING
     // ------------------------------------------------------------------
     socket.on('iniciarFisica', (dados: { salaId: string }) => {
       const sala = salas[dados.salaId];
@@ -156,30 +156,31 @@ export function setupGameSocket(io: Server) {
           estado.ball.dy = -Math.abs(estado.ball.dy);
         }
 
-        // Colisões corrigidas com as raquetes
-        const p1Front = 75;  // Linha da raquete esquerda
-        const p2Front = 725; // Linha da raquete direita
+        // Colisões BLINDADAS contra o Efeito Túnel (Tunneling)
+        const p1Front = 75;  
+        const p2Front = 725; 
 
-        const hitP1 = estado.ball.x - 10 <= p1Front && estado.ball.x > 40 && estado.ball.y > estado.p1Y && estado.ball.y < estado.p1Y + 100;
-        const hitP2 = estado.ball.x + 10 >= p2Front && estado.ball.x < 760 && estado.ball.y > estado.p2Y && estado.ball.y < estado.p2Y + 100;
+        const hitP1 = (estado.ball.x - 10 <= p1Front && estado.ball.x >= p1Front - Math.abs(estado.ball.dx) - 5) && 
+                      (estado.ball.y >= estado.p1Y && estado.ball.y <= estado.p1Y + 100);
+
+        const hitP2 = (estado.ball.x + 10 >= p2Front && estado.ball.x <= p2Front + Math.abs(estado.ball.dx) + 5) && 
+                      (estado.ball.y >= estado.p2Y && estado.ball.y <= estado.p2Y + 100);
 
         if (hitP1) {
-          // 🎲 Sorteia um ângulo entre -45 e +45 graus (totalmente aleatório, ignora onde bateu)
           const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2); 
           const currentSpeed = Math.min(Math.hypot(estado.ball.dx, estado.ball.dy) * 1.05, 30);
           
           estado.ball.dx = Math.abs(Math.cos(bounceAngle) * currentSpeed);
           estado.ball.dy = Math.sin(bounceAngle) * currentSpeed;
-          estado.ball.x = p1Front + 11; // Joga a bola p/ fora da raquete
+          estado.ball.x = p1Front + 12; // Reseta posição para fora da raquete com segurança
         } 
         else if (hitP2) {
-          // 🎲 Sorteia um ângulo entre -45 e +45 graus (totalmente aleatório, ignora onde bateu)
           const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
           const currentSpeed = Math.min(Math.hypot(estado.ball.dx, estado.ball.dy) * 1.05, 30);
           
           estado.ball.dx = -Math.abs(Math.cos(bounceAngle) * currentSpeed);
           estado.ball.dy = Math.sin(bounceAngle) * currentSpeed;
-          estado.ball.x = p2Front - 11; 
+          estado.ball.x = p2Front - 12; // Reseta posição para fora da raquete com segurança
         }
 
         // Marcar pontos
@@ -203,7 +204,7 @@ export function setupGameSocket(io: Server) {
         }
 
         io.to(dados.salaId).emit('bolaAtualizada', estado.ball);
-      }, 1000 / 60); // <-- Mudamos para 60 FPS lisinho
+      }, 1000 / 60);
     });
 
     socket.on('moverRaquete', (dados: { salaId: string; y: number }) => {
