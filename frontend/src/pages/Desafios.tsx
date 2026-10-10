@@ -302,7 +302,7 @@ const Desafios: React.FC = () => {
                         transition: '0.2s'
                       }}
                     >
-                      {limiteAtingido ? "LIMITE ATINGIDO" : `PULAR (${pulosFeitos}/${limiteMaximo})`}
+                      {limiteAtingido ? "LIMITE ATINGIDO" : `PULAR`}
                     </button>
                   )}
                   {d.status === 'concluido' && (
