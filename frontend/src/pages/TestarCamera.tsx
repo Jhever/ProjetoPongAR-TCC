@@ -216,17 +216,27 @@ const TestarCamera = () => {
     lastVideoTimeRef.current = -1;
   }, []);
 
+  const theme = {
+    bg: isDark ? '#07080b' : '#f8fafc',
+    cardBg: isDark ? '#111318' : '#ffffff',
+    text: isDark ? '#f1f5f9' : '#0f172a',
+    muted: '#94a3b8',
+    border: isDark ? '#1f242d' : '#e2e8f0',
+    accent: '#38bdf8',
+  };
+
   const btnGreen = {
-    background: 'linear-gradient(to right, #059669, #a3e635)',
+    background: 'linear-gradient(135deg, #059669, #22c55e)',
     border: 'none',
     color: 'white',
-    padding: '12px 25px',
-    borderRadius: '25px',
+    padding: '14px 24px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontWeight: 'bold' as const,
-    fontSize: '16px',
+    fontSize: '0.95rem',
+    letterSpacing: '1px',
     boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
-    transition: 'transform 0.2s',
+    transition: 'all 0.2s',
     width: '100%',
   };
 
@@ -430,15 +440,16 @@ const TestarCamera = () => {
   return (
     <div
       style={{
-        background: isDark ? '#0a0a0a' : '#f0f0f0',
-        color: isDark ? '#fff' : '#000',
+        background: theme.bg,
+        color: theme.text,
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
-        fontFamily: 'Arial, sans-serif',
+        padding: '30px 20px',
+        fontFamily: '"Courier New", Courier, monospace',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -447,54 +458,70 @@ const TestarCamera = () => {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '40px',
+          gap: '30px',
           width: '100%',
-          maxWidth: '1600px',
+          maxWidth: '1200px',
         }}
       >
+        {/* PAINEL ESQUERDO: TÍTULO E STATUS */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            alignItems: 'center',
-            width: '250px',
-            textAlign: 'center',
+            alignItems: 'flex-start',
+            width: '280px',
+            gap: '20px',
           }}
         >
-          <h2 style={{ marginBottom: '20px', fontSize: '2.2rem', lineHeight: '1.2' }}>
-            TESTE DE<br />CÂMERA
-          </h2>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: theme.accent, letterSpacing: '2px', fontWeight: 'bold' }}>
+              DIAGNÓSTICO
+            </div>
+            <h2 style={{ margin: '5px 0 0 0', fontSize: '2rem', fontWeight: '900', lineHeight: '1.1' }}>
+              TESTE DE<br />CÂMERA
+            </h2>
+          </div>
 
           <div
             style={{
-              background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+              background: theme.cardBg,
+              border: `1px solid ${theme.border}`,
               padding: '20px',
-              borderRadius: '15px',
+              borderRadius: '12px',
               width: '100%',
               boxSizing: 'border-box',
+              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.02)',
             }}
           >
-            <p style={{ color: '#059669', fontWeight: 'bold', fontSize: '1.1rem', margin: '0 0 10px 0' }}>
+            <div style={{ fontSize: '0.75rem', color: theme.muted, marginBottom: '6px', letterSpacing: '1px' }}>
+              STATUS DA IA
+            </div>
+            <div style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '1rem', margin: '0 0 15px 0', wordBreak: 'break-word' }}>
               {status}
-            </p>
-            <p style={{ fontWeight: 'bold', fontSize: '1.2rem', margin: 0 }}>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: theme.muted, marginBottom: '4px', letterSpacing: '1px' }}>
+              MONITORAMENTO
+            </div>
+            <div style={{ fontWeight: 'bold', fontSize: '1.1rem', margin: 0 }}>
               Pontos: <span style={{ color: '#a3e635' }}>{pontos}</span> / 21
-            </p>
+            </div>
           </div>
         </div>
 
+        {/* CENTRO: CONTAINER DA CÂMERA */}
         <div
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: '1000px',
+            maxWidth: '680px',
             aspectRatio: '4/3',
-            border: '4px solid #333',
-            borderRadius: '20px',
+            background: '#000',
+            border: `1px solid ${theme.border}`,
+            borderRadius: '16px',
             overflow: 'hidden',
-            boxShadow: '0 0 30px rgba(0,0,0,0.5)',
-            flexShrink: 1,
+            boxShadow: isDark ? '0 10px 40px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.08)',
+            flexShrink: 0,
           }}
         >
           <video
@@ -526,12 +553,13 @@ const TestarCamera = () => {
           />
         </div>
 
+        {/* PAINEL DIREITO: BOTÕES DE AÇÃO */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '20px',
-            width: '250px',
+            gap: '15px',
+            width: '280px',
           }}
         >
           <button
@@ -553,17 +581,20 @@ const TestarCamera = () => {
           <button
             onClick={voltarParaInicio}
             style={{
-              background: 'transparent',
-              color: isDark ? '#fff' : '#333',
-              border: '2px solid #555',
-              padding: '12px 25px',
-              borderRadius: '30px',
+              background: theme.cardBg,
+              color: theme.text,
+              border: `1px solid ${theme.border}`,
+              padding: '14px 24px',
+              borderRadius: '10px',
               cursor: 'pointer',
               fontWeight: 'bold',
+              fontSize: '0.95rem',
+              letterSpacing: '1px',
               width: '100%',
+              transition: 'all 0.2s',
             }}
           >
-            VOLTAR PARA O INICIO
+            VOLTAR AO INÍCIO
           </button>
         </div>
       </div>

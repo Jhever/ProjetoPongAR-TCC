@@ -305,7 +305,7 @@ const Home = () => {
             </p>
             
             <p style={styles.menuItemText}>
-              PONTOS: {dadosAtualizados.pontos} ⭐
+              PONTOS: {dadosAtualizados.pontos}
             </p>
 
             {dadosAtualizados.infracoes > 0 && (
