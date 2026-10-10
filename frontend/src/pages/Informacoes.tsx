@@ -94,7 +94,7 @@ const Informacoes: React.FC = () => {
     modal: {
       width: '90%',
       maxWidth: '650px',
-      maxHeight: '80vh', // Adicionado para limitar a altura máxima na tela
+      // maxHeight: '80vh', // Adicionado para limitar a altura máxima na tela
       overflowY: 'auto' as const, // Adicionado scroll vertical caso o conteúdo seja extenso
       background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
       borderRadius: '24px',
@@ -208,7 +208,7 @@ const Informacoes: React.FC = () => {
       case 'denuncias':
         return (
           <>
-            <h3 style={styles.modalTitle}>MODERAÇÃO POR IA</h3>
+            <h3 style={styles.modalTitle}>MODERAÇÃO POR IA teste</h3>
             <div style={{ ...styles.card, borderLeftColor: '#ef4444' }}>
               <span style={{ ...styles.cardHeader, color: '#ef4444' }}>🤖 DETECÇÃO DE INFRAÇÕES</span>
               <p style={{ margin: 0, opacity: 0.8 }}>Nossas partidas são monitoradas por uma Inteligência Artificial (FastAPI). Ao registrar uma denúncia de "Gesto Obsceno" ou "AFK", a IA escaneia os últimos frames da sua câmera para confirmar a infração baseada na geometria da mão.</p>
