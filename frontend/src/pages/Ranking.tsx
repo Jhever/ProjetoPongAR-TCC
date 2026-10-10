@@ -219,7 +219,6 @@ const Ranking = () => {
               const nomeExibido = jogadorAnonimo ? 'ANÔNIMO' : player.nome;
               const isPodium = player.posicao <= 3;
               
-              // Se for o usuário logado e ele tiver foto no context, usa ela; senão usa a foto do banco se vier
               const fotoJogador = isCurrentUser ? (userData as any)?.foto : player.foto;
 
               return (
@@ -241,7 +240,7 @@ const Ranking = () => {
                   <span style={{ fontWeight: 'bold', color: '#facc15' }}>{player.pontos}</span>
                   <span style={{ fontWeight: 'bold' }}>{getMedal(player.posicao)}</span>
                   
-                  {/* COLUNA DO NOME COM AVATAR / FOTO */}
+                  {/* COLUNA DO NOME COM AVATAR / FOTO CORRIGIDO */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -264,10 +263,10 @@ const Ranking = () => {
                       flexShrink: 0
                     }}>
                       {!jogadorAnonimo && fotoJogador ? (
-                        fotoJogador.startsWith('data:image') ? (
+                        fotoJogador.startsWith('data:image') || fotoJogador.startsWith('http') ? (
                           <img src={fotoJogador} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                          <span>{fotoJogador}</span>
+                          <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{fotoJogador}</span>
                         )
                       ) : (
                         <span>👤</span>
