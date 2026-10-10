@@ -20,17 +20,17 @@ import Desafios from './pages/Desafios';
 import EsqueciSenha from './pages/EsqueciSenha';
 import ResetPassword from './pages/ResetPassword';
 
-// Componente auxiliar para controle de tema (dark/light)
+// Componente auxiliar otimizado para gerenciar a cor do texto globalmente sem travar fundos customizados
 const AppContainer = ({ children }: { children: ReactNode }) => {
   const { isDark } = useConfig(); 
   
   return (
     <div style={{ 
-      backgroundColor: isDark ? '#000' : '#F5F5F5',
-      color: isDark ? '#FFF' : '#333',
+      color: isDark ? '#f8fafc' : '#1e293b',
       minHeight: '100vh', 
       width: '100vw',
-      transition: 'background-color 0.3s ease'
+      overflowX: 'hidden',
+      transition: 'color 0.3s ease'
     }}>
       {children}
     </div>
