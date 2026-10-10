@@ -7,9 +7,11 @@ const Configuracao = () => {
   const { isDark, isAnonimo, userData, toggleTheme, toggleAnonimo, updateUserData } = useConfig();
 
   const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [currentPasswordConfirm, setCurrentPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedFoto, setSelectedFoto] = useState((userData as any)?.foto || '👤');
 
   if (!userData) {
     return (
@@ -51,6 +53,36 @@ const Configuracao = () => {
       alert('Erro: Senha atual incorreta ou erro de servidor.');
     }
   };
+
+const handleSaveAvatar = async (novaFoto: string) => {
+    try {
+      setSelectedFoto(novaFoto);
+      await updateUserData({
+        ...userData,
+        foto: novaFoto
+      } as any);
+      setIsEditingAvatar(false);
+      alert('Foto de perfil atualizada com sucesso!');
+    } catch (err) {
+      alert('Erro ao atualizar foto de perfil.');
+    }
+  };
+
+  // Conversor de imagem local para Base64 (caso queira enviar foto própria)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          handleSaveAvatar(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const avataresPreDefinidos = ['🥷', '🤖', '🦊', '⚡', '💀', '🔥', '👾', '👑'];
 
   const styles = {
     screen: {
@@ -111,9 +143,9 @@ const Configuracao = () => {
       border: `1px solid ${theme.accent}`,
       display: 'flex', 
       flexDirection: 'column' as const, 
-      gap: '15px', 
+      gap: '20px', 
       width: '100%',
-      maxWidth: '350px',
+      maxWidth: '400px',
       boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
       boxSizing: 'border-box' as const,
     },
@@ -131,7 +163,7 @@ const Configuracao = () => {
 
   return (
     <div style={styles.screen}>
-      {/* 📌 CABEÇALHO FIXO COM O BOTÃO VOLTAR INTEGRADO */}
+      {/* CABEÇALHO FIXO COM BOTÃO VOLTAR */}
       <div style={styles.header}>
         <button 
           onClick={() => navigate('/home')}
@@ -167,15 +199,30 @@ const Configuracao = () => {
           </h2>
         </div>
 
-        <div style={{ width: '65px' }} /> {/* Espaçador simétrico */}
+        <div style={{ width: '65px' }} />
       </div>
 
       <div style={styles.profileBox}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '25px', borderBottom: `1px solid ${theme.borderColor}`, paddingBottom: '20px' }}>
-          <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'rgba(147, 51, 234, 0.1)', border: `2px solid ${theme.accent}`, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.8rem' }}>👤</div>
+          <div style={{ 
+            width: '75px', height: '75px', borderRadius: '50%', background: 'rgba(147, 51, 234, 0.1)', 
+            border: `2px solid ${theme.accent}`, display: 'flex', justifyContent: 'center', alignItems: 'center', 
+            fontSize: '2rem', overflow: 'hidden' 
+          }}>
+            {selectedFoto.startsWith('data:image') ? (
+              <img src={selectedFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              selectedFoto
+            )}
+          </div>
           <div>
             <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{isAnonimo ? "ANÔNIMO" : userData.usuario}</div>
-            <button style={{ background: 'none', border: 'none', color: theme.cyan, cursor: 'pointer', fontWeight: 'bold', padding: 0, marginTop: '5px', fontSize: '0.85rem' }}>ALTERAR FOTO DE PERFIL</button>
+            <button 
+              onClick={() => setIsEditingAvatar(true)}
+              style={{ background: 'none', border: 'none', color: theme.cyan, cursor: 'pointer', fontWeight: 'bold', padding: 0, marginTop: '5px', fontSize: '0.85rem' }}
+            >
+              ALTERAR FOTO DE PERFIL
+            </button>
           </div>
         </div>
 
@@ -220,10 +267,52 @@ const Configuracao = () => {
         </div>
       </div>
 
+      {/* MODAL DE ESCOLHA DE FOTO / AVATAR */}
+      {isEditingAvatar && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={{ color: theme.accent, textAlign: 'center', margin: 0 }}>ESCOLHER AVATAR</h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', textAlign: 'center' }}>
+              {avataresPreDefinidos.map((emoji, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSaveAvatar(emoji)}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '12px',
+                    fontSize: '1.8rem',
+                    padding: '12px',
+                    cursor: 'pointer',
+                    transition: '0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>ou envie uma imagem do dispositivo:</div>
+            <input type="file" accept="image/*" onChange={handleFileUpload} style={{ fontSize: '0.85rem', color: theme.text }} />
+
+            <button 
+              onClick={() => setIsEditingAvatar(false)} 
+              style={{ ...styles.actionBtn, backgroundColor: '#334155', marginTop: '10px' }}
+            >
+              CANCELAR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ALTERAR SENHA */}
       {isEditingPassword && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
-            <h2 style={{ color: theme.accent, textAlign: 'center', margin: '0 0 10px 0', fontSize: '1.4rem' }}>ALTERAR SENHA</h2>
+            <h3 style={{ color: theme.accent, textAlign: 'center', margin: 0 }}>ALTERAR SENHA</h3>
             <input type={showPassword ? "text" : "password"} placeholder="Senha atual" value={currentPasswordConfirm} onChange={(e) => setCurrentPasswordConfirm(e.target.value)} style={styles.input} />
             <input type={showPassword ? "text" : "password"} placeholder="Nova senha" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={styles.input} />
             <label style={{ fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
