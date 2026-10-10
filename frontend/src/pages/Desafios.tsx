@@ -146,6 +146,37 @@ const Desafios: React.FC = () => {
         }}>
           ⚡ Pulos Realizados: <span style={{ color: '#c084fc' }}>{pulosFeitos}</span> / {limiteMaximo}
         </div>
+
+         <button 
+        style={{
+          marginTop: '40px',
+          background: isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0',
+          color: isDark ? '#fff' : '#334155',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '12px',
+          padding: '14px 40px',
+          fontSize: '1rem',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          transition: 'all 0.3s',
+          backdropFilter: 'blur(10px)'
+        }} 
+        onClick={() => navigate('/home')}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#ef4444';
+          e.currentTarget.style.color = '#fff';
+          e.currentTarget.style.borderColor = '#ef4444';
+          e.currentTarget.style.boxShadow = '0 4px 20px rgba(239, 68, 68, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0';
+          e.currentTarget.style.color = isDark ? '#fff' : '#334155';
+          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+      >
+        VOLTAR AO MENU
+      </button>
       </div>
 
       {/* BOTÃO MESTRE: RECOLHER TODAS */}
