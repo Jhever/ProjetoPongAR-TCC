@@ -34,7 +34,7 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     // Puxa as colunas novas também
     const result = await pool.query(
-      `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes 
+      `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes, foto
        FROM jogadores 
        WHERE (email = $1 OR usuario = $1) AND senha = $2`,
       [email, senha]
@@ -66,7 +66,7 @@ router.get('/api/usuario/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
-      `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes 
+      `SELECT id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes, foto
        FROM jogadores WHERE id = $1`,
       [id]
     );

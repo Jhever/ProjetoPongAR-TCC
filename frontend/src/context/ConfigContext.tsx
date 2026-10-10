@@ -8,6 +8,7 @@ interface UserData {
   email: string;
   senha?: string;
   currentPassword?: string;
+  foto?: string; // Adicionado suporte para o avatar / foto do usuário
 }
 
 interface ConfigContextData {
@@ -81,14 +82,27 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUserData = async (newData: UserData) => {
     try {
+      // Se houver alteração de foto, atualiza também no banco de dados via rota específica se necessário,
+      // ou envia no update geral. Aqui mantemos a chamada de atualização de senha/dados:
       await fetch(`${API_URL}/update-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newData)
       });
+
+      // Se a foto foi alterada, envia para a rota dedicada de foto no backend
+      if (newData.foto !== undefined && userData?.id) {
+        await fetch(`${API_URL}/api/usuario/${userData.id}/foto`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ foto: newData.foto })
+        });
+      }
+
       setUserData(newData);
     } catch (err) {
       console.error("Erro ao atualizar:", err);
+      throw err;
     }
   };
 
