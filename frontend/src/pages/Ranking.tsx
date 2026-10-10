@@ -16,6 +16,7 @@ interface PlayerRank {
   gols_feitos?: number;
   gols_sofrido?: number;
   gols_sofridos?: number;
+  foto?: string; // Suporte para a foto do perfil
 }
 
 const Ranking = () => {
@@ -165,7 +166,7 @@ const Ranking = () => {
         </span>
       </div>
 
-      {/* TABELA COM ROLAGEM HORIZONTA SEGURA */}
+      {/* TABELA COM ROLAGEM HORIZONTAL SEGURA */}
       <div style={{
         width: '100%',
         maxWidth: '1100px',
@@ -217,6 +218,9 @@ const Ranking = () => {
               const jogadorAnonimo = (isCurrentUser && isAnonimoContext) || player.is_anonimo || player.nome === 'ANÔNIMO';
               const nomeExibido = jogadorAnonimo ? 'ANÔNIMO' : player.nome;
               const isPodium = player.posicao <= 3;
+              
+              // Se for o usuário logado e ele tiver foto no context, usa ela; senão usa a foto do banco se vier
+              const fotoJogador = isCurrentUser ? (userData as any)?.foto : player.foto;
 
               return (
                 <div key={player.id_usuario} style={{ 
@@ -236,17 +240,50 @@ const Ranking = () => {
                   </span>
                   <span style={{ fontWeight: 'bold', color: '#facc15' }}>{player.pontos}</span>
                   <span style={{ fontWeight: 'bold' }}>{getMedal(player.posicao)}</span>
-                  <span style={{ 
+                  
+                  {/* COLUNA DO NOME COM AVATAR / FOTO */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '10px', 
                     textAlign: 'left', 
-                    paddingLeft: '15px', 
-                    fontWeight: 'bold', 
-                    color: jogadorAnonimo ? '#94a3b8' : (isPodium ? '#a3e635' : '#fff'),
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    paddingLeft: '15px',
+                    overflow: 'hidden'
                   }}>
-                    {nomeExibido}
-                  </span>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: '#1a1f2c',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      fontSize: '1rem',
+                      overflow: 'hidden',
+                      flexShrink: 0
+                    }}>
+                      {!jogadorAnonimo && fotoJogador ? (
+                        fotoJogador.startsWith('data:image') ? (
+                          <img src={fotoJogador} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <span>{fotoJogador}</span>
+                        )
+                      ) : (
+                        <span>👤</span>
+                      )}
+                    </div>
+                    <span style={{ 
+                      fontWeight: 'bold', 
+                      color: jogadorAnonimo ? '#94a3b8' : (isPodium ? '#a3e635' : '#fff'),
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {nomeExibido}
+                    </span>
+                  </div>
+
                   <span style={{ color: '#c084fc' }}>{player.desafio ?? player.pontos_desafio ?? 0}</span>
                   <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{player.vitoria}</span>
                   <span style={{ color: '#f87171', fontWeight: 'bold' }}>{player.derrota}</span>
