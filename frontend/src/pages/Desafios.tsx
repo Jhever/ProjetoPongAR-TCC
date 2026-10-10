@@ -67,7 +67,6 @@ const Desafios: React.FC = () => {
     }
   };
 
-  // 🌟 NOVA FUNÇÃO: Recolher todas as recompensas concluídas de uma vez só
   const handleRecolherTodas = async () => {
     const concluidos = desafios.filter(d => d.status === 'concluido');
     if (concluidos.length === 0) return;
@@ -100,22 +99,36 @@ const Desafios: React.FC = () => {
       background: isDark ? 'radial-gradient(circle at 50% 20%, #1a0b2e 0%, #090612 100%)' : 'radial-gradient(circle at 50% 20%, #f3e8ff 0%, #f8fafc 100%)',
       color: isDark ? '#f8fafc' : '#1e293b',
       fontFamily: "'Courier New', monospace, sans-serif",
-      padding: '40px 20px',
+      padding: '0 20px 40px 20px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       boxSizing: 'border-box'
     }}>
-      {/* HEADER PREMIUM */}
-      <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+      {/* 📌 CABEÇALHO FIXO (STICKY HEADER) */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        width: '100vw',
+        backgroundColor: isDark ? 'rgba(9, 6, 18, 0.85)' : 'rgba(248, 250, 252, 0.85)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
+        padding: '20px 0',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: '25px'
+      }}>
         <h1 style={{
-          fontSize: '2.5rem',
+          fontSize: '2.2rem',
           fontWeight: '900',
           letterSpacing: '3px',
           background: 'linear-gradient(135deg, #c084fc, #9333ea, #e879f9)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          marginBottom: '10px',
+          margin: '0 0 8px 0',
+          textAlign: 'center',
           textShadow: '0 0 30px rgba(147, 51, 234, 0.3)'
         }}>
           DESAFIOS DIÁRIOS
@@ -124,11 +137,10 @@ const Desafios: React.FC = () => {
           display: 'inline-block',
           background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(147, 51, 234, 0.08)',
           border: '1px solid rgba(147, 51, 234, 0.3)',
-          padding: '8px 20px',
+          padding: '6px 18px',
           borderRadius: '25px',
-          fontSize: '0.95rem',
+          fontSize: '0.9rem',
           fontWeight: 'bold',
-          backdropFilter: 'blur(10px)'
         }}>
           ⚡ Pulos Realizados: <span style={{ color: '#c084fc' }}>{pulosFeitos}</span> / {limiteMaximo}
         </div>
