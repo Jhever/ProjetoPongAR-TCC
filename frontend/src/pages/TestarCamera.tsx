@@ -166,6 +166,7 @@ const TestarCamera = () => {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number>(0);
   const landmarkerRef = useRef<Vision.HandLandmarker | null>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
@@ -216,6 +217,20 @@ const TestarCamera = () => {
     lastVideoTimeRef.current = -1;
   }, []);
 
+  // Função para alternar o modo de tela cheia do container da câmera
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error("Erro ao tentar entrar em tela cheia:", err);
+      });
+    } else {
+      document.exitFullscreen().catch(err => {
+        console.error("Erro ao tentar sair de tela cheia:", err);
+      });
+    }
+  };
+
   const theme = {
     bg: isDark ? '#07080b' : '#f8fafc',
     cardBg: isDark ? '#111318' : '#ffffff',
@@ -229,11 +244,11 @@ const TestarCamera = () => {
     background: 'linear-gradient(135deg, #059669, #22c55e)',
     border: 'none',
     color: 'white',
-    padding: '14px 24px',
+    padding: '14px 20px',
     borderRadius: '10px',
     cursor: 'pointer',
     fontWeight: 'bold' as const,
-    fontSize: '0.95rem',
+    fontSize: '0.9rem',
     letterSpacing: '1px',
     boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
     transition: 'all 0.2s',
@@ -315,8 +330,8 @@ const TestarCamera = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
           frameRate: { ideal: 60 },
           facingMode: 'user',
         },
@@ -331,8 +346,8 @@ const TestarCamera = () => {
       video.srcObject = stream;
       await video.play();
 
-      canvas.width = 640;
-      canvas.height = 480;
+      canvas.width = 1280;
+      canvas.height = 720;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
@@ -446,82 +461,83 @@ const TestarCamera = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
         padding: '30px 20px',
         fontFamily: '"Courier New", Courier, monospace',
         boxSizing: 'border-box',
       }}
     >
+      {/* HEADER DA PÁGINA */}
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '30px',
           width: '100%',
-          maxWidth: '1200px',
+          maxWidth: '1280px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '25px',
+          padding: '0 10px',
+          boxSizing: 'border-box',
         }}
       >
-        {/* PAINEL ESQUERDO: TÍTULO E STATUS */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'flex-start',
-            width: '280px',
-            gap: '20px',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.75rem', color: theme.accent, letterSpacing: '2px', fontWeight: 'bold' }}>
-              DIAGNÓSTICO
-            </div>
-            <h2 style={{ margin: '5px 0 0 0', fontSize: '2rem', fontWeight: '900', lineHeight: '1.1' }}>
-              TESTE DE<br />CÂMERA
-            </h2>
+        <div>
+          <div style={{ fontSize: '0.75rem', color: theme.accent, letterSpacing: '2px', fontWeight: 'bold' }}>
+            DIAGNÓSTICO & CALIBRAÇÃO AR
           </div>
+          <h1 style={{ margin: '4px 0 0 0', fontSize: '1.8rem', fontWeight: '900', letterSpacing: '1px' }}>
+            TESTE DE CÂMERA
+          </h1>
+        </div>
 
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <div
             style={{
               background: theme.cardBg,
               border: `1px solid ${theme.border}`,
-              padding: '20px',
-              borderRadius: '12px',
-              width: '100%',
-              boxSizing: 'border-box',
-              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.02)',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              display: 'flex',
+              gap: '20px',
+              alignItems: 'center',
+              boxShadow: isDark ? '0 4px 15px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.02)',
             }}
           >
-            <div style={{ fontSize: '0.75rem', color: theme.muted, marginBottom: '6px', letterSpacing: '1px' }}>
-              STATUS DA IA
+            <div>
+              <span style={{ fontSize: '0.7rem', color: theme.muted, display: 'block', letterSpacing: '1px' }}>STATUS</span>
+              <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>{status}</span>
             </div>
-            <div style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '1rem', margin: '0 0 15px 0', wordBreak: 'break-word' }}>
-              {status}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: theme.muted, marginBottom: '4px', letterSpacing: '1px' }}>
-              MONITORAMENTO
-            </div>
-            <div style={{ fontWeight: 'bold', fontSize: '1.1rem', margin: 0 }}>
-              Pontos: <span style={{ color: '#a3e635' }}>{pontos}</span> / 21
+            <div style={{ borderLeft: `1px solid ${theme.border}`, paddingLeft: '15px' }}>
+              <span style={{ fontSize: '0.7rem', color: theme.muted, display: 'block', letterSpacing: '1px' }}>RASTREAMENTO</span>
+              <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                Pontos: <span style={{ color: '#a3e635' }}>{pontos}</span> / 21
+              </span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* CENTRO: CONTAINER DA CÂMERA */}
+      {/* CONTAINER PRINCIPAL (VÍDEO + BOTÕES LATERAIS) */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: '25px',
+          width: '100%',
+          maxWidth: '1280px',
+          alignItems: 'stretch',
+        }}
+      >
+        {/* VÍDEO / CANVAS EM DESTAQUE (COM SUPORTE A TELA CHEIA) */}
         <div
+          ref={containerRef}
           style={{
             position: 'relative',
-            width: '100%',
-            maxWidth: '680px',
-            aspectRatio: '4/3',
+            flex: 1,
+            aspectRatio: '16/9',
             background: '#000',
             border: `1px solid ${theme.border}`,
             borderRadius: '16px',
             overflow: 'hidden',
             boxShadow: isDark ? '0 10px 40px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.08)',
-            flexShrink: 0,
           }}
         >
           <video
@@ -551,15 +567,45 @@ const TestarCamera = () => {
               transform: 'scaleX(-1)',
             }}
           />
+
+          {/* Botão flutuante de Tela Cheia no canto do vídeo */}
+          <button
+            onClick={toggleFullscreen}
+            style={{
+              position: 'absolute',
+              bottom: '15px',
+              right: '15px',
+              background: 'rgba(0, 0, 0, 0.6)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#fff',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '0.8rem',
+              letterSpacing: '1px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              zIndex: 10,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)')}
+          >
+            ⛶ TELA CHEIA
+          </button>
         </div>
 
-        {/* PAINEL DIREITO: BOTÕES DE AÇÃO */}
+        {/* PAINEL LATERAL DE CONTROLE */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: '15px',
-            width: '280px',
+            width: '260px',
+            justifyContent: 'center',
           }}
         >
           <button
@@ -584,15 +630,18 @@ const TestarCamera = () => {
               background: theme.cardBg,
               color: theme.text,
               border: `1px solid ${theme.border}`,
-              padding: '14px 24px',
+              padding: '14px 20px',
               borderRadius: '10px',
               cursor: 'pointer',
               fontWeight: 'bold',
-              fontSize: '0.95rem',
+              fontSize: '0.9rem',
               letterSpacing: '1px',
               width: '100%',
               transition: 'all 0.2s',
+              boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.02)',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.border)}
           >
             VOLTAR AO INÍCIO
           </button>
