@@ -105,31 +105,33 @@ const Desafios: React.FC = () => {
       alignItems: 'center',
       boxSizing: 'border-box'
     }}>
-      {/* 📌 CABEÇALHO FIXO (STICKY HEADER) */}
+      {/* 📌 CABEÇALHO FIXO CORRIGIDO (COMPACTO E VISÍVEL) */}
       <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        width: '100vw',
-        backgroundColor: isDark ? 'rgba(9, 6, 18, 0.85)' : 'rgba(248, 250, 252, 0.85)',
+        width: '100%',
+        maxWidth: '700px',
+        backgroundColor: isDark ? 'rgba(9, 6, 18, 0.9)' : 'rgba(248, 250, 252, 0.9)',
         backdropFilter: 'blur(12px)',
         borderBottom: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
-        padding: '20px 0',
+        padding: '15px 10px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        marginBottom: '25px'
+        marginBottom: '25px',
+        boxSizing: 'border-box'
       }}>
         <h1 style={{
-          fontSize: '2.2rem',
+          fontSize: '1.8rem',
           fontWeight: '900',
-          letterSpacing: '3px',
+          letterSpacing: '2px',
           background: 'linear-gradient(135deg, #c084fc, #9333ea, #e879f9)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          margin: '0 0 8px 0',
+          margin: '0 0 6px 0',
           textAlign: 'center',
-          textShadow: '0 0 30px rgba(147, 51, 234, 0.3)'
+          textShadow: '0 0 20px rgba(147, 51, 234, 0.3)'
         }}>
           DESAFIOS DIÁRIOS
         </h1>
@@ -137,9 +139,9 @@ const Desafios: React.FC = () => {
           display: 'inline-block',
           background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(147, 51, 234, 0.08)',
           border: '1px solid rgba(147, 51, 234, 0.3)',
-          padding: '6px 18px',
-          borderRadius: '25px',
-          fontSize: '0.9rem',
+          padding: '4px 14px',
+          borderRadius: '20px',
+          fontSize: '0.85rem',
           fontWeight: 'bold',
         }}>
           ⚡ Pulos Realizados: <span style={{ color: '#c084fc' }}>{pulosFeitos}</span> / {limiteMaximo}
@@ -268,7 +270,7 @@ const Desafios: React.FC = () => {
                         transition: '0.2s'
                       }}
                     >
-                      {limiteAtingido ? "LIMITE ATINGIDO" : `PULAR (${pulosFeitos}/${limiteMaximo})`}
+                      {limiteAtingido ? "LIMITE ATINGIDO" : `PULAR`}
                     </button>
                   )}
                   {d.status === 'concluido' && (
