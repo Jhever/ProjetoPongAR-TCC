@@ -15,13 +15,14 @@ router.get('/api/ranking', async (_req: Request, res: Response) => {
           ELSE j.usuario 
         END AS nome,
         COALESCE(j.pontos_desafio, 0) AS desafio,
+        COALESCE(j.foto, '') AS foto,
         COALESCE(COUNT(CASE WHEN UPPER(p.resultado) = 'VITORIA' AND UPPER(p.tipo_partida) = 'ONLINE' THEN 1 END), 0) AS vitoria,
         COALESCE(COUNT(CASE WHEN UPPER(p.resultado) = 'DERROTA' AND UPPER(p.tipo_partida) = 'ONLINE' THEN 1 END), 0) AS derrota,
         COALESCE(SUM(CASE WHEN UPPER(p.tipo_partida) = 'ONLINE' THEN p.pontuacao_jogador ELSE 0 END), 0) AS gols_feito,
         COALESCE(SUM(CASE WHEN UPPER(p.tipo_partida) = 'ONLINE' THEN p.pontuacao_adversario ELSE 0 END), 0) AS gols_sofrido
       FROM jogadores j
       LEFT JOIN partidas p ON j.id = p.jogador_id AND UPPER(p.tipo_partida) = 'ONLINE'
-      GROUP BY j.id, j.pontos_totais, j.pontos_desafio, j.is_anonimo, j.usuario
+      GROUP BY j.id, j.pontos_totais, j.pontos_desafio, j.is_anonimo, j.usuario, j.foto
       ORDER BY pontos DESC, vitoria DESC
       LIMIT 10;
     `;
@@ -34,6 +35,7 @@ router.get('/api/ranking', async (_req: Request, res: Response) => {
       pontos: Number(row.pontos),
       nome: row.nome,
       desafio: Number(row.desafio),
+      foto: row.foto, // <--- Incluído aqui para o frontend ler
       vitoria: Number(row.vitoria),
       derrota: Number(row.derrota),
       gols_feito: Number(row.gols_feito),
@@ -95,7 +97,6 @@ router.post('/api/ranking/registrar-partida', async (req: Request, res: Response
     // 2. SÓ altera a carteira de 'pontos_totais' se for partida ONLINE
     if (tipo_partida.toUpperCase() === 'ONLINE') {
       
-      // Usa os pontos enviados pelo frontend (Game.tsx). Se falhar, faz um fallback local.
       if (pontos_ganhos !== undefined) {
         deltaPontos = pontos_ganhos;
       } else {
