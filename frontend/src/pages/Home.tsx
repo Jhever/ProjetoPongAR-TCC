@@ -1,177 +1,321 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useConfig } from '../context/ConfigContext';
+import { UserCircle } from 'lucide-react';
+import { useConfig } from '../context/ConfigContext'; 
 
-const Home: React.FC = () => {
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+
+const Home = () => {
   const navigate = useNavigate();
-  const { userData, isAnonimo, isDark } = useConfig();
+  const [showProfile, setShowProfile] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
+  
+  // Estado para puxar as infrações e os pontos do banco
+  const [dadosAtualizados, setDadosAtualizados] = useState({ pontos: 0, infracoes: 0 });
 
-  const avatarFoto = (userData as any)?.foto || '👤';
-  const nomeExibido = isAnonimo ? 'ANÔNIMO' : (userData?.usuario || 'Jogador');
+  const { isDark, isAnonimo, userData, toggleAnonimo } = useConfig();
 
-  // Paleta controlada e sofisticada
+  useEffect(() => {
+    if (userData?.id) {
+      fetch(`${API_URL}/api/usuario/${userData.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.error) {
+            setDadosAtualizados({ 
+              pontos: data.pontos_totais || 0, 
+              infracoes: data.total_infracoes || 0 
+            });
+          }
+        })
+        .catch(err => console.error("Erro ao buscar dados do perfil:", err));
+    }
+  }, [userData]);
+
   const theme = {
     bg: isDark ? '#07080b' : '#f8fafc',
-    cardBg: isDark ? '#111318' : '#ffffff',
-    cardHover: isDark ? '#181b22' : '#f1f5f9',
-    text: isDark ? '#f1f5f9' : '#0f172a',
-    muted: isDark ? '#64748b' : '#64748b',
+    text: isDark ? '#f8fafc' : '#0f172a',
+    card: isDark ? '#111318' : '#ffffff',
     border: isDark ? '#1f242d' : '#e2e8f0',
-    borderHover: isDark ? '#38bdf8' : '#0284c7',
     accent: '#38bdf8',
+    danger: '#ef4444'
+  };
+
+  const styles = {
+    screen: {
+      width: '100%',
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      padding: '40px 20px',
+      position: 'relative' as const,
+      backgroundColor: theme.bg,
+      color: theme.text,
+      transition: 'background 0.3s ease, color 0.3s ease',
+      boxSizing: 'border-box' as const,
+      fontFamily: '"Courier New", Courier, monospace',
+    },
+    header: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '20px',
+      marginBottom: '60px',
+      width: '100%',
+      maxWidth: '1100px',
+      position: 'relative' as const,
+    },
+    profileContainer: {
+      position: 'relative' as const,
+      cursor: 'pointer',
+    },
+    profileMenu: {
+      position: 'absolute' as const,
+      top: '70px',
+      left: '0',
+      backgroundColor: theme.card,
+      border: `1px solid ${theme.border}`,
+      padding: '20px',
+      borderRadius: '12px',
+      width: '280px',
+      color: theme.text,
+      zIndex: 100,
+      display: showProfile ? 'block' : 'none',
+      boxShadow: isDark ? '0 10px 30px rgba(0,0,0,0.6)' : '0 10px 30px rgba(0,0,0,0.08)',
+    },
+    menuItemText: {
+      margin: '10px 0',
+      fontSize: '0.95rem',
+      fontWeight: 'bold' as const,
+      borderBottom: `1px solid ${theme.border}`,
+      paddingBottom: '8px',
+    },
+    alertaInfracao: {
+      margin: '10px 0',
+      fontSize: '0.85rem',
+      fontWeight: 'bold' as const,
+      color: theme.danger,
+      padding: '10px',
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderRadius: '6px',
+      border: `1px solid ${theme.danger}`
+    },
+    labelStyle: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      cursor: 'pointer',
+      fontSize: '0.9rem',
+      fontWeight: 'bold' as const,
+    },
+    title: {
+      color: theme.accent,
+      fontSize: '3.5rem',
+      fontWeight: '900',
+      fontStyle: 'italic',
+      textTransform: 'uppercase' as const,
+      margin: 0,
+      letterSpacing: '3px',
+      textAlign: 'center' as const,
+      flex: 1,
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+      gap: '25px',
+      width: '100%',
+      maxWidth: '1100px',
+    },
+    button: {
+      backgroundColor: theme.card,
+      color: theme.text,
+      border: `1px solid ${theme.border}`,
+      borderBottom: `4px solid ${theme.accent}`,
+      padding: '22px 24px',
+      borderRadius: '10px',
+      fontSize: '1rem',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      textAlign: 'left' as const,
+      textTransform: 'uppercase' as const,
+      letterSpacing: '1px',
+      boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.02)',
+    },
+    modalBackdrop: {
+      position: 'fixed' as const,
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999, 
+    },
+    modalCard: {
+      backgroundColor: theme.card,
+      padding: '40px',
+      borderRadius: '16px',
+      textAlign: 'center' as const,
+      boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
+      border: `1px solid ${theme.border}`,
+      maxWidth: '400px',
+      width: '90%',
+    },
+    modalText: {
+      fontSize: '1.2rem',
+      fontWeight: 'bold' as const,
+      marginBottom: '30px',
+      color: theme.text,
+    },
+    modalButtonsDiv: {
+      display: 'flex',
+      justifyContent: 'center',
+      gap: '15px',
+    },
+    modalBtnYes: {
+      padding: '12px 30px',
+      backgroundColor: '#ef4444', 
+      color: '#fff',
+      border: 'none',
+      borderRadius: '8px',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      fontSize: '1rem',
+      transition: '0.2s',
+    },
+    modalBtnNo: {
+      padding: '12px 30px',
+      backgroundColor: theme.accent, 
+      color: '#000',
+      border: 'none',
+      borderRadius: '8px',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      fontSize: '1rem',
+      transition: '0.2s',
+    }
+  };
+
+  const handleMenuClick = (item: string) => {
+    switch (item) {
+      case "JOGAR MULTIPLAYER": navigate('/modo-jogo'); break;
+      case "TESTAR CAMERA (AR)": navigate('/testar-camera'); break;
+      case "PARTIDA TREINO": navigate('/game-treino'); break;
+      case "RANKING GLOBAL": navigate('/ranking'); break;
+      case "CONFIGURAÇÃO": navigate('/configuracao'); break;
+      case "INFORMAÇÕES": navigate('/informacoes'); break;
+      case "SUPORTE E AJUDA": navigate('/suporte'); break;
+      case "DESAFIOS": navigate('/desafios'); break;
+      case "SAIR DO JOGO": setShowExitModal(true); break;
+      default: console.log(`${item} em breve.`);
+    }
   };
 
   const menuItems = [
-    { title: 'JOGAR MULTIPLAYER', route: '/modo-jogo', tag: 'ONLINE' },
-    { title: 'PARTIDA TREINO', route: '/game-treino', tag: 'SOLO' },
-    { title: 'TESTAR CÂMERA (AR)', route: '/testar-camera', tag: 'WEBCAM' },
-    { title: 'RANKING GLOBAL', route: '/ranking', tag: 'TOP 10' },
-    { title: 'CONFIGURAÇÃO', route: '/configuracao', tag: 'AJUSTES' },
-    { title: 'INFORMAÇÕES', route: '/informacoes', tag: 'REGRAS' },
-    { title: 'SUPORTE E AJUDA', route: '/suporte', tag: 'CONTATO' },
-    { title: 'DESAFIOS', route: '/desafios', tag: 'DIÁRIO' },
-    { title: 'SAIR DO JOGO', route: '/', tag: 'SAIR', danger: true },
+    "JOGAR MULTIPLAYER", "PARTIDA TREINO", "TESTAR CAMERA (AR)",
+    "RANKING GLOBAL", "CONFIGURAÇÃO", "INFORMAÇÕES",
+    "SUPORTE E AJUDA", "DESAFIOS", "SAIR DO JOGO"
   ];
 
   return (
-    <div style={{
-      width: '100vw',
-      minHeight: '100vh',
-      backgroundColor: theme.bg,
-      color: theme.text,
-      fontFamily: '"Courier New", Courier, monospace',
-      padding: '40px 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      boxSizing: 'border-box',
-      transition: 'background 0.3s, color 0.3s'
-    }}>
-      {/* CABEÇALHO DO USUÁRIO */}
-      <div style={{
-        width: '100%',
-        maxWidth: '960px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px 24px',
-        backgroundColor: theme.cardBg,
-        border: `1px solid ${theme.border}`,
-        borderRadius: '12px',
-        marginBottom: '40px',
-        boxSizing: 'border-box',
-        boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.02)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{
-            width: '50px', height: '50px',
-            borderRadius: '10px',
-            backgroundColor: isDark ? '#1a1f2c' : '#f1f5f9',
-            border: `1px solid ${theme.border}`,
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            fontSize: '1.5rem', overflow: 'hidden'
-          }}>
-            {avatarFoto.startsWith('data:image') ? (
-              <img src={avatarFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              avatarFoto
+    <div style={styles.screen}>
+      <header style={styles.header}>
+        <div style={styles.profileContainer} onClick={() => setShowProfile(!showProfile)}>
+          
+          {dadosAtualizados.infracoes > 0 && !showProfile && (
+            <div style={{
+              position: 'absolute', top: 2, right: 2, width: 12, height: 12, 
+              backgroundColor: '#ef4444', borderRadius: '50%', zIndex: 10,
+              boxShadow: '0 0 8px #ef4444', animation: 'pulse 2s infinite'
+            }} />
+          )}
+          
+          <UserCircle size={55} color={theme.text} strokeWidth={1.5} />
+          
+          <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
+            <p style={styles.menuItemText}>
+              USUÁRIO: {isAnonimo ? "ANÔNIMO" : (userData?.usuario || "TESTE")}
+            </p>
+
+            <p style={styles.menuItemText}>
+              ID: {userData?.id ? String(userData.id).padStart(8, '0') : "00000000"}
+            </p>
+            
+            <p style={styles.menuItemText}>
+              PONTOS: {dadosAtualizados.pontos} ⭐
+            </p>
+
+            {dadosAtualizados.infracoes > 0 && (
+              <div style={styles.alertaInfracao}>
+                ⚠️ ATENÇÃO: {dadosAtualizados.infracoes}/3 Infrações registradas.
+              </div>
             )}
-          </div>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: theme.muted, letterSpacing: '1.5px', fontWeight: 'bold' }}>USUÁRIO LOGADO</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: '700', marginTop: '2px' }}>{nomeExibido}</div>
-          </div>
-        </div>
-        <div style={{
-          fontSize: '0.75rem',
-          letterSpacing: '1px',
-          padding: '6px 12px',
-          borderRadius: '6px',
-          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(2, 132, 199, 0.08)',
-          color: theme.accent,
-          border: `1px solid ${theme.accent}33`,
-          fontWeight: 'bold'
-        }}>
-          {isAnonimo ? 'MODO ANÔNIMO' : 'STATUS: ONLINE'}
-        </div>
-      </div>
 
-      {/* TÍTULO PRINCIPAL */}
-      <div style={{ textAlign: 'center', marginBottom: '45px' }}>
-        <h1 style={{
-          fontSize: '3.2rem',
-          fontWeight: '900',
-          letterSpacing: '4px',
-          color: theme.text,
-          margin: 0,
-          textTransform: 'uppercase'
-        }}>
-          PONG <span style={{ color: theme.accent }}>COM AR</span>
-        </h1>
-        <div style={{ fontSize: '0.8rem', color: theme.muted, marginTop: '8px', letterSpacing: '2.5px' }}>
-          INTERFACE DE CONTROLE E ACESSO RÁPIDO
+            <p style={{...styles.menuItemText, border: 'none', marginTop: '12px', fontSize: '0.85rem'}}>MODO ANÔNIMO:</p>
+            
+            <div style={{ display: 'flex', gap: '20px', marginTop: '5px' }}>
+              <label style={styles.labelStyle}>
+                <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
+              </label>
+              <label style={styles.labelStyle}>
+                <input type="radio" name="anonimo" checked={!isAnonimo} onChange={toggleAnonimo} /> NÃO
+              </label>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* GRID DE BOTÕES POLIDO */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '16px',
-        width: '100%',
-        maxWidth: '960px'
-      }}>
+        <h1 style={styles.title}>PONG <span style={{ color: theme.text }}>COM AR</span></h1>
+      </header>
+
+      <main style={styles.grid}>
         {menuItems.map((item, index) => (
-          <button
-            key={index}
-            onClick={() => navigate(item.route)}
-            style={{
-              backgroundColor: theme.cardBg,
-              color: item.danger ? '#ef4444' : theme.text,
-              border: `1px solid ${theme.border}`,
-              borderRadius: '10px',
-              padding: '22px 24px',
-              fontSize: '0.95rem',
-              fontWeight: '700',
-              textAlign: 'left',
-              cursor: 'pointer',
-              letterSpacing: '1px',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.02)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = item.danger ? '#ef4444' : theme.borderHover;
-              e.currentTarget.style.backgroundColor = theme.cardHover;
+          <button 
+            key={index} 
+            style={styles.button}
+            onClick={() => handleMenuClick(item)}
+            onMouseOver={(e) => { 
+              e.currentTarget.style.backgroundColor = isDark ? '#1a1f2c' : '#f1f5f9';
               e.currentTarget.style.transform = 'translateY(-2px)';
             }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border;
-              e.currentTarget.style.backgroundColor = theme.cardBg;
+            onMouseOut={(e) => { 
+              e.currentTarget.style.backgroundColor = theme.card;
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {item.title}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ 
-                fontSize: '0.7rem', 
-                color: item.danger ? '#ef4444' : theme.muted, 
-                backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-                padding: '3px 8px',
-                borderRadius: '4px',
-                letterSpacing: '1px'
-              }}>
-                {item.tag}
-              </span>
-              <span style={{ color: item.danger ? '#ef4444' : theme.accent, fontSize: '0.85rem' }}>→</span>
-            </div>
+            {item}
           </button>
         ))}
-      </div>
+      </main>
+
+      {showExitModal && (
+        <div style={styles.modalBackdrop}>
+          <div style={styles.modalCard}>
+            <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
+            <div style={styles.modalButtonsDiv}>
+              <button 
+                style={styles.modalBtnYes} 
+                onClick={() => navigate('/')}
+                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                SIM
+              </button>
+              <button 
+                style={styles.modalBtnNo} 
+                onClick={() => setShowExitModal(false)}
+                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                NÃO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
