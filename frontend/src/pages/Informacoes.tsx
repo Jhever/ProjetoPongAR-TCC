@@ -94,7 +94,7 @@ const Informacoes: React.FC = () => {
     modal: {
       width: '90%',
       maxWidth: '650px',
-      // maxHeight: '80vh', // Adicionado para limitar a altura máxima na tela
+      maxHeight: '80vh', // Adicionado para limitar a altura máxima na tela
       overflowY: 'auto' as const, // Adicionado scroll vertical caso o conteúdo seja extenso
       background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
       borderRadius: '24px',
