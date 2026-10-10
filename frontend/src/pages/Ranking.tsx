@@ -67,39 +67,105 @@ const Ranking = () => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '30px 20px',
+      padding: '0 20px 40px 20px',
       fontFamily: "'Courier New', monospace, sans-serif",
       boxSizing: 'border-box'
     }}>
-      {/* HEADER FIXO / TÍTULOS */}
-      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-        <h1 style={{ 
-          fontSize: '1.2rem', 
-          letterSpacing: '4px', 
-          color: '#38bdf8', 
-          margin: '0 0 5px 0',
-          textTransform: 'uppercase'
-        }}>
-          PONG COM AR
-        </h1>
-        <h2 style={{ 
-          fontSize: '3rem', 
-          fontWeight: '900', 
-          letterSpacing: '3px',
-          background: 'linear-gradient(135deg, #ef4444, #f87171, #fca5a5)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          margin: 0,
-          textShadow: '0 0 30px rgba(239, 68, 68, 0.4)'
-        }}>
-          RANKING GLOBAL
-        </h2>
+      {/* 📌 CABEÇALHO FIXO (STICKY HEADER) COM BOTÕES DE NAVEGAÇÃO INTEGRADOS */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        width: '100%',
+        maxWidth: '1100px',
+        backgroundColor: 'rgba(9, 6, 18, 0.9)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        padding: '15px 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '25px',
+        boxSizing: 'border-box',
+        flexWrap: 'wrap',
+        gap: '15px'
+      }}>
+        {/* Botão Histórico à Esquerda */}
+        <button 
+          onClick={() => setShowHistorico(true)} 
+          style={{
+            background: 'linear-gradient(135deg, #2563eb, #9333ea)',
+            border: 'none',
+            color: 'white',
+            padding: '8px 18px',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '0.85rem',
+            boxShadow: '0 4px 15px rgba(37, 99, 235, 0.3)',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          📜 HISTÓRICO
+        </button>
+
+        {/* Títulos Centralizados */}
+        <div style={{ textAlign: 'center', flex: 1, minWidth: '220px' }}>
+          <h1 style={{ 
+            fontSize: '0.9rem', 
+            letterSpacing: '3px', 
+            color: '#38bdf8', 
+            margin: '0 0 2px 0',
+            textTransform: 'uppercase'
+          }}>
+            PONG COM AR
+          </h1>
+          <h2 style={{ 
+            fontSize: '1.8rem', 
+            fontWeight: '900', 
+            letterSpacing: '2px',
+            background: 'linear-gradient(135deg, #ef4444, #f87171, #fca5a5)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            margin: 0,
+            textShadow: '0 0 20px rgba(239, 68, 68, 0.3)'
+          }}>
+            RANKING GLOBAL
+          </h2>
+        </div>
+
+        {/* Botão Voltar à Direita */}
+        <button 
+          onClick={() => navigate('/home')} 
+          style={{
+            background: 'linear-gradient(135deg, #059669, #10b981)',
+            border: 'none',
+            color: 'white',
+            padding: '8px 18px',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '0.85rem',
+            boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
+            transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          🏠 VOLTAR AO MENU
+        </button>
+      </div>
+
+      {/* SUBTÍTULO DA TABELA */}
+      <div style={{ width: '100%', maxWidth: '1100px', marginBottom: '10px', paddingLeft: '5px' }}>
         <span style={{ fontSize: '0.85rem', color: '#94a3b8', letterSpacing: '1px' }}>
           DO 1° AO 10° COLOCADO
         </span>
       </div>
 
-      {/* TABELA COM ROLAGEM HORIZONTA SEGURA (EVITA SOBREPOSIÇÃO) */}
+      {/* TABELA COM ROLAGEM HORIZONTA SEGURA */}
       <div style={{
         width: '100%',
         maxWidth: '1100px',
@@ -110,8 +176,7 @@ const Ranking = () => {
         padding: '20px',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
         overflowX: 'auto',
-        boxSizing: 'border-box',
-        marginTop: '10px'
+        boxSizing: 'border-box'
       }}>
         <div style={{ minWidth: '850px' }}>
           {/* HEADER DA TABELA */}
@@ -192,57 +257,6 @@ const Ranking = () => {
             })
           )}
         </div>
-      </div>
-
-      {/* RODAPÉ / BOTÕES */}
-      <div style={{ 
-        width: '100%', 
-        maxWidth: '1100px', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        marginTop: '30px',
-        flexWrap: 'wrap',
-        gap: '15px'
-      }}>
-        <button 
-          onClick={() => setShowHistorico(true)} 
-          style={{
-            background: 'linear-gradient(135deg, #2563eb, #9333ea)',
-            border: 'none',
-            color: 'white',
-            padding: '12px 28px',
-            borderRadius: '12px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            fontSize: '0.95rem',
-            boxShadow: '0 4px 15px rgba(37, 99, 235, 0.4)',
-            transition: 'transform 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-        >
-          📜 HISTÓRICO DE PARTIDAS
-        </button>
-
-        <button 
-          onClick={() => navigate('/home')} 
-          style={{
-            background: 'linear-gradient(135deg, #059669, #10b981)',
-            border: 'none',
-            color: 'white',
-            padding: '12px 28px',
-            borderRadius: '12px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            fontSize: '0.95rem',
-            boxShadow: '0 4px 15px rgba(5, 150, 105, 0.4)',
-            transition: 'transform 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-        >
-          🏠 VOLTAR PÁGINA INICIAL
-        </button>
       </div>
 
       {/* MODAL DE HISTÓRICO */}
