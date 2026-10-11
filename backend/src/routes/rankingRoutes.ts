@@ -35,7 +35,7 @@ router.get('/api/ranking', async (_req: Request, res: Response) => {
       pontos: Number(row.pontos),
       nome: row.nome,
       desafio: Number(row.desafio),
-      foto: row.foto, // <--- Incluído aqui para o frontend ler
+      foto: row.foto, // <--- Aqui garante que a foto/emoji do banco vai para o frontend
       vitoria: Number(row.vitoria),
       derrota: Number(row.derrota),
       gols_feito: Number(row.gols_feito),

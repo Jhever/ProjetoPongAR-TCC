@@ -82,12 +82,21 @@ router.get('/api/usuario/:id', async (req: Request, res: Response) => {
 // =====================================
 // ATUALIZAR FOTO DE PERFIL
 // =====================================
+// =====================================
+// ATUALIZAR FOTO DE PERFIL
+// =====================================
 router.patch('/api/usuario/:id/foto', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { foto } = req.body;
   try {
-    await pool.query('UPDATE jogadores SET foto = $1 WHERE id = $2', [foto, id]);
-    res.json({ message: "Foto de perfil atualizada com sucesso!" });
+    const result = await pool.query(
+      `UPDATE jogadores SET foto = $1 WHERE id = $2 RETURNING id, usuario, email, is_anonimo, pontos_totais, status_conta, total_infracoes, foto`,
+      [foto, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+    res.json({ message: "Foto de perfil atualizada com sucesso!", usuario: result.rows[0] });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
