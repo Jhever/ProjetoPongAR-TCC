@@ -13,6 +13,8 @@ const Configuracao = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedFoto, setSelectedFoto] = useState((userData as any)?.foto || '👤');
 
+  const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+
   if (!userData) {
     return (
       <div style={{ color: '#FFF', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#000' }}>
@@ -54,21 +56,35 @@ const Configuracao = () => {
     }
   };
 
-const handleSaveAvatar = async (novaFoto: string) => {
+  const handleSaveAvatar = async (novaFoto: string) => {
     try {
+      // 1. Envia a foto/emoji diretamente para o backend salvar no PostgreSQL
+      const response = await fetch(`${API_URL}/api/usuario/${userData.id}/foto`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ foto: novaFoto })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao salvar no servidor');
+      }
+
+      // 2. Atualiza o estado local e o contexto
       setSelectedFoto(novaFoto);
       await updateUserData({
         ...userData,
         foto: novaFoto
       } as any);
+
       setIsEditingAvatar(false);
       alert('Foto de perfil atualizada com sucesso!');
     } catch (err) {
-      alert('Erro ao atualizar foto de perfil.');
+      console.error(err);
+      alert('Erro ao atualizar foto de perfil no servidor.');
     }
   };
 
-  // Conversor de imagem local para Base64 (caso queira enviar foto própria)
+  // Conversor de imagem local para Base64
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -209,7 +225,7 @@ const handleSaveAvatar = async (novaFoto: string) => {
             border: `2px solid ${theme.accent}`, display: 'flex', justifyContent: 'center', alignItems: 'center', 
             fontSize: '2rem', overflow: 'hidden' 
           }}>
-            {selectedFoto.startsWith('data:image') ? (
+            {selectedFoto.startsWith('data:image') || selectedFoto.startsWith('http') ? (
               <img src={selectedFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               selectedFoto
