@@ -80,12 +80,9 @@ router.get('/api/usuario/:id', async (req: Request, res: Response) => {
 });
 
 // =====================================
-// ATUALIZAR FOTO DE PERFIL
+// ATUALIZAR FOTO DE PERFIL (Dupla rota para evitar 404)
 // =====================================
-// =====================================
-// ATUALIZAR FOTO DE PERFIL
-// =====================================
-router.patch('/api/usuario/:id/foto', async (req: Request, res: Response) => {
+const atualizarFotoHandler = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { foto } = req.body;
   try {
@@ -100,7 +97,10 @@ router.patch('/api/usuario/:id/foto', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+router.patch('/api/usuario/:id/foto', atualizarFotoHandler);
+router.patch('/usuario/:id/foto', atualizarFotoHandler);
 
 // =====================================
 // ALTERAR ANONIMATO
