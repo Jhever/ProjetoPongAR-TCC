@@ -57,9 +57,9 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // =====================================
-// BUSCAR DADOS DO USUÁRIO
+// BUSCAR DADOS DO USUÁRIO (Dupla rota para evitar 404)
 // =====================================
-router.get('/api/usuario/:id', async (req: Request, res: Response) => {
+const buscarUsuarioHandler = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
@@ -77,7 +77,10 @@ router.get('/api/usuario/:id', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+router.get('/api/usuario/:id', buscarUsuarioHandler);
+router.get('/usuario/:id', buscarUsuarioHandler);
 
 // =====================================
 // ATUALIZAR FOTO DE PERFIL (Dupla rota para evitar 404)
