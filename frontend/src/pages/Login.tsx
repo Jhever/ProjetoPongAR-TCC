@@ -16,8 +16,8 @@ const handleLogin = async (e: React.FormEvent) => {
     setError('');
     
     // 1. Alerta de diagnóstico para cravar que o clique funcionou
-    console.log("--> O Botão ENTRAR foi clicado com sucesso!");
-    console.log("Tentando logar com:", { user, password });
+    // console.log("--> O Botão ENTRAR foi clicado com sucesso!");
+    // console.log("Tentando logar com:", { user, password });
 
     try {
       // 2. Dispara a função do contexto e rastreia o resultado
@@ -132,7 +132,7 @@ const handleLogin = async (e: React.FormEvent) => {
 
   return (
     <div style={styles.screen}>
-      <h1 style={styles.title}>PONG COM AR</h1>
+      <h1 style={styles.title}>PONG AR (REALIDADE AUMENTADA)</h1>
 
       <div style={styles.loginCard}>
         <h2 style={{ color: '#fff', marginBottom: '30px', fontWeight: '400' }}>BEM-VINDO</h2>

@@ -219,7 +219,7 @@ const Ranking = () => {
               const nomeExibido = jogadorAnonimo ? 'ANÔNIMO' : player.nome;
               const isPodium = player.posicao <= 3;
               
-              const fotoJogador = isCurrentUser ? (userData as any)?.foto : player.foto;
+              const avatarFoto = isCurrentUser ? (userData as any)?.foto : player.foto;
 
               return (
                 <div key={player.id_usuario} style={{ 
@@ -240,7 +240,7 @@ const Ranking = () => {
                   <span style={{ fontWeight: 'bold', color: '#facc15' }}>{player.pontos}</span>
                   <span style={{ fontWeight: 'bold' }}>{getMedal(player.posicao)}</span>
                   
-                  {/* COLUNA DO NOME COM AVATAR / FOTO CORRIGIDO */}
+                  {/* COLUNA DO NOME COM AVATAR / FOTO INTEGRADO */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -262,14 +262,14 @@ const Ranking = () => {
                       overflow: 'hidden',
                       flexShrink: 0
                     }}>
-                      {!jogadorAnonimo && fotoJogador ? (
-                        fotoJogador.startsWith('data:image') || fotoJogador.startsWith('http') ? (
-                          <img src={fotoJogador} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {!jogadorAnonimo && avatarFoto ? (
+                        avatarFoto.startsWith('data:image') || avatarFoto.startsWith('http') ? (
+                          <img src={avatarFoto} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                          <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{fotoJogador}</span>
+                          <span>{avatarFoto}</span>
                         )
                       ) : (
-                        <span>👤</span>
+                        '👤'
                       )}
                     </div>
                     <span style={{ 
