@@ -132,7 +132,8 @@ const handleLogin = async (e: React.FormEvent) => {
 
   return (
     <div style={styles.screen}>
-      <h1 style={styles.title}>PONG AR (REALIDADE AUMENTADA)</h1>
+      <h1 style={styles.title}>PONG AR </h1>
+      <h1>(REALIDADE AUMENTADA)</h1>
 
       <div style={styles.loginCard}>
         <h2 style={{ color: '#fff', marginBottom: '30px', fontWeight: '400' }}>BEM-VINDO</h2>
