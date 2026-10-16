@@ -42,7 +42,7 @@ const Ranking = () => {
         setLoading(false);
       })
       .catch((err) => {
-        console.error('Erro ao carregar ranking real:', err);
+        console.error('Erro ao carregar ranking, favor, recarregue a pagina:', err);
         setLoading(false);
       });
   }, [API_URL]);
@@ -206,7 +206,7 @@ const Ranking = () => {
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '50px', color: '#38bdf8', fontSize: '1rem', letterSpacing: '1px' }}>
-              Carregando ranking do banco de dados...
+              Carregando do ranking, favor, aguarde! 
             </div>
           ) : rankingData.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '50px', color: '#94a3b8', fontSize: '1rem' }}>

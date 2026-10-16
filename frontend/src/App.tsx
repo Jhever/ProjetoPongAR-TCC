@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ConfigProvider } from './context/ConfigContext';
 import Home from './pages/Home';
 import Register from './pages/Register';
@@ -19,10 +20,56 @@ import Desafios from './pages/Desafios';
 import EsqueciSenha from './pages/EsqueciSenha';
 import ResetPassword from './pages/ResetPassword';
 
+// Componente auxiliar para monitorar a navegação e o tempo do F5
+const RouteTracker = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const agora = Date.now();
+    const TEMPO_LIMITE = 5 * 60 * 1000; // 5 minutos em milissegundos
+
+    // Rotas que não devem ser restauradas (ex: tela de login/registro)
+    const rotasIgnoradas = ['/', '/register', '/esqueci-senha'];
+
+    if (!rotasIgnoradas.includes(location.pathname)) {
+      // Salva a rota atual e o timestamp atual
+      sessionStorage.setItem('ultima_rota', location.pathname);
+      sessionStorage.setItem('rota_timestamp', agora.toString());
+    }
+  }, [location]);
+
+  useEffect(() => {
+    // Executado apenas na primeira carga (F5 ou reabertura)
+    const ultimaRota = sessionStorage.getItem('ultima_rota');
+    const timestampSalvo = sessionStorage.getItem('rota_timestamp');
+
+    if (ultimaRota && timestampSalvo) {
+      const agora = Date.now();
+      const tempoDecorrido = agora - parseInt(timestampSalvo, 10);
+      const TEMPO_LIMITE = 5 * 60 * 1000; // 5 minutos
+
+      if (tempoDecorrido < TEMPO_LIMITE) {
+        // Se passou menos de 5 minutos, redireciona de volta para onde ele estava
+        if (window.location.pathname === '/' || window.location.pathname === '/login') {
+          navigate(ultimaRota);
+        }
+      } else {
+        // Passou de 5 minutos, limpa o cache e deixa ir para a página inicial/login
+        sessionStorage.removeItem('ultima_rota');
+        sessionStorage.removeItem('rota_timestamp');
+      }
+    }
+  }, [navigate]);
+
+  return null;
+};
+
 function App() {
   return (
     <ConfigProvider>
       <Router>
+        <RouteTracker />
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<Register />} />
