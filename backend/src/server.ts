@@ -2,6 +2,8 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
 
 import authRoutes from './routes/authRoutes';
@@ -21,19 +23,31 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Rota raiz para teste direto / Render health check
-app.get('/', (req, res) => {
-  res.send('⚡ Servidor Pong AR rodando com sucesso no Render!');
-});
+// Configuração de diretórios para ES Modules (__dirname equivalente)
+//@ts-ignore
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Registra as rotas principais diretamente. 
-// Como os arquivos de rotas possuem os caminhos completos (/api/...), 
-// registrá-los na raiz evita duplicação de prefixos (como /api/api).
+// Registra as rotas principais da API
 app.use(authRoutes);
 app.use(desafioRoutes);
 app.use(partidaRoutes);
 app.use(rankingRoutes);
 app.use(denunciaRoutes);
+
+// =========================================================================
+// SERVIR O FRONTEND COMPILADO (React/Vite) JUNTO NO MESMO SERVIDOR
+// =========================================================================
+const frontendPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendPath));
+
+// Garante que o React Router funcione perfeitamente ao dar F5 em rotas internas
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+    return next();
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // Cria o servidor HTTP integrado para o Express + WebSockets
 const server = http.createServer(app);
@@ -48,5 +62,5 @@ const io = new Server(server, {
 // Inicializa a escuta de eventos do jogo via WebSocket
 setupGameSocket(io);
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`⚡ Backend & WebSockets rodando na porta ${PORT}`));
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => console.log(`⚡ Servidor unificado (API + WebSockets + Frontend) rodando na porta ${PORT}`));
