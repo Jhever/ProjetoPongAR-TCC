@@ -22,16 +22,16 @@ RUN npm install
 # Copia todo o código fonte do backend
 COPY backend/ ./
 
-# Compila o TypeScript
-RUN npx tsc src/server.ts --outDir dist --target es2022 --module nodenext --moduleResolution nodenext --esModuleInterop
+# Compila o TypeScript forçando estritamente o módulo ESNext/NodeNext (evita o erro de exports)
+RUN npx tsc src/server.ts --outDir dist --target ES2022 --module NodeNext --moduleResolution NodeNext --esModuleInterop true
 
-# Copia os arquivos gerados no build do frontend
-COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
+# Copia os arquivos gerados no build do frontend para o local correto (subindo dois níveis a partir de backend/dist)
+COPY --from=frontend-build /app/frontend/dist /app/frontend/frontend/dist
 
 # Expõe a porta exigida pelo Cloud Run (8080)
 EXPOSE 8080
 ENV PORT=8080
 
-# Inicia o servidor, mas se houver erro, exibe o log detalhado antes de sair
+# Inicia o servidor compilado
 WORKDIR /app/backend
 CMD ["node", "dist/server.js"]
