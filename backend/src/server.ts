@@ -38,7 +38,8 @@ app.use(denunciaRoutes);
 // =========================================================================
 // SERVIR O FRONTEND COMPILADO (React/Vite) JUNTO NO MESMO SERVIDOR
 // =========================================================================
-const frontendPath = path.join(__dirname, '../frontend/dist');
+// const frontendPath = path.join(__dirname, '../frontend/dist');
+const frontendPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendPath));
 
 // Garante que o React Router funcione perfeitamente ao dar F5 em rotas internas
