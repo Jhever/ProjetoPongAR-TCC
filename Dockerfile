@@ -22,17 +22,16 @@ RUN npm install
 # Copia todo o código fonte do backend
 COPY backend/ ./
 
-# Compila explicitamente apontando o arquivo de entrada e a saída exata
-# Isso garante que o arquivo final será /app/backend/dist/server.js
+# Compila o TypeScript
 RUN npx tsc src/server.ts --outDir dist --target es2022 --module nodenext --moduleResolution nodenext --esModuleInterop
 
-# Copia os arquivos gerados no build do frontend para o diretório correto
+# Copia os arquivos gerados no build do frontend
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 # Expõe a porta exigida pelo Cloud Run (8080)
 EXPOSE 8080
 ENV PORT=8080
 
-# Inicia o servidor compilado
+# Inicia o servidor, mas se houver erro, exibe o log detalhado antes de sair
 WORKDIR /app/backend
 CMD ["node", "dist/server.js"]
