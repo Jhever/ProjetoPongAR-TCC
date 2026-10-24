@@ -19,19 +19,20 @@ COPY backend/package*.json ./backend/
 WORKDIR /app/backend
 RUN npm install
 
-# Copia todo o código fonte do backend
+# Copia todo o código fonte do backend (incluindo a pasta src/ e o tsconfig.json)
 COPY backend/ ./
 
-# Compila o TypeScript (sem o || true, para garantir que o dist/ seja gerado de verdade)
+# Compila o TypeScript do backend (o tsc vai ler o tsconfig.json e gerar dist/server.js)
 RUN npm run build
 
-# Copia os arquivos gerados no build do frontend para o diretório correto
+# Copia os arquivos gerados no build do frontend para o local esperado pelo servidor
+# (Como o backend roda de /app/backend, o caminho para o frontend em /app/frontend/dist fica um nível acima)
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 # Expõe a porta exigida pelo Cloud Run (8080)
 EXPOSE 8080
 ENV PORT=8080
 
-# Inicia o servidor principal compilado
+# Inicia o servidor compilado dentro de /app/backend
 WORKDIR /app/backend
 CMD ["node", "dist/server.js"]
