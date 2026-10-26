@@ -2,17 +2,17 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
-import path from 'path';
+import path from 'path';  
 import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
 
-import authRoutes from './routes/authRoutes';
-import desafioRoutes from './routes/desafioRoutes';
-import partidaRoutes from './routes/partidaRoutes';
-import rankingRoutes from './routes/rankingRoutes';
-import denunciaRoutes from './routes/denunciaRoutes'; 
+import authRoutes from './routes/authRoutes.js';
+import desafioRoutes from './routes/desafioRoutes.js';
+import partidaRoutes from './routes/partidaRoutes.js';
+import rankingRoutes from './routes/rankingRoutes.js';
+import denunciaRoutes from './routes/denunciaRoutes.js'; 
 
-import { setupGameSocket } from './sockets/gameSocket';
+import { setupGameSocket } from './sockets/gameSocket.js';
 
 dotenv.config();
 

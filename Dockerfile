@@ -9,7 +9,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ==========================================
-# ETAPA 2: Constrói o Backend e junta tudo
+# ETAPA 2: Servidor de Produção
 # ==========================================
 FROM node:20-alpine
 WORKDIR /app
@@ -19,19 +19,19 @@ COPY backend/package*.json ./backend/
 WORKDIR /app/backend
 RUN npm install
 
+# Instala globalmente o tsx para rodar o arquivo .ts diretamente sem precisar de compilação prévia
+RUN npm install -g tsx
+
 # Copia todo o código fonte do backend
 COPY backend/ ./
 
-# Compila o TypeScript forçando estritamente o módulo ESNext/NodeNext (evita o erro de exports)
-RUN npx tsc src/server.ts --outDir dist --target ES2022 --module NodeNext --moduleResolution NodeNext --esModuleInterop true
-
-# Copia os arquivos gerados no build do frontend para o local correto (subindo dois níveis a partir de backend/dist)
+# Copia os arquivos gerados no build do frontend para o local correto
 COPY --from=frontend-build /app/frontend/dist /app/frontend/frontend/dist
 
 # Expõe a porta exigida pelo Cloud Run (8080)
 EXPOSE 8080
 ENV PORT=8080
 
-# Inicia o servidor compilado
+# Roda o servidor TypeScript diretamente com o tsx (evita qualquer problema com dist/ ou exports)
 WORKDIR /app/backend
-CMD ["node", "dist/server.js"]
+CMD ["npx", "tsx", "src/server.ts"]
