@@ -42,8 +42,8 @@ app.use(denunciaRoutes);
 const frontendPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendPath));
 
-// Garante que o React Router funcione perfeitamente ao dar F5 em rotas internas
-app.get('*', (req, res, next) => {
+// AGORA (compatível com Express v5):
+app.get('/*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
     return next();
   }
