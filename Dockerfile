@@ -25,9 +25,8 @@ RUN npm install -g tsx
 # Copia todo o código fonte do backend
 COPY backend/ ./
 
-# Copia os arquivos gerados no build do frontend para o local correto
-# AGORA (caminho limpo e correto):
-COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
+# COPIA O BUILD DO FRONTEND DIRETAMENTE PARA A PASTA PUBLIC DO BACKEND
+COPY --from=frontend-build /app/frontend/dist /app/backend/public
 
 # Expõe a porta exigida pelo Cloud Run (8080)
 EXPOSE 8080
