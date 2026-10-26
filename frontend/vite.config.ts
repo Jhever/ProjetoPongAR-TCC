@@ -13,6 +13,7 @@ logger.warn = (msg, options) => {
 }
 
 export default defineConfig({
+  base: './', // <-- ADICIONADO: Garante caminhos relativos corretos para o build no Express
   customLogger: logger,
   plugins: [react()],
   server: {
