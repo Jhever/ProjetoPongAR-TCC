@@ -38,11 +38,11 @@ app.use(denunciaRoutes);
 // =========================================================================
 // SERVIR O FRONTEND COMPILADO (React/Vite) JUNTO NO MESMO SERVIDOR
 // =========================================================================
-// const frontendPath = path.join(__dirname, '../frontend/dist');
-const frontendPath = path.join(__dirname, '../../frontend/dist');
+// Caminho corrigido para apontar exatamente para onde o Docker copiou a dist (/app/frontend/frontend/dist)
+const frontendPath = path.resolve(__dirname, '../../frontend/frontend/dist');
 app.use(express.static(frontendPath));
 
-// AGORA (compatível com Express v5):
+// Rota coringa compatível com Express v5 (usando Regex pura sem aspas)
 app.get(/.*/, (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
     return next();
