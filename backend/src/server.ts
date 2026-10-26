@@ -43,7 +43,7 @@ const frontendPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendPath));
 
 // AGORA (compatível com Express v5):
-app.get('/.*/', (req, res, next) => {
+app.get(/.*/, (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
     return next();
   }
