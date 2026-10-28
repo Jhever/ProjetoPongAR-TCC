@@ -365,7 +365,7 @@ const Home = () => {
     setShowExitModal(false);
     
     // 3. Força o navegador a recarregar a aplicação direto na raiz (limpando qualquer cache de estado)
-    window.location.href = '/';
+    window.location.href = '/login'; // Redireciona para a página de login ou raiz do app
   }}
   onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
   onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
