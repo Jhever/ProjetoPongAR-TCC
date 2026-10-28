@@ -8,7 +8,7 @@ interface UserData {
   email: string;
   senha?: string;
   currentPassword?: string;
-  foto?: string; // Adicionado suporte para o avatar / foto do usuário
+  foto?: string;
 }
 
 interface ConfigContextData {
@@ -42,7 +42,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (userData) {
       localStorage.setItem('userData', JSON.stringify(userData));
-      localStorage.setItem('usuario', JSON.stringify(userData)); // Alimenta as telas do jogo e ranking
+      localStorage.setItem('usuario', JSON.stringify(userData));
     } else {
       localStorage.removeItem('userData');
       localStorage.removeItem('usuario');
@@ -78,19 +78,19 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const logoutUser = () => {
     setUserData(null);
+    localStorage.removeItem('usuario');
+    localStorage.removeItem('userData');
+    localStorage.clear();
   };
 
   const updateUserData = async (newData: UserData) => {
     try {
-      // Se houver alteração de foto, atualiza também no banco de dados via rota específica se necessário,
-      // ou envia no update geral. Aqui mantemos a chamada de atualização de senha/dados:
       await fetch(`${API_URL}/update-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newData)
       });
 
-      // Se a foto foi alterada, envia para a rota dedicada de foto no backend
       if (newData.foto !== undefined && userData?.id) {
         await fetch(`${API_URL}/api/usuario/${userData.id}/foto`, {
           method: 'PATCH',
