@@ -356,22 +356,22 @@ const Home = () => {
             <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
             <div style={styles.modalButtonsDiv}>
            <button 
-              style={styles.modalBtnYes} 
-              onClick={() => {
-                // 1. Remove os dados da sessão atual do usuário
-                localStorage.removeItem('usuario');
-                
-                // 2. Fecha o modal de saída
-                setShowExitModal(false);
-                
-                // 3. Redireciona para a tela inicial / login
-                navigate('/');
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
-              onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
-            >
-              SIM N
-            </button>
+  style={styles.modalBtnYes} 
+  onClick={() => {
+    // 1. Remove os dados da sessão atual do usuário
+    localStorage.removeItem('usuario');
+    
+    // 2. Fecha o modal de saída
+    setShowExitModal(false);
+    
+    // 3. Força o navegador a recarregar a aplicação direto na raiz (limpando qualquer cache de estado)
+    window.location.href = '/';
+  }}
+  onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+  onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+>
+  SIM
+</button>
               <button 
                 style={styles.modalBtnNo} 
                 onClick={() => setShowExitModal(false)}
