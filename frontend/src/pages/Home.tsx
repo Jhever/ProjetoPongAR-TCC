@@ -365,8 +365,8 @@ const Home = () => {
     setShowExitModal(false);
     
     // 3. Força o navegador a recarregar a aplicação direto na raiz (limpando qualquer cache de estado)
-    navigate('/login'); // Redireciona para a página de login ou raiz do app
-  }}
+  window.location.href = 'https://projeto-pong-ar-tcc.vercel.app';  }}
+  
   onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
   onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
 >
