@@ -1,4 +1,0 @@
-"scripts": {
-  "build": "vite build", 
-  "start": "node dist/server.js"
-}

@@ -1,3 +1,22 @@
+package-lock.json
+
+// {
+//   "name": "pong-ar",
+//   "lockfileVersion": 3,
+//   "requires": true,
+//   "packages": {}
+// }
+
+
+
+package.json
+// "scripts": {
+//   "build": "vite build", 
+//   "start": "node dist/server.js"
+// }
+
+Server.ts
+
 // import dotenv from 'dotenv';
 // import express from 'express';
 // import cors from 'cors';
@@ -25,10 +44,10 @@
 // const server = http.createServer(app);
 
 // const io = new Server(server, {
-//   cors: {
-//     origin: '*',
-//     methods: ['GET', 'POST']
-//   }
+//   cors: {
+//     origin: '*',
+//     methods: ['GET', 'POST']
+//   }
 // });
 
 // // Inicializa a escuta de eventos do jogo

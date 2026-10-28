@@ -5,11 +5,18 @@ import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
 import Denuncia from '../components/Denuncia';
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
 type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
 type FingerInfo = { name: FingerName; mcp: number; pip: number; dip: number; tip: number; hide: number[]; isThumb?: boolean; };
+
+interface PlayerStats {
+  nome: string;
+  avatar: string;
+  pontos: number;
+  vitorias: number;
+}
 
 const FINGERS: FingerInfo[] = [
   { name: 'thumb', mcp: 1, pip: 2, dip: 3, tip: 4, hide: [2, 3, 4], isThumb: true },
@@ -85,6 +92,9 @@ function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, num
   return hiddenMask;
 }
 
+const getDefaultAvatar = (nome: string) =>
+  `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nome || 'Player')}`;
+
 const Game = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -103,16 +113,40 @@ const Game = () => {
 
   const salaId = state?.salaId || 'OFFLINE';
   const lado = state?.lado || 'esquerda';
-  const adversarioNome = state?.adversario || 'Remote Player';
+  const adversarioNome = state?.adversario || 'Jogador 2';
   const adversarioId = state?.adversarioId;
   const isHost = lado === 'esquerda';
   const tipoPartida = state?.tipoPartida || 'ONLINE';
 
   const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
-  const nomeLocal = usuarioSalvo.usuario || usuarioSalvo.nome || '';
+  const nomeLocal = usuarioSalvo.usuario || usuarioSalvo.nome || 'Jogador 1';
   const isLocalAnonimo = usuarioSalvo.is_anonimo === true || nomeLocal.toUpperCase() === 'ANÔNIMO';
   const isAdversarioAnonimo = adversarioNome.toUpperCase() === 'ANÔNIMO';
   const ocultarCameraAdversario = isLocalAnonimo || isAdversarioAnonimo;
+
+  // Exibir tela de VS apenas quando NÃO for partida local/offline no mesmo PC
+  const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
+  const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
+  const [versusCountdown, setVersusCountdown] = useState(4);
+
+  const [meusDados, setMeusDados] = useState<PlayerStats>({
+    nome: nomeLocal,
+    avatar: usuarioSalvo.avatar || usuarioSalvo.foto || getDefaultAvatar(nomeLocal),
+    pontos: Number(usuarioSalvo.pontos ?? usuarioSalvo.pontuacao ?? 0),
+    vitorias: Number(usuarioSalvo.vitorias ?? 0),
+  });
+
+  const [dadosAdversario, setDadosAdversario] = useState<PlayerStats>({
+    nome: adversarioNome,
+    avatar: getDefaultAvatar(adversarioNome),
+    pontos: 0,
+    vitorias: 0,
+  });
+
+  const meusDadosRef = useRef(meusDados);
+  useEffect(() => {
+    meusDadosRef.current = meusDados;
+  }, [meusDados]);
 
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
@@ -126,7 +160,7 @@ const Game = () => {
   const [isAdversarioReady, setIsAdversarioReady] = useState(false);
   const [countdown, setCountdown] = useState<number | string | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
-  
+
   const isReadyRef = useRef(false);
   const gameStartedRef = useRef(false);
   const placarRef = useRef({ p1: 0, p2: 0 });
@@ -135,7 +169,7 @@ const Game = () => {
   const [gameLogs, setGameLogs] = useState<string[]>([
     '[Socket] Connected to server',
     `[Room] Joined ${salaId}`,
-    `[Match] Player 1 (${isHost ? 'Local' : adversarioNome}) vs Player 2 (${!isHost ? 'Local' : adversarioNome})`
+    `[Match] Player 1 (${isHost ? nomeLocal : adversarioNome}) vs Player 2 (${!isHost ? nomeLocal : adversarioNome})`
   ]);
 
   const game = useRef({
@@ -144,13 +178,82 @@ const Game = () => {
     p2Y: 175
   });
 
+  // Busca os pontos e vitórias reais dos 2 jogadores no Ranking
+  useEffect(() => {
+    if (isPartidaLocalMesmoPC) return;
+
+    fetch(`${API_URL}/api/ranking`)
+      .then(res => (res.ok ? res.json() : []))
+      .then((lista: any[]) => {
+        if (!Array.isArray(lista)) return;
+
+        // Atualiza dados do jogador local
+        const meuReg = lista.find(
+          (u: any) =>
+            (usuarioSalvo?.id && Number(u.id) === Number(usuarioSalvo.id)) ||
+            (u.nome && u.nome.toLowerCase() === nomeLocal.toLowerCase()) ||
+            (u.usuario && u.usuario.toLowerCase() === nomeLocal.toLowerCase())
+        );
+
+        if (meuReg) {
+          const novosMeusDados: PlayerStats = {
+            nome: nomeLocal,
+            avatar: meuReg.avatar || meuReg.foto || meusDadosRef.current.avatar,
+            pontos: Number(meuReg.pontos ?? meuReg.pontuacao ?? 0),
+            vitorias: Number(meuReg.vitorias ?? 0),
+          };
+          setMeusDados(novosMeusDados);
+          socket.emit('webrtc_signal', {
+            salaId,
+            signal: { type: 'player_stats', stats: novosMeusDados }
+          });
+        }
+
+        // Atualiza dados do adversário
+        const advReg = lista.find(
+          (u: any) =>
+            (adversarioId && Number(u.id) === Number(adversarioId)) ||
+            (u.nome && u.nome.toLowerCase() === adversarioNome.toLowerCase()) ||
+            (u.usuario && u.usuario.toLowerCase() === adversarioNome.toLowerCase())
+        );
+
+        if (advReg) {
+          setDadosAdversario(prev => ({
+            nome: adversarioNome,
+            avatar: advReg.avatar || advReg.foto || prev.avatar,
+            pontos: Number(advReg.pontos ?? advReg.pontuacao ?? prev.pontos),
+            vitorias: Number(advReg.vitorias ?? prev.vitorias),
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [adversarioId, adversarioNome, isPartidaLocalMesmoPC, nomeLocal, salaId, usuarioSalvo?.id]);
+
+  // Temporizador de 4 segundos da tela inicial de VS
+  useEffect(() => {
+    if (!showVersus) return;
+
+    const timer = setInterval(() => {
+      setVersusCountdown(prev => (prev > 1 ? prev - 1 : 1));
+    }, 1000);
+
+    const hideTimeout = setTimeout(() => {
+      setShowVersus(false);
+    }, 4000);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(hideTimeout);
+    };
+  }, [showVersus]);
+
   const addLog = (msg: string) => {
     setGameLogs(prev => [...prev.slice(-4), msg]);
   };
 
   const lancarBola = (direcaoX: number) => {
-    const angulo = (Math.random() * 0.8 - 0.4) * Math.PI; 
-    const velInicial = 8; 
+    const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
+    const velInicial = 8;
     return {
       x: 400,
       y: 225,
@@ -163,14 +266,18 @@ const Game = () => {
     setIsReady(true);
     isReadyRef.current = true;
     if (tipoPartida !== 'OFFLINE') {
-      socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
+      socket.emit('webrtc_signal', {
+        salaId,
+        signal: { type: 'game_ready', stats: meusDadosRef.current }
+      });
     }
   };
 
   useEffect(() => {
     const bothReady = tipoPartida === 'OFFLINE' ? isReady : (isReady && isAdversarioReady);
-    
+
     if (bothReady && !gameStartedRef.current && countdown === null) {
+      setShowVersus(false);
       setCountdown(3);
       let cont = 3;
       const interval = setInterval(() => {
@@ -199,7 +306,7 @@ const Game = () => {
 
     const meuPlacar = isHost ? p1Score : p2Score;
     const adversarioPlacar = isHost ? p2Score : p1Score;
-    
+
     let isVitoria = meuPlacar > adversarioPlacar;
     let resultadoFinal = isVitoria ? 'VITORIA' : (meuPlacar === adversarioPlacar ? 'EMPATE' : 'DERROTA');
 
@@ -233,7 +340,7 @@ const Game = () => {
           pontuacao_adversario: adversarioPlacar,
           resultado: resultadoFinal,
           tipo_partida: tipoPartida,
-          pontos_ganhos: pontos 
+          pontos_ganhos: pontos
         })
       }).catch(err => console.error("Erro ao registrar partida online:", err));
 
@@ -255,11 +362,11 @@ const Game = () => {
       navigate('/home');
       return;
     }
-    
+
     const confirmacao = window.confirm("ATENÇÃO: Deseja realmente sair? Você perderá a partida e sofrerá penalidade nos seus pontos de ranking.");
-    
+
     if (confirmacao) {
-      socket.disconnect(); 
+      socket.disconnect();
       finalizarPartidaOnline('VOCÊ DESISTIU (DERROTA)', isHost ? 0 : 10, isHost ? 10 : 0, true);
     }
   };
@@ -268,6 +375,16 @@ const Game = () => {
     if (!socket.connected) socket.connect();
 
     socket.emit('entrarSala', { salaId });
+
+    // Envia as estatísticas locais para o oponente assim que entra na sala
+    if (!isPartidaLocalMesmoPC) {
+      setTimeout(() => {
+        socket.emit('webrtc_signal', {
+          salaId,
+          signal: { type: 'player_stats', stats: meusDadosRef.current }
+        });
+      }, 600);
+    }
 
     socket.on('adversarioMoveu', (dados: { y: number }) => {
       if (isHost) {
@@ -315,7 +432,7 @@ const Game = () => {
       socket.off('placarAtualizado');
       socket.off('adversarioDesconectou');
     };
-  }, [isHost, navigate, salaId, adversarioNome, tipoPartida]);
+  }, [isHost, navigate, salaId, adversarioNome, tipoPartida, isPartidaLocalMesmoPC]);
 
   useEffect(() => {
     let landmarker: Vision.HandLandmarker;
@@ -323,6 +440,31 @@ const Game = () => {
     let lastTime = performance.now();
     let frameCount = 0;
     let activeStream: MediaStream | null = null;
+
+    // Listener de sinais para sincronizar "game_ready" e "player_stats" mesmo se a câmera estiver oculta
+    const handleCustomSignals = (data: any) => {
+      if (data?.type === 'player_stats' && data.stats) {
+        setDadosAdversario(prev => ({
+          nome: adversarioNome || data.stats.nome || prev.nome,
+          avatar: data.stats.avatar || prev.avatar,
+          pontos: Number(data.stats.pontos ?? prev.pontos),
+          vitorias: Number(data.stats.vitorias ?? prev.vitorias),
+        }));
+      }
+      if (data?.type === 'game_ready') {
+        if (data.stats) {
+          setDadosAdversario(prev => ({
+            nome: adversarioNome || data.stats.nome || prev.nome,
+            avatar: data.stats.avatar || prev.avatar,
+            pontos: Number(data.stats.pontos ?? prev.pontos),
+            vitorias: Number(data.stats.vitorias ?? prev.vitorias),
+          }));
+        }
+        setIsAdversarioReady(true);
+      }
+    };
+
+    socket.on('webrtc_signal', handleCustomSignals);
 
     const initVisionAndWebRTC = async () => {
       const vision = await Vision.FilesetResolver.forVisionTasks(
@@ -338,25 +480,23 @@ const Game = () => {
         numHands: 1
       });
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: { ideal: 480, max: 480 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 30, max: 30 } }, 
-        audio: false 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 480, max: 480 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 30, max: 30 } },
+        audio: false
       });
       activeStream = stream;
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        
+
         if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
-       const pc = new RTCPeerConnection({
+          const pc = new RTCPeerConnection({
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
               { urls: 'stun:stun3.l.google.com:19302' },
-              { urls: 'stun:stun4.l.google.com:19302' },
-              { urls: 'stun:stun.services.mozilla.com' },
-              { urls: 'stun:stun.ekiga.net' }
+              { urls: 'stun:stun4.l.google.com:19302' }
             ]
           });
           peerConnectionRef.current = pc;
@@ -365,8 +505,8 @@ const Game = () => {
             const sender = pc.addTrack(track, stream);
             const params = sender.getParameters();
             if (!params.encodings) params.encodings = [{}];
-            params.encodings[0].maxBitrate = 400000; 
-            params.degradationPreference = 'maintain-framerate'; 
+            params.encodings[0].maxBitrate = 400000;
+            params.degradationPreference = 'maintain-framerate';
             sender.setParameters(params).catch(e => console.error("Erro nos parâmetros WebRTC:", e));
           });
 
@@ -392,24 +532,25 @@ const Game = () => {
                 return;
               }
 
-              if (data.type === 'game_ready') {
-                setIsAdversarioReady(true);
-                return;
-              }
-
               if (data.type === 'offer') {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
-                
+
                 if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
+                  socket.emit('webrtc_signal', {
+                    salaId,
+                    signal: { type: 'game_ready', stats: meusDadosRef.current }
+                  });
                 }
               } else if (data.type === 'answer') {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready' } });
+                  socket.emit('webrtc_signal', {
+                    salaId,
+                    signal: { type: 'game_ready', stats: meusDadosRef.current }
+                  });
                 }
               } else if (data.type === 'ice') {
                 if (pc.remoteDescription) {
@@ -424,7 +565,7 @@ const Game = () => {
           if (!isHost) {
             setTimeout(() => {
               socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
-            }, 1500); 
+            }, 1500);
           }
         }
 
@@ -501,7 +642,7 @@ const Game = () => {
                   const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
-                  
+
                   if (novoPlacar.p2 >= 10) {
                     finalizarPartidaOnline('PLAYER 2 VENCEU!', novoPlacar.p1, novoPlacar.p2);
                   } else {
@@ -511,7 +652,7 @@ const Game = () => {
                   const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
-                  
+
                   if (novoPlacar.p1 >= 10) {
                     finalizarPartidaOnline('PLAYER 1 VENCEU!', novoPlacar.p1, novoPlacar.p2);
                   } else {
@@ -618,7 +759,7 @@ const Game = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
       landmarker?.close();
-      
+
       socket.off('webrtc_signal');
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
@@ -638,13 +779,22 @@ const Game = () => {
         remoteVideoRef.current.srcObject = null;
       }
     };
-  }, [isHost, salaId, showLandmarks, tipoPartida]);
+  }, [isHost, salaId, showLandmarks, tipoPartida, adversarioNome, ocultarCameraAdversario]);
+
+  // Define quem aparece na Esquerda (Jogador 1 - Vermelho) e na Direita (Jogador 2 - Azul)
+  const player1Stats: PlayerStats = isHost ? meusDados : dadosAdversario;
+  const player2Stats: PlayerStats = isHost ? dadosAdversario : meusDados;
+
+  const tituloModoVS =
+    tipoPartida.toUpperCase() === 'AMISTOSO'
+      ? 'AMISTOSO 1 vs 1'
+      : '1 vs 1 ONLINE';
 
   const renderCameraOculta = () => (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#94a3b8', borderRight: isHost ? '2px solid rgba(59, 130, 246, 0.5)' : 'none' }}>
-       <span style={{ fontSize: '24px', marginBottom: '10px' }}>🕵️</span>
-       <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Câmera Oculta</div>
-       <div style={{ fontSize: '11px', marginTop: '4px' }}>(Modo Anônimo Ativo)</div>
+      <span style={{ fontSize: '24px', marginBottom: '10px' }}>🕵️</span>
+      <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Câmera Oculta</div>
+      <div style={{ fontSize: '11px', marginTop: '4px' }}>(Modo Anônimo Ativo)</div>
     </div>
   );
 
@@ -674,11 +824,239 @@ const Game = () => {
         backgroundColor: '#111',
         boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)'
       }}>
+        {/* ====================================================
+            TELA DE CONFRONTO "VS" (ONLINE E AMISTOSO)
+           ==================================================== */}
+        {showVersus && !isPartidaLocalMesmoPC && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            fontFamily: "'Segoe UI', Roboto, sans-serif",
+            userSelect: 'none'
+          }}>
+            {/* Lado Vermelho (Jogador 1) */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 25% 50%, #ef4444 0%, #991b1b 65%, #450a0a 100%)',
+              clipPath: 'polygon(0 0, 57% 0, 43% 100%, 0% 100%)',
+              zIndex: 1
+            }} />
+
+            {/* Lado Azul (Jogador 2) */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 75% 50%, #2563eb 0%, #1e3a8a 65%, #090d16 100%)',
+              clipPath: 'polygon(57% 0, 100% 0, 100% 100%, 43% 100%)',
+              zIndex: 1
+            }} />
+
+            {/* Feixe Diagonal Central */}
+            <div style={{
+              position: 'absolute',
+              top: '-15%',
+              bottom: '-15%',
+              left: '50%',
+              width: '5px',
+              background: 'linear-gradient(to bottom, transparent, #fff, #f87171, #60a5fa, transparent)',
+              transform: 'translateX(-50%) rotate(14deg)',
+              boxShadow: '0 0 25px 6px rgba(255, 255, 255, 0.9)',
+              zIndex: 2
+            }} />
+
+            {/* Topo: Modo da Partida */}
+            <div style={{
+              position: 'relative',
+              zIndex: 3,
+              background: 'rgba(0, 0, 0, 0.72)',
+              padding: '6px 24px',
+              borderRadius: '999px',
+              border: '2px solid rgba(251, 191, 36, 0.65)',
+              marginBottom: '16px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.5)'
+            }}>
+              <span style={{ fontSize: '1.05rem', fontWeight: 900, letterSpacing: '3px', color: '#fbbf24' }}>
+                {tituloModoVS}
+              </span>
+            </div>
+
+            {/* Arena dos Cards */}
+            <div style={{
+              position: 'relative',
+              zIndex: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '88%',
+              maxWidth: '800px',
+              gap: '16px'
+            }}>
+              {/* CARD JOGADOR 1 (ESQUERDA - VERMELHO) */}
+              <div style={{
+                flex: 1,
+                maxWidth: '245px',
+                background: 'rgba(69, 10, 10, 0.8)',
+                border: '2px solid rgba(248, 113, 113, 0.6)',
+                borderRadius: '18px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
+                  JOGADOR 1 {isHost ? '(VOCÊ)' : ''}
+                </span>
+                <div style={{
+                  width: '92px',
+                  height: '92px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #f87171',
+                  boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#1f2937'
+                }}>
+                  <img
+                    src={player1Stats.avatar}
+                    alt={player1Stats.nome}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {player1Stats.nome}
+                </h3>
+                <div style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span>
+                    <strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span>
+                    <strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* CENTRO: VS */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                  fontSize: '4.2rem',
+                  fontWeight: 900,
+                  fontStyle: 'italic',
+                  color: '#fff',
+                  textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)',
+                  lineHeight: 1
+                }}>
+                  VS
+                </div>
+                <div style={{
+                  marginTop: '10px',
+                  background: 'rgba(0,0,0,0.85)',
+                  padding: '5px 18px',
+                  borderRadius: '8px',
+                  fontSize: '1.3rem',
+                  fontWeight: 900,
+                  letterSpacing: '3px',
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}>
+                  0 - 0
+                </div>
+                <div style={{
+                  marginTop: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: '#fde047',
+                  background: 'rgba(0,0,0,0.65)',
+                  padding: '4px 12px',
+                  borderRadius: '999px'
+                }}>
+                  Arena em {versusCountdown}s...
+                </div>
+              </div>
+
+              {/* CARD JOGADOR 2 (DIREITA - AZUL) */}
+              <div style={{
+                flex: 1,
+                maxWidth: '245px',
+                background: 'rgba(15, 23, 42, 0.82)',
+                border: '2px solid rgba(96, 165, 250, 0.6)',
+                borderRadius: '18px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
+                  JOGADOR 2 {!isHost ? '(VOCÊ)' : ''}
+                </span>
+                <div style={{
+                  width: '92px',
+                  height: '92px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #60a5fa',
+                  boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#0f172a'
+                }}>
+                  <img
+                    src={player2Stats.avatar}
+                    alt={player2Stats.nome}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {player2Stats.nome}
+                </h3>
+                <div style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span>
+                    <strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span>
+                    <strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '3px 8px', fontSize: '11px', background: 'rgba(0,0,0,0.6)', color: '#00d4ff' }}>
-          {isHost ? 'VOCÊ (P1)' : adversarioNome}
+          {isHost ? `${nomeLocal} (P1)` : adversarioNome}
         </div>
         <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '3px 8px', fontSize: '11px', background: 'rgba(0,0,0,0.6)', color: '#2ecc71' }}>
-          {!isHost ? 'VOCÊ (P2)' : adversarioNome}
+          {!isHost ? `${nomeLocal} (P2)` : adversarioNome}
         </div>
 
         {tipoPartida === 'ONLINE' && !ocultarCameraAdversario && (
@@ -705,29 +1083,29 @@ const Game = () => {
 
         <div style={{ position: 'absolute', width: '100%', height: '100%', display: 'flex', zIndex: 1 }}>
           <div style={{ width: '50%', height: '100%', borderRight: '2px solid rgba(59, 130, 246, 0.5)', position: 'relative' }}>
-             {isHost ? (
-               <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-             ) : (
-               ocultarCameraAdversario ? renderCameraOculta() : (
-                 <>
-                   <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-                   {!remoteVideoRef.current?.srcObject && <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando P1...</div>}
-                 </>
-               )
-             )}
+            {isHost ? (
+              <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+            ) : (
+              ocultarCameraAdversario ? renderCameraOculta() : (
+                <>
+                  <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                  {!remoteVideoRef.current?.srcObject && <div style={{ position: 'absolute', top: '45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px' }}>Aguardando P1...</div>}
+                </>
+              )
+            )}
           </div>
 
           <div style={{ width: '50%', height: '100%', position: 'relative' }}>
-             {!isHost ? (
-               <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-             ) : (
-               ocultarCameraAdversario ? renderCameraOculta() : (
-                 <>
-                   <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-                   {!remoteVideoRef.current?.srcObject && <div style={{position: 'absolute', top:'45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px'}}>Aguardando P2...</div>}
-                 </>
-               )
-             )}
+            {!isHost ? (
+              <video ref={localVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+            ) : (
+              ocultarCameraAdversario ? renderCameraOculta() : (
+                <>
+                  <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                  {!remoteVideoRef.current?.srcObject && <div style={{ position: 'absolute', top: '45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px' }}>Aguardando P2...</div>}
+                </>
+              )
+            )}
           </div>
         </div>
 
@@ -738,7 +1116,7 @@ const Game = () => {
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}
         />
 
-        {!gameStarted && !vencedor && (
+        {!gameStarted && !vencedor && !showVersus && (
           <div style={{
             position: 'absolute',
             top: 0, left: 0, width: '100%', height: '100%',
@@ -857,10 +1235,10 @@ const Game = () => {
             </label>
             <div style={{ marginTop: '5px', fontSize: '11px', color: '#94a3b8' }}>
               <div>MODERAÇÃO AUTOMATIZADA:</div>
-              <div>- Telemetria Ativa {ocultarCameraAdversario && '(Vídeo P2P Bloqueado)'}</div>
-              <div>- {tipoPartida === 'ONLINE' && !ocultarCameraAdversario ? 'Denúncia Habilitada' : 'Denúncia Oculta (Modo Privado)'}</div>
+              <div>Telemetria Ativa {ocultarCameraAdversario && '(Vídeo P2P Bloqueado)'}</div>
+              <div>{tipoPartida === 'ONLINE' && !ocultarCameraAdversario ? 'Denúncia Habilitada' : 'Denúncia Oculta (Modo Privado)'}</div>
             </div>
-            
+
             <button
               onClick={handleSair}
               style={{

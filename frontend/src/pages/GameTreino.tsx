@@ -2,7 +2,37 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Vision from "@mediapipe/tasks-vision";
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+
+// ==========================================
+// CONFIGURAÇÃO DOS ROBÔS DA IA POR NÍVEL
+// ==========================================
+const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: string; avatar: string }> = {
+  facil: {
+    nome: 'PongBot Recruta',
+    nivelLabel: 'FÁCIL',
+    precisao: '50%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
+  },
+  medio: {
+    nome: 'CyberVision v2.0',
+    nivelLabel: 'MÉDIO',
+    precisao: '75%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
+  },
+  dificil: {
+    nome: 'Nexus AI Pro',
+    nivelLabel: 'DIFÍCIL',
+    precisao: '92%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=NexusPro&backgroundColor=7f1d1d'
+  },
+  impossivel: {
+    nome: 'Aegis Overlord',
+    nivelLabel: 'IMPOSSÍVEL',
+    precisao: '99%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AegisOverlord&backgroundColor=4c1d95'
+  }
+};
 
 // ==========================================
 // TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO
@@ -104,11 +134,21 @@ const GameTreino = () => {
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Estados da Tela de VS (Confronto Inicial)
+  const [showVersus, setShowVersus] = useState(true);
+  const [versusCountdown, setVersusCountdown] = useState(4);
+  const [dadosJogador, setDadosJogador] = useState({
+    nome: 'Jogador 1',
+    avatar: '',
+    pontos: 0,
+    vitorias: 0
+  });
+
   const placarRef = useRef({ voce: 0, robo: 0 });
   const showLandmarksRef = useRef(showLandmarks);
   const dificuldadeRef = useRef(dificuldade);
   const gameOverRef = useRef(false);
-  const isPausedRef = useRef(false);
+  const isPausedRef = useRef(true); // Começa pausado enquanto a tela VS aparece!
   const tempoRestanteRef = useRef(300);
   const partidaRegistradaRef = useRef(false);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
@@ -121,6 +161,61 @@ const GameTreino = () => {
 
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
   useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
+
+  // Busca os dados do jogador logado e suas estatísticas reais do Ranking
+  useEffect(() => {
+    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+    const nomeInicial = usuarioSalvo?.nome || usuarioSalvo?.username || 'Jogador';
+    const avatarInicial = usuarioSalvo?.avatar || usuarioSalvo?.foto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nomeInicial)}`;
+
+    setDadosJogador({
+      nome: nomeInicial,
+      avatar: avatarInicial,
+      pontos: Number(usuarioSalvo?.pontos || usuarioSalvo?.pontuacao || 0),
+      vitorias: Number(usuarioSalvo?.vitorias || 0)
+    });
+
+    // Tenta buscar pontos e vitórias atualizados do backend
+    fetch(`${API_URL}/api/ranking`)
+      .then(res => res.ok ? res.json() : [])
+      .then((lista: any[]) => {
+        if (Array.isArray(lista) && usuarioSalvo?.id) {
+          const meuRegistro = lista.find((item: any) => Number(item.id) === Number(usuarioSalvo.id) || item.nome === nomeInicial);
+          if (meuRegistro) {
+            setDadosJogador(prev => ({
+              ...prev,
+              pontos: Number(meuRegistro.pontos ?? meuRegistro.pontuacao ?? prev.pontos),
+              vitorias: Number(meuRegistro.vitorias ?? prev.vitorias),
+              avatar: meuRegistro.avatar || prev.avatar
+            }));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Controla o temporizador de 4 segundos da tela VS
+  useEffect(() => {
+    if (!showVersus) return;
+
+    isPausedRef.current = true;
+    setVersusCountdown(4);
+
+    const countInterval = setInterval(() => {
+      setVersusCountdown(prev => (prev > 1 ? prev - 1 : 1));
+    }, 1000);
+
+    const endVersusTimeout = setTimeout(() => {
+      setShowVersus(false);
+      isPausedRef.current = false;
+      setIsPaused(false);
+    }, 3800);
+
+    return () => {
+      clearInterval(countInterval);
+      clearTimeout(endVersusTimeout);
+    };
+  }, [showVersus, dificuldade]);
 
   const configIA = {
     facil: { baseSpeed: 0.08, maxSpeed: 6, errorRange: 35, predictFactor: 0.2 },
@@ -160,7 +255,7 @@ const GameTreino = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jogador_id: usuarioSalvo.id,
-          adversario_nome: `IA (${dificuldadeRef.current.toUpperCase()})`,
+          adversario_nome: `${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} (${dificuldadeRef.current.toUpperCase()})`,
           pontuacao_jogador: vScore,
           pontuacao_adversario: rScore,
           resultado: vScore > rScore ? 'VITORIA' : rScore > vScore ? 'DERROTA' : 'EMPATE',
@@ -208,15 +303,13 @@ const GameTreino = () => {
     };
   };
 
-  const reiniciarPartida = () => {
+  const reiniciarPartida = (mostrarTelaVS = true) => {
     placarRef.current = { voce: 0, robo: 0 };
     setPlacar({ voce: 0, robo: 0 });
     setTempoRestante(300);
     tempoRestanteRef.current = 300;
     gameOverRef.current = false;
-    isPausedRef.current = false;
     partidaRegistradaRef.current = false;
-    setIsPaused(false);
     setVencedor(null);
     game.current.playerY = 175;
     game.current.targetPlayerY = 175;
@@ -224,17 +317,26 @@ const GameTreino = () => {
     aiStateRef.current.adaptFactor = 1.0;
     aiStateRef.current.consecutiveHits = 0;
     lancarBola(Math.random() > 0.5 ? 1 : -1);
+
+    if (mostrarTelaVS) {
+      isPausedRef.current = true;
+      setIsPaused(false);
+      setShowVersus(true);
+    } else {
+      isPausedRef.current = false;
+      setIsPaused(false);
+    }
   };
 
   const alternarPausa = () => {
-    if (gameOverRef.current) return;
+    if (gameOverRef.current || showVersus) return;
     const novoStatus = !isPausedRef.current;
     isPausedRef.current = novoStatus;
     setIsPaused(novoStatus);
   };
 
   useEffect(() => {
-    reiniciarPartida();
+    reiniciarPartida(true);
   }, [dificuldade]);
 
   useEffect(() => {
@@ -398,7 +500,7 @@ const GameTreino = () => {
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.robo >= 10) {
-                      finalizarPartidaTreino("IA ADAPTATIVA (ALCANÇOU 10 PONTOS)");
+                      finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
                     } else {
                       lancarBola(1);
                     }
@@ -408,7 +510,7 @@ const GameTreino = () => {
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.voce >= 10) {
-                      finalizarPartidaTreino("VOCÊ (ALCANÇOU 10 PONTOS)!");
+                      finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
                     } else {
                       lancarBola(-1);
                     }
@@ -440,7 +542,7 @@ const GameTreino = () => {
 
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
-                ctx.fillText(`VOCÊ: ${placarRef.current.voce}`, 220, 35);
+                ctx.fillText(`${dadosJogador.nome.toUpperCase()}: ${placarRef.current.voce}`, 160, 35);
 
                 ctx.fillStyle = "#fbbf24";
                 ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 375, 35);
@@ -514,7 +616,6 @@ const GameTreino = () => {
       cancelAnimationFrame(animationFrameId);
       if (landmarker) landmarker.close();
 
-      // Encerra imediatamente as trilhas de vídeo para liberar a webcam
       if (activeStream) {
         activeStream.getTracks().forEach(track => track.stop());
       }
@@ -524,7 +625,9 @@ const GameTreino = () => {
         videoRef.current.srcObject = null;
       }
     };
-  }, []);
+  }, [dadosJogador.nome]);
+
+  const botAtual = PERFIS_IA[dificuldade] || PERFIS_IA.medio;
 
   return (
     <div style={{
@@ -554,11 +657,239 @@ const GameTreino = () => {
         backgroundColor: '#000',
         boxShadow: '0 0 25px rgba(0, 212, 255, 0.2)'
       }}>
+        {/* ====================================================
+            TELA DE CONFRONTO "VS" ESTILO 8 BALL POOL
+           ==================================================== */}
+        {showVersus && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            fontFamily: "'Segoe UI', Roboto, sans-serif",
+            userSelect: 'none'
+          }}>
+            {/* Lado Vermelho (Esquerda) */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 25% 50%, #ef4444 0%, #991b1b 65%, #450a0a 100%)',
+              clipPath: 'polygon(0 0, 57% 0, 43% 100%, 0% 100%)',
+              zIndex: 1
+            }} />
+
+            {/* Lado Azul (Direita) */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 75% 50%, #2563eb 0%, #1e3a8a 65%, #090d16 100%)',
+              clipPath: 'polygon(57% 0, 100% 0, 100% 100%, 43% 100%)',
+              zIndex: 1
+            }} />
+
+            {/* Feixe Diagonal Brilhante */}
+            <div style={{
+              position: 'absolute',
+              top: '-15%',
+              bottom: '-15%',
+              left: '50%',
+              width: '5px',
+              background: 'linear-gradient(to bottom, transparent, #fff, #f87171, #60a5fa, transparent)',
+              transform: 'translateX(-50%) rotate(14deg)',
+              boxShadow: '0 0 25px 6px rgba(255, 255, 255, 0.9)',
+              zIndex: 2
+            }} />
+
+            {/* Badge Topo */}
+            <div style={{
+              position: 'relative',
+              zIndex: 3,
+              background: 'rgba(0, 0, 0, 0.7)',
+              padding: '6px 22px',
+              borderRadius: '999px',
+              border: '2px solid rgba(251, 191, 36, 0.6)',
+              marginBottom: '18px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.5)'
+            }}>
+              <span style={{ fontSize: '1rem', fontWeight: 900, letterSpacing: '3px', color: '#fbbf24' }}>
+                DESAFIO CONTRA IA
+              </span>
+            </div>
+
+            {/* Cards de Confronto */}
+            <div style={{
+              position: 'relative',
+              zIndex: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '88%',
+              maxWidth: '820px',
+              gap: '16px'
+            }}>
+              {/* CARD JOGADOR 1 (VOCÊ) */}
+              <div style={{
+                flex: 1,
+                maxWidth: '250px',
+                background: 'rgba(69, 10, 10, 0.78)',
+                border: '2px solid rgba(248, 113, 113, 0.55)',
+                borderRadius: '18px',
+                padding: '18px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.6)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
+                  JOGADOR 1
+                </span>
+                <div style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #f87171',
+                  boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#1f2937'
+                }}>
+                  <img
+                    src={dadosJogador.avatar}
+                    alt={dadosJogador.nome}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {dadosJogador.nome}
+                </h3>
+                <div style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span>
+                    <strong style={{ color: '#fbbf24' }}>{dadosJogador.pontos}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span>
+                    <strong style={{ color: '#4ade80' }}>{dadosJogador.vitorias}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* CENTRO: VS */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                  fontSize: '4.2rem',
+                  fontWeight: 900,
+                  fontStyle: 'italic',
+                  color: '#fff',
+                  textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)',
+                  lineHeight: 1
+                }}>
+                  VS
+                </div>
+                <div style={{
+                  marginTop: '10px',
+                  background: 'rgba(0,0,0,0.85)',
+                  padding: '5px 18px',
+                  borderRadius: '8px',
+                  fontSize: '1.3rem',
+                  fontWeight: 900,
+                  letterSpacing: '3px',
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}>
+                  0 - 0
+                </div>
+                <div style={{
+                  marginTop: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: '#fde047',
+                  background: 'rgba(0,0,0,0.65)',
+                  padding: '4px 12px',
+                  borderRadius: '999px'
+                }}>
+                  Iniciando em {versusCountdown}s...
+                </div>
+              </div>
+
+              {/* CARD IA (DIREITA) */}
+              <div style={{
+                flex: 1,
+                maxWidth: '250px',
+                background: 'rgba(15, 23, 42, 0.82)',
+                border: '2px solid rgba(96, 165, 250, 0.55)',
+                borderRadius: '18px',
+                padding: '18px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.6)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
+                  DESAFIANTE IA
+                </span>
+                <div style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #60a5fa',
+                  boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#0f172a'
+                }}>
+                  <img
+                    src={botAtual.avatar}
+                    alt={botAtual.nome}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {botAtual.nome}
+                </h3>
+                <div style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>🤖 Nível:</span>
+                    <strong style={{ color: '#38bdf8' }}>{botAtual.nivelLabel}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>⚡ Precisão:</span>
+                    <strong style={{ color: '#f43f5e' }}>{botAtual.precisao}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#00d4ff', fontWeight: 'bold' }}>
-          VOCÊ (PLAYER)
+          {dadosJogador.nome.toUpperCase()} (PLAYER 1)
         </div>
         <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #ff0055', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#ff0055', fontWeight: 'bold' }}>
-          IA ADAPTATIVA ({dificuldade.toUpperCase()})
+          {botAtual.nome.toUpperCase()} ({botAtual.nivelLabel})
         </div>
 
         <video
@@ -576,7 +907,7 @@ const GameTreino = () => {
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
         />
 
-        {isPaused && !vencedor && (
+        {isPaused && !vencedor && !showVersus && (
           <div style={{
             position: 'absolute',
             top: 0, left: 0, width: '100%', height: '100%',
@@ -614,7 +945,7 @@ const GameTreino = () => {
             </p>
             <div style={{ display: 'flex', gap: '20px' }}>
               <button
-                onClick={reiniciarPartida}
+                onClick={() => reiniciarPartida(true)}
                 style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
               >
                 JOGAR NOVAMENTE
@@ -667,7 +998,7 @@ const GameTreino = () => {
           </button>
 
           <button
-            onClick={reiniciarPartida}
+            onClick={() => reiniciarPartida(true)}
             style={{
               background: '#2563eb',
               color: '#fff',
