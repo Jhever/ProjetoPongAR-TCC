@@ -355,18 +355,25 @@ const Home = () => {
           <div style={styles.modalCard}>
             <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
             <div style={styles.modalButtonsDiv}>
-              <button 
-                style={styles.modalBtnYes} 
-                onClick={() => {
-                  localStorage.removeItem('usuario');
-                  setShowExitModal(false);
-                  window.location.href = '/'; 
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
-                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
-              >
-                SIM
-              </button>
+           <button 
+  style={styles.modalBtnYes} 
+  onClick={() => {
+    // 1. Limpa todas as chaves de sessão possíveis do navegador
+    localStorage.removeItem('usuario');
+    localStorage.removeItem('token');
+    localStorage.clear(); // Limpa qualquer outro resquício de cache local
+    
+    // 2. Fecha o modal
+    setShowExitModal(false);
+    
+    // 3. Força a navegação absoluta para o login na raiz
+    window.location.href = '/'; 
+  }}
+  onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+  onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+>
+  SIM
+</button>
               <button 
                 style={styles.modalBtnNo} 
                 onClick={() => setShowExitModal(false)}
