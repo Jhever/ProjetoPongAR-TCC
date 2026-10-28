@@ -27,13 +27,16 @@ const RouteTracker = () => {
 
   useEffect(() => {
     const agora = Date.now();
-    const TEMPO_LIMITE = 5 * 60 * 1000; // 5 minutos em milissegundos
-
+    
     // Rotas que não devem ser restauradas (ex: tela de login/registro)
     const rotasIgnoradas = ['/', '/register', '/esqueci-senha'];
 
-    if (!rotasIgnoradas.includes(location.pathname)) {
-      // Salva a rota atual e o timestamp atual
+    if (rotasIgnoradas.includes(location.pathname)) {
+      // Se o usuário foi para o login ou registro, limpa o rastreamento anterior de vez!
+      sessionStorage.removeItem('ultima_rota');
+      sessionStorage.removeItem('rota_timestamp');
+    } else {
+      // Salva a rota atual e o timestamp atual nas outras telas
       sessionStorage.setItem('ultima_rota', location.pathname);
       sessionStorage.setItem('rota_timestamp', agora.toString());
     }
@@ -50,12 +53,12 @@ const RouteTracker = () => {
       const TEMPO_LIMITE = 5 * 60 * 1000; // 5 minutos
 
       if (tempoDecorrido < TEMPO_LIMITE) {
-        // Se passou menos de 5 minutos, redireciona de volta para onde ele estava
+        // Se passou menos de 5 minutos e está na raiz, redireciona de volta para onde ele estava
         if (window.location.pathname === '/' || window.location.pathname === '/login') {
           navigate(ultimaRota);
         }
       } else {
-        // Passou de 5 minutos, limpa o cache e deixa ir para a página inicial/login
+        // Passou de 5 minutos, limpa o cache
         sessionStorage.removeItem('ultima_rota');
         sessionStorage.removeItem('rota_timestamp');
       }

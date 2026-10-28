@@ -13,7 +13,7 @@ const Home = () => {
   // Estado para puxar as infrações e os pontos do banco
   const [dadosAtualizados, setDadosAtualizados] = useState({ pontos: 0, infracoes: 0 });
 
-  const { isDark, isAnonimo, userData, toggleAnonimo } = useConfig();
+  const { isDark, isAnonimo, userData, toggleAnonimo, logoutUser } = useConfig();
 
   // Recupera a foto salva nas configurações (emoji ou Base64)
   const avatarFoto = (userData as any)?.foto;
@@ -355,25 +355,27 @@ const Home = () => {
           <div style={styles.modalCard}>
             <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
             <div style={styles.modalButtonsDiv}>
-           <button 
-  style={styles.modalBtnYes} 
-  onClick={() => {
-    // 1. Limpa todas as chaves de sessão possíveis do navegador
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('token');
-    localStorage.clear(); // Limpa qualquer outro resquício de cache local
-    
-    // 2. Fecha o modal
-    setShowExitModal(false);
-    
-    // 3. Força a navegação absoluta para o login na raiz
-    window.location.href = '/'; 
-  }}
-  onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
-  onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
->
-  SIM
-</button>
+              <button 
+                style={styles.modalBtnYes} 
+                onClick={() => {
+                  // 1. Chama a função oficial de logout do contexto
+                  if (logoutUser) logoutUser();
+
+                  // 2. Limpa todos os storages de forma preventiva
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  
+                  // 3. Fecha o modal
+                  setShowExitModal(false);
+                  
+                  // 4. Força o redirecionamento absoluto para a tela de Login
+                  window.location.href = '/'; 
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                SIM
+              </button>
               <button 
                 style={styles.modalBtnNo} 
                 onClick={() => setShowExitModal(false)}
