@@ -9,27 +9,27 @@ const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 // ==========================================
 const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: string; avatar: string }> = {
   facil: {
-    nome: 'PongBot Recruta',
+    nome: 'Treinador Carlos',
     nivelLabel: 'FÁCIL',
-    precisao: '50%',
+    precisao: '40%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'CyberVision v2.0',
+    nome: 'Treinador João',
     nivelLabel: 'MÉDIO',
-    precisao: '75%',
+    precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
   },
   dificil: {
-    nome: 'Nexus AI Pro',
+    nome: 'Treinador Jordan',
     nivelLabel: 'DIFÍCIL',
-    precisao: '92%',
+    precisao: '75%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=NexusPro&backgroundColor=7f1d1d'
   },
   impossivel: {
-    nome: 'Aegis Overlord',
+    nome: 'Treinador Lancelot',
     nivelLabel: 'IMPOSSÍVEL',
-    precisao: '99%',
+    precisao: '90%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AegisOverlord&backgroundColor=4c1d95'
   }
 };
@@ -138,7 +138,7 @@ const GameTreino = () => {
   const [showVersus, setShowVersus] = useState(true);
   const [versusCountdown, setVersusCountdown] = useState(4);
   const [dadosJogador, setDadosJogador] = useState({
-    nome: 'Jheverson',
+    nome: '',
     avatar: '',
     pontos: 0,
     vitorias: 0
@@ -174,7 +174,7 @@ const GameTreino = () => {
       usuarioSalvo?.username || 
       usuarioSalvo?.login || 
       localStorage.getItem('nome_usuario') || 
-      'Jheverson'; // Fallback padrão caso não encontre nada
+      ''; // Fallback padrão caso não encontre nada
 
     const avatarReal = 
       usuarioSalvo?.avatar || 
@@ -235,12 +235,32 @@ const GameTreino = () => {
     };
   }, [showVersus, dificuldade]);
 
-  const configIA = {
-    facil: { baseSpeed: 0.08, maxSpeed: 6, errorRange: 35, predictFactor: 0.2 },
-    medio: { baseSpeed: 0.14, maxSpeed: 10, errorRange: 20, predictFactor: 0.5 },
-    dificil: { baseSpeed: 0.22, maxSpeed: 16, errorRange: 8, predictFactor: 0.8 },
-    impossivel: { baseSpeed: 0.35, maxSpeed: 24, errorRange: 0, predictFactor: 1.0 }
-  };
+ const configIA = {
+  facil: { 
+    baseSpeed: 0.07, 
+    maxSpeed: 5, 
+    errorRange: 42,      // Maior margem de erro (reflete a precisão de 40%)
+    predictFactor: 0.15 
+  },
+  medio: { 
+    baseSpeed: 0.12, 
+    maxSpeed: 9, 
+    errorRange: 25,      // Erro moderado (reflete a precisão de 60%)
+    predictFactor: 0.45 
+  },
+  dificil: { 
+    baseSpeed: 0.20, 
+    maxSpeed: 15, 
+    errorRange: 12,      // Bem ágil e focado (reflete a precisão de 75%)
+    predictFactor: 0.75 
+  },
+  impossivel: { 
+    baseSpeed: 0.32, 
+    maxSpeed: 22, 
+    errorRange: 2,       // Quase zero erro, rebate quase tudo (reflete a precisão de 90%)
+    predictFactor: 0.95 
+  }
+};
 
   const game = useRef({
     ball: { x: 400, y: 225, dx: 7, dy: (Math.random() > 0.5 ? 4 : -4) },
@@ -661,7 +681,7 @@ const GameTreino = () => {
       boxSizing: 'border-box'
     }}>
       <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '10px' }}>
-        MODO TREINO (IA ADAPTATIVA) | META: 10 PONTOS OU 5 MINUTOS
+        MODO TREINO | META: 10 GOLS OU 5 MINUTOS
       </div>
 
       <div style={{
