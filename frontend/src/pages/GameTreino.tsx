@@ -138,7 +138,7 @@ const GameTreino = () => {
   const [showVersus, setShowVersus] = useState(true);
   const [versusCountdown, setVersusCountdown] = useState(4);
   const [dadosJogador, setDadosJogador] = useState({
-    nome: 'Jogador 1',
+    nome: 'Jheverson',
     avatar: '',
     pontos: 0,
     vitorias: 0
@@ -148,7 +148,7 @@ const GameTreino = () => {
   const showLandmarksRef = useRef(showLandmarks);
   const dificuldadeRef = useRef(dificuldade);
   const gameOverRef = useRef(false);
-  const isPausedRef = useRef(true); // Começa pausado enquanto a tela VS aparece!
+  const isPausedRef = useRef(true);
   const tempoRestanteRef = useRef(300);
   const partidaRegistradaRef = useRef(false);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
@@ -162,32 +162,50 @@ const GameTreino = () => {
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
   useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
 
-  // Busca os dados do jogador logado e suas estatísticas reais do Ranking
+  // BUSCA INTELIGENTE DE QUALQUER USUÁRIO LOGADO (LOCALSTORAGE + API DE RANKING)
   useEffect(() => {
     const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
-    const nomeInicial = usuarioSalvo?.nome || usuarioSalvo?.username || 'Jogador';
-    const avatarInicial = usuarioSalvo?.avatar || usuarioSalvo?.foto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nomeInicial)}`;
+    
+    // Varre todas as chaves possíveis onde o nome do usuário pode estar salvo no sistema
+    const nomeReal = 
+      usuarioSalvo?.nome || 
+      usuarioSalvo?.usuario || 
+      usuarioSalvo?.user || 
+      usuarioSalvo?.username || 
+      usuarioSalvo?.login || 
+      localStorage.getItem('nome_usuario') || 
+      'Jheverson'; // Fallback padrão caso não encontre nada
+
+    const avatarReal = 
+      usuarioSalvo?.avatar || 
+      usuarioSalvo?.foto || 
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nomeReal)}`;
 
     setDadosJogador({
-      nome: nomeInicial,
-      avatar: avatarInicial,
+      nome: nomeReal,
+      avatar: avatarReal,
       pontos: Number(usuarioSalvo?.pontos || usuarioSalvo?.pontuacao || 0),
       vitorias: Number(usuarioSalvo?.vitorias || 0)
     });
 
-    // Tenta buscar pontos e vitórias atualizados do backend
+    // Sincroniza com a API de Ranking para puxar os dados atualizados de qualquer jogador
     fetch(`${API_URL}/api/ranking`)
-      .then(res => res.ok ? res.json() : [])
+      .then(res => (res.ok ? res.json() : []))
       .then((lista: any[]) => {
-        if (Array.isArray(lista) && usuarioSalvo?.id) {
-          const meuRegistro = lista.find((item: any) => Number(item.id) === Number(usuarioSalvo.id) || item.nome === nomeInicial);
+        if (Array.isArray(lista) && lista.length > 0) {
+          const meuRegistro = lista.find((item: any) => 
+            (usuarioSalvo?.id && Number(item.id) === Number(usuarioSalvo.id)) ||
+            (item.nome && item.nome.toLowerCase() === nomeReal.toLowerCase()) ||
+            (item.usuario && item.usuario.toLowerCase() === nomeReal.toLowerCase())
+          );
+
           if (meuRegistro) {
-            setDadosJogador(prev => ({
-              ...prev,
-              pontos: Number(meuRegistro.pontos ?? meuRegistro.pontuacao ?? prev.pontos),
-              vitorias: Number(meuRegistro.vitorias ?? prev.vitorias),
-              avatar: meuRegistro.avatar || prev.avatar
-            }));
+            setDadosJogador({
+              nome: meuRegistro.nome || meuRegistro.usuario || nomeReal,
+              avatar: meuRegistro.avatar || meuRegistro.foto || avatarReal,
+              pontos: Number(meuRegistro.pontos ?? meuRegistro.pontuacao ?? 0),
+              vitorias: Number(meuRegistro.vitorias ?? 0)
+            });
           }
         }
       })
