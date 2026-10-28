@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserCircle } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext'; 
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 const Home = () => {
   const navigate = useNavigate();

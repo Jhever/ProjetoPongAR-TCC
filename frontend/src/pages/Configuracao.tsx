@@ -13,7 +13,7 @@ const Configuracao = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedFoto, setSelectedFoto] = useState((userData as any)?.foto || '👤');
 
-  const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://projetopongar-tcc.onrender.com';
+const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
   if (!userData) {
     return (
