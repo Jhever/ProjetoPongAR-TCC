@@ -355,14 +355,23 @@ const Home = () => {
           <div style={styles.modalCard}>
             <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
             <div style={styles.modalButtonsDiv}>
-              <button 
-                style={styles.modalBtnYes} 
-                onClick={() => navigate('/')}
-                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
-                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
-              >
-                SIM
-              </button>
+           <button 
+  style={styles.modalBtnYes} 
+  onClick={() => {
+    // 1. Remove os dados da sessão atual do usuário
+    localStorage.removeItem('usuario');
+    
+    // 2. Fecha o modal de saída
+    setShowExitModal(false);
+    
+    // 3. Redireciona para a tela inicial / login
+    navigate('/');
+  }}
+  onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
+  onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+>
+  SIM
+</button>
               <button 
                 style={styles.modalBtnNo} 
                 onClick={() => setShowExitModal(false)}
