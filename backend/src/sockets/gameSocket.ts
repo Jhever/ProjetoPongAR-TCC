@@ -234,12 +234,16 @@ export function setupGameSocket(io: Server) {
       }
     });
 
-    socket.on('player_timeout', (dados: { salaId: string }) => {
+   socket.on('player_timeout', (dados: { salaId: string }) => {
       const sala = salas[dados.salaId];
       if (sala) {
         if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId);
-        // Avisa o adversário que ele venceu por inatividade
-        socket.to(dados.salaId).emit('vitoriaPorInatividade', { mensagem: 'O adversário ficou inativo e perdeu por W.O.' });
+        
+        // Informa os dois jogadores da sala sobre a desclassificação por inatividade
+        io.to(dados.salaId).emit('vitoriaPorInatividade', { 
+          mensagem: 'O adversário ficou inativo por muito tempo e perdeu por W.O.' 
+        });
+        
         delete salas[dados.salaId];
       }
     });

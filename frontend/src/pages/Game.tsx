@@ -167,9 +167,9 @@ const Game = () => {
   const partidaFinalizadaRef = useRef(false);
 
   // --- CONFIGURAÇÃO DO TIMEOUT POR INATIVIDADE ---
-  const { isWarning, resetTimer } = useInactivity({
-    timeoutMs: 15000,
-    warningMs: 10000,
+const { isWarning, resetTimer } = useInactivity({
+    timeoutMs: 15000, // 15 segundos
+    warningMs: 10000, // 10 segundos para o aviso visual
     onTimeout: () => {
       if (!partidaFinalizadaRef.current && gameStartedRef.current && !isPartidaLocalMesmoPC) {
         socket.emit('player_timeout', { salaId });
@@ -266,7 +266,7 @@ const Game = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
-    const velInicial = 8;
+    const velInicial = 10;
     return {
       x: 400,
       y: 225,
@@ -1062,10 +1062,9 @@ const Game = () => {
         </div>
 
         <canvas ref={canvasRef} width={800} height={450} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }} />
-
-        {!gameStarted && !vencedor && !showVersus && (
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
-            {countdown !== null ? (
+      {!gameStarted && !vencedor && !showVersus && (
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
+      {countdown !== null ? (
               <h1 style={{ fontSize: '6rem', color: '#4ade80', textShadow: '0 0 20px #4ade80', margin: 0 }}>{countdown}</h1>
             ) : (
               <div style={{ textAlign: 'center' }}>
