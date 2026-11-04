@@ -129,6 +129,9 @@ const Game = () => {
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
 
+  // Efeito Visual de GOOOLLLL
+  const [mensagemGol, setMensagemGol] = useState<string | null>(null);
+
   const [meusDados, setMeusDados] = useState<PlayerStats>({
     nome: nomeLocal,
     avatar: usuarioSalvo.avatar || usuarioSalvo.foto || getDefaultAvatar(nomeLocal),
@@ -166,10 +169,17 @@ const Game = () => {
   const placarRef = useRef({ p1: 0, p2: 0 });
   const partidaFinalizadaRef = useRef(false);
 
-  // --- CONFIGURAÇÃO DO TIMEOUT POR INATIVIDADE ---
-const { isWarning, resetTimer } = useInactivity({
-    timeoutMs: 15000, // 15 segundos
-    warningMs: 10000, // 10 segundos para o aviso visual
+  // Disparar efeito visual de gol
+  const dispararEfeitoGol = (texto: string) => {
+    setMensagemGol(texto);
+    setTimeout(() => {
+      setMensagemGol(null);
+    }, 1500); // Exibe por 1.5 segundos
+  };
+
+  const { isWarning, resetTimer } = useInactivity({
+    timeoutMs: 15000,
+    warningMs: 10000,
     onTimeout: () => {
       if (!partidaFinalizadaRef.current && gameStartedRef.current && !isPartidaLocalMesmoPC) {
         socket.emit('player_timeout', { salaId });
@@ -412,6 +422,13 @@ const { isWarning, resetTimer } = useInactivity({
     });
 
     socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
+      // Dispara o efeito visual se o placar mudou
+      if (novoPlacar.esquerda > placarRef.current.p1) {
+        dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
+      } else if (novoPlacar.direita > placarRef.current.p2) {
+        dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
+      }
+
       placarRef.current = { p1: novoPlacar.esquerda, p2: novoPlacar.direita };
       setPlacar({ p1: novoPlacar.esquerda, p2: novoPlacar.direita });
       addLog(`[Score] P1: ${novoPlacar.esquerda} | P2: ${novoPlacar.direita}`);
@@ -543,8 +560,6 @@ const { isWarning, resetTimer } = useInactivity({
           pc.ontrack = (event) => {
             if (remoteVideoRef.current && event.streams[0]) {
               remoteVideoRef.current.srcObject = event.streams[0];
-              
-              // Tratamento seguro para evitar o AbortError
               const playPromise = remoteVideoRef.current.play();
               if (playPromise !== undefined) {
                 playPromise.catch(error => {
@@ -683,6 +698,7 @@ const { isWarning, resetTimer } = useInactivity({
 
                 if (game.current.ball.x < 0) {
                   const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
+                  dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
 
@@ -693,6 +709,7 @@ const { isWarning, resetTimer } = useInactivity({
                   }
                 } else if (game.current.ball.x > 800) {
                   const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
+                  dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
                   placarRef.current = novoPlacar;
                   setPlacar(novoPlacar);
 
@@ -758,6 +775,19 @@ const { isWarning, resetTimer } = useInactivity({
                 ctx.arc(game.current.ball.x, game.current.ball.y, 10, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
+              }
+
+              // ANIMAÇÃO DE GOOOLLLL NO CANVAS
+              if (mensagemGol) {
+                ctx.save();
+                ctx.font = "bold 42px 'Courier New', monospace";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.shadowColor = "#fbbf24";
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = "#fde047";
+                ctx.fillText(mensagemGol, 400, 200);
+                ctx.restore();
               }
 
               if (showLandmarks && handDetected && results.landmarks) {
@@ -1069,9 +1099,10 @@ const { isWarning, resetTimer } = useInactivity({
         </div>
 
         <canvas ref={canvasRef} width={800} height={450} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }} />
-      {!gameStarted && !vencedor && !showVersus && (
+        
+        {!gameStarted && !vencedor && !showVersus && (
           <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
-      {countdown !== null ? (
+            {countdown !== null ? (
               <h1 style={{ fontSize: '6rem', color: '#4ade80', textShadow: '0 0 20px #4ade80', margin: 0 }}>{countdown}</h1>
             ) : (
               <div style={{ textAlign: 'center' }}>

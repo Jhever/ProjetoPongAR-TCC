@@ -103,6 +103,9 @@ const GameLocal = () => {
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Efeito Visual de GOOOLLLL
+  const [mensagemGol, setMensagemGol] = useState<string | null>(null);
+
   const placarRef = useRef({ p1: 0, p2: 0 });
   const showLandmarksRef = useRef(showLandmarks);
   const gameOverRef = useRef(false);
@@ -122,6 +125,13 @@ const GameLocal = () => {
     targetP1Y: 175,
     targetP2Y: 175
   });
+
+  const dispararEfeitoGol = (texto: string) => {
+    setMensagemGol(texto);
+    setTimeout(() => {
+      setMensagemGol(null);
+    }, 1500);
+  };
 
   const finalizarPartidaLocal = (resultadoTexto: string) => {
     if (partidaRegistradaRef.current) return;
@@ -354,6 +364,7 @@ const GameLocal = () => {
 
                   if (game.current.ball.x < 0) {
                     placarRef.current.p2 += 1;
+                    dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.p2 >= 10) {
@@ -363,6 +374,7 @@ const GameLocal = () => {
                     }
                   } else if (game.current.ball.x > 800) {
                     placarRef.current.p1 += 1;
+                    dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
                     setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.p1 >= 10) {
@@ -425,6 +437,7 @@ const GameLocal = () => {
 
                 ctx.strokeStyle = "#2ecc71";
                 ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
+                ctx.lineWidth = 3;
                 ctx.strokeRect(725, game.current.p2Y, 20, 100);
                 ctx.fillRect(725, game.current.p2Y, 20, 100);
 
@@ -436,6 +449,19 @@ const GameLocal = () => {
                   ctx.arc(game.current.ball.x, game.current.ball.y, 9, 0, Math.PI * 2);
                   ctx.fill();
                   ctx.shadowBlur = 0;
+                }
+
+                // ANIMAÇÃO DE GOOOLLLL NO CANVAS LOCAL
+                if (mensagemGol) {
+                  ctx.save();
+                  ctx.font = "bold 42px 'Courier New', monospace";
+                  ctx.textAlign = "center";
+                  ctx.textBaseline = "middle";
+                  ctx.shadowColor = "#fbbf24";
+                  ctx.shadowBlur = 20;
+                  ctx.fillStyle = "#fde047";
+                  ctx.fillText(mensagemGol, 400, 200);
+                  ctx.restore();
                 }
 
                 if (showLandmarksRef.current && results.landmarks) {
@@ -487,7 +513,7 @@ const GameLocal = () => {
       cancelAnimationFrame(animationFrameId);
       if (landmarker) landmarker.close();
     };
-  }, []);
+  }, [mensagemGol]);
 
   return (
     <div style={{
