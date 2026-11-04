@@ -208,9 +208,16 @@ export function setupGameSocket(io: Server) {
     });
 
     // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO
+   // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO E REGISTRO DE INATIVIDADE
     socket.on('moverRaquete', (dados: { salaId: string; y: number }) => {
       const sala = salas[dados.salaId];
       if (sala && sala.estadoJogo) {
+        // Registra o carimbo de tempo da última atividade deste jogador na sala
+        if (!(sala as any).ultimaAtividade) {
+          (sala as any).ultimaAtividade = {};
+        }
+        (sala as any).ultimaAtividade[socket.id] = Date.now();
+
         const jogador = sala.jogadores.find(j => j.socketId === socket.id);
         if (jogador) {
           if (jogador.lado === 'esquerda') {
