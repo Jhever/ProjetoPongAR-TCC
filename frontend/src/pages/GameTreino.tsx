@@ -5,6 +5,36 @@ import * as Vision from "@mediapipe/tasks-vision";
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 // ==========================================
+// CONFIGURAÇÃO DOS ROBÔS DA IA POR NÍVEL
+// ==========================================
+const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: string; avatar: string }> = {
+  facil: {
+    nome: 'Treinador Carlos',
+    nivelLabel: 'FÁCIL',
+    precisao: '40%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
+  },
+  medio: {
+    nome: 'Treinador João',
+    nivelLabel: 'MÉDIO',
+    precisao: '60%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
+  },
+  dificil: {
+    nome: 'Treinador Jordan',
+    nivelLabel: 'DIFÍCIL',
+    precisao: '75%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=NexusPro&backgroundColor=7f1d1d'
+  },
+  impossivel: {
+    nome: 'Treinador Lancelot',
+    nivelLabel: 'IMPOSSÍVEL',
+    precisao: '90%',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=AegisOverlord&backgroundColor=4c1d95'
+  }
+};
+
+// ==========================================
 // TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO
 // ==========================================
 type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
@@ -89,14 +119,15 @@ function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, num
 }
 
 // ==========================================
-// COMPONENTE DO JOGO LOCAL (ARENA PRESENCIAL)
+// COMPONENTE DO JOGO TREINO
 // ==========================================
-const GameLocal = () => {
+const GameTreino = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
 
-  const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
+  const [placar, setPlacar] = useState({ voce: 0, robo: 0 });
+  const [dificuldade, setDificuldade] = useState('medio');
   const [fps, setFps] = useState(60);
   const [showLandmarks, setShowLandmarks] = useState(true);
   const [tempoRestante, setTempoRestante] = useState(300);
@@ -106,25 +137,33 @@ const GameLocal = () => {
   // Efeito Visual de GOOOLLLL
   const [mensagemGol, setMensagemGol] = useState<string | null>(null);
 
-  const placarRef = useRef({ p1: 0, p2: 0 });
+  // Estados da Tela de VS (Confronto Inicial)
+  const [showVersus, setShowVersus] = useState(true);
+  const [versusCountdown, setVersusCountdown] = useState(4);
+  const [dadosJogador, setDadosJogador] = useState({
+    nome: '',
+    avatar: '',
+    pontos: 0,
+    vitorias: 0
+  });
+
+  const placarRef = useRef({ voce: 0, robo: 0 });
   const showLandmarksRef = useRef(showLandmarks);
+  const dificuldadeRef = useRef(dificuldade);
   const gameOverRef = useRef(false);
-  const isPausedRef = useRef(false);
+  const isPausedRef = useRef(true);
   const tempoRestanteRef = useRef(300);
   const partidaRegistradaRef = useRef(false);
+  const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
-  const countersP1Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
-  const countersP2Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
+  const aiStateRef = useRef({
+    adaptFactor: 1.0,
+    consecutiveHits: 0,
+    estimatedTargetY: 225
+  });
 
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
-
-  const game = useRef({
-    ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
-    p1Y: 175,
-    p2Y: 175,
-    targetP1Y: 175,
-    targetP2Y: 175
-  });
+  useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
 
   const dispararEfeitoGol = (texto: string) => {
     setMensagemGol(texto);
@@ -133,21 +172,126 @@ const GameLocal = () => {
     }, 1500);
   };
 
-  const finalizarPartidaLocal = (resultadoTexto: string) => {
+  // BUSCA INTELIGENTE DE QUALQUER USUÁRIO LOGADO (LOCALSTORAGE + API DE RANKING)
+  useEffect(() => {
+    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+    
+    const nomeReal = 
+      usuarioSalvo?.nome || 
+      usuarioSalvo?.usuario || 
+      usuarioSalvo?.user || 
+      usuarioSalvo?.username || 
+      usuarioSalvo?.login || 
+      localStorage.getItem('nome_usuario') || 
+      '';
+
+    const avatarReal = 
+      usuarioSalvo?.avatar || 
+      usuarioSalvo?.foto || 
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nomeReal)}`;
+
+    setDadosJogador({
+      nome: nomeReal,
+      avatar: avatarReal,
+      pontos: Number(usuarioSalvo?.pontos || usuarioSalvo?.pontuacao || 0),
+      vitorias: Number(usuarioSalvo?.vitorias || 0)
+    });
+
+    fetch(`${API_URL}/api/ranking`)
+      .then(res => (res.ok ? res.json() : []))
+      .then((lista: any[]) => {
+        if (Array.isArray(lista) && lista.length > 0) {
+          const meuRegistro = lista.find((item: any) => 
+            (usuarioSalvo?.id && Number(item.id) === Number(usuarioSalvo.id)) ||
+            (item.nome && item.nome.toLowerCase() === nomeReal.toLowerCase()) ||
+            (item.usuario && item.usuario.toLowerCase() === nomeReal.toLowerCase())
+          );
+
+          if (meuRegistro) {
+            setDadosJogador({
+              nome: meuRegistro.nome || meuRegistro.usuario || nomeReal,
+              avatar: meuRegistro.avatar || meuRegistro.foto || avatarReal,
+              pontos: Number(meuRegistro.pontos ?? meuRegistro.pontuacao ?? 0),
+              vitorias: Number(meuRegistro.vitorias ?? 0)
+            });
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Controla o temporizador de 4 segundos da tela VS
+  useEffect(() => {
+    if (!showVersus) return;
+
+    isPausedRef.current = true;
+    setVersusCountdown(4);
+
+    const countInterval = setInterval(() => {
+      setVersusCountdown(prev => (prev > 1 ? prev - 1 : 1));
+    }, 1000);
+
+    const endVersusTimeout = setTimeout(() => {
+      setShowVersus(false);
+      isPausedRef.current = false;
+      setIsPaused(false);
+    }, 3800);
+
+    return () => {
+      clearInterval(countInterval);
+      clearTimeout(endVersusTimeout);
+    };
+  }, [showVersus, dificuldade]);
+
+  const configIA = {
+    facil: { 
+      baseSpeed: 0.07, 
+      maxSpeed: 5, 
+      errorRange: 42, 
+      predictFactor: 0.15 
+    },
+    medio: { 
+      baseSpeed: 0.12, 
+      maxSpeed: 9, 
+      errorRange: 25, 
+      predictFactor: 0.45 
+    },
+    dificil: { 
+      baseSpeed: 0.20, 
+      maxSpeed: 15, 
+      errorRange: 12, 
+      predictFactor: 0.75 
+    },
+    impossivel: { 
+      baseSpeed: 0.32, 
+      maxSpeed: 22, 
+      errorRange: 2, 
+      predictFactor: 0.95 
+    }
+  };
+
+  const game = useRef({
+    ball: { x: 400, y: 225, dx: 7, dy: (Math.random() > 0.5 ? 4 : -4) },
+    playerY: 175,
+    targetPlayerY: 175,
+    robotY: 175
+  });
+
+  const finalizarPartidaTreino = (resultadoTexto: string) => {
     if (partidaRegistradaRef.current) return;
     partidaRegistradaRef.current = true;
     gameOverRef.current = true;
     setVencedor(resultadoTexto);
 
     const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
-    const p1Score = placarRef.current.p1;
-    const p2Score = placarRef.current.p2;
+    const vScore = placarRef.current.voce;
+    const rScore = placarRef.current.robo;
 
     const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
     const novaEntrada = {
       data: new Date().toLocaleDateString('pt-BR'),
-      resultado: p1Score > p2Score ? 'VITÓRIA P1' : p2Score > p1Score ? 'VITÓRIA P2' : 'EMPATE',
-      placar: `${p1Score} x ${p2Score} (Presencial)`
+      resultado: vScore > rScore ? 'VITÓRIA' : rScore > vScore ? 'DERROTA' : 'EMPATE',
+      placar: `${vScore} x ${rScore} (Treino - ${dificuldadeRef.current.toUpperCase()})`
     };
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
@@ -157,13 +301,13 @@ const GameLocal = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jogador_id: usuarioSalvo.id,
-          adversario_nome: 'Player 2 (Presencial)',
-          pontuacao_jogador: p1Score,
-          pontuacao_adversario: p2Score,
-          resultado: p1Score > p2Score ? 'VITORIA' : p2Score > p1Score ? 'DERROTA' : 'EMPATE',
-          tipo_partida: 'LOCAL'
+          adversario_nome: `${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} (${dificuldadeRef.current.toUpperCase()})`,
+          pontuacao_jogador: vScore,
+          pontuacao_adversario: rScore,
+          resultado: vScore > rScore ? 'VITORIA' : rScore > vScore ? 'DERROTA' : 'EMPATE',
+          tipo_partida: 'TREINO'
         })
-      }).catch((err) => console.error("Erro ao registrar histórico local:", err));
+      }).catch(err => console.error("Erro ao registrar treino:", err));
     }
   };
 
@@ -174,10 +318,10 @@ const GameLocal = () => {
       setTempoRestante(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          const p1 = placarRef.current.p1;
-          const p2 = placarRef.current.p2;
-          const msg = p1 > p2 ? "PLAYER 1 (TEMPO ESGOTADO)" : p2 > p1 ? "PLAYER 2 (TEMPO ESGOTADO)" : "EMPATE!";
-          finalizarPartidaLocal(msg);
+          const v = placarRef.current.voce;
+          const r = placarRef.current.robo;
+          const msg = v > r ? "VOCÊ VENCEU (TEMPO ESGOTADO)!" : r > v ? "A IA VENCEU (TEMPO ESGOTADO)!" : "EMPATE!";
+          finalizarPartidaTreino(msg);
           return 0;
         }
         tempoRestanteRef.current = prev - 1;
@@ -196,7 +340,7 @@ const GameLocal = () => {
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
-    const velInicial = 9;
+    const velInicial = 8;
     game.current.ball = {
       x: 400,
       y: 225,
@@ -205,29 +349,41 @@ const GameLocal = () => {
     };
   };
 
-  const reiniciarPartida = () => {
-    placarRef.current = { p1: 0, p2: 0 };
-    setPlacar({ p1: 0, p2: 0 });
+  const reiniciarPartida = (mostrarTelaVS = true) => {
+    placarRef.current = { voce: 0, robo: 0 };
+    setPlacar({ voce: 0, robo: 0 });
     setTempoRestante(300);
     tempoRestanteRef.current = 300;
     gameOverRef.current = false;
-    isPausedRef.current = false;
     partidaRegistradaRef.current = false;
-    setIsPaused(false);
     setVencedor(null);
-    game.current.p1Y = 175;
-    game.current.p2Y = 175;
-    game.current.targetP1Y = 175;
-    game.current.targetP2Y = 175;
+    game.current.playerY = 175;
+    game.current.targetPlayerY = 175;
+    game.current.robotY = 175;
+    aiStateRef.current.adaptFactor = 1.0;
+    aiStateRef.current.consecutiveHits = 0;
     lancarBola(Math.random() > 0.5 ? 1 : -1);
+
+    if (mostrarTelaVS) {
+      isPausedRef.current = true;
+      setIsPaused(false);
+      setShowVersus(true);
+    } else {
+      isPausedRef.current = false;
+      setIsPaused(false);
+    }
   };
 
   const alternarPausa = () => {
-    if (gameOverRef.current) return;
+    if (gameOverRef.current || showVersus) return;
     const novoStatus = !isPausedRef.current;
     isPausedRef.current = novoStatus;
     setIsPaused(novoStatus);
   };
+
+  useEffect(() => {
+    reiniciarPartida(true);
+  }, [dificuldade]);
 
   useEffect(() => {
     let landmarker: Vision.HandLandmarker | null = null;
@@ -235,6 +391,7 @@ const GameLocal = () => {
     let lastTime = performance.now();
     let frameCount = 0;
     let lastVideoTime = -1;
+    let activeStream: MediaStream | null = null;
 
     const initVision = async () => {
       try {
@@ -248,7 +405,7 @@ const GameLocal = () => {
             delegate: "GPU"
           },
           runningMode: "VIDEO",
-          numHands: 2
+          numHands: 1
         });
 
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -258,6 +415,8 @@ const GameLocal = () => {
             frameRate: { ideal: 60 }
           }
         });
+
+        activeStream = stream;
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -286,34 +445,28 @@ const GameLocal = () => {
                 lastVideoTime = videoRef.current.currentTime;
                 const results = landmarker.detectForVideo(videoRef.current, now);
 
-                let handP1Detected = false;
-                let handP2Detected = false;
+                let handDetected = false;
 
                 if (results.landmarks && results.landmarks.length > 0) {
-                  for (const hand of results.landmarks) {
-                    const mirroredX = 1 - hand[0].x;
+                  const hand = results.landmarks[0];
+                  const mirroredX = 1 - hand[0].x;
+
+                  if (mirroredX < 0.5) {
                     const palmY = hand[9] ? hand[9].y : hand[0].y;
                     const sensibilidade = 1.4;
                     let adjustedY = (palmY - 0.45) * sensibilidade + 0.5;
                     adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
-                    const paddleY = adjustedY * 450 - 50;
-
-                    if (mirroredX < 0.5) {
-                      game.current.targetP1Y = paddleY;
-                      handP1Detected = true;
-                    } else {
-                      game.current.targetP2Y = paddleY;
-                      handP2Detected = true;
-                    }
+                    game.current.targetPlayerY = adjustedY * 450 - 50;
+                    handDetected = true;
                   }
                 }
 
-                if (!handP1Detected) countersP1Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
-                if (!handP2Detected) countersP2Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
+                if (!handDetected) {
+                  hiddenFingerCountersRef.current = { ...INITIAL_HIDDEN_COUNTERS };
+                }
 
                 if (!gameOverRef.current && !isPausedRef.current) {
-                  game.current.p1Y += (game.current.targetP1Y - game.current.p1Y) * 0.4;
-                  game.current.p2Y += (game.current.targetP2Y - game.current.p2Y) * 0.4;
+                  game.current.playerY += (game.current.targetPlayerY - game.current.playerY) * 0.4;
 
                   game.current.ball.x += game.current.ball.dx;
                   game.current.ball.y += game.current.ball.dy;
@@ -328,34 +481,59 @@ const GameLocal = () => {
                     game.current.ball.dx += (Math.random() - 0.5) * 0.3;
                   }
 
-                  const hitP1 = game.current.ball.x <= 75 &&
-                                game.current.ball.x >= 45 &&
-                                game.current.ball.y >= game.current.p1Y &&
-                                game.current.ball.y <= game.current.p1Y + 100;
+                  const profile = configIA[dificuldadeRef.current as keyof typeof configIA];
 
-                  const hitP2 = game.current.ball.x >= 725 &&
-                                game.current.ball.x <= 755 &&
-                                game.current.ball.y >= game.current.p2Y &&
-                                game.current.ball.y <= game.current.p2Y + 100;
+                  const saldoGols = placarRef.current.voce - placarRef.current.robo;
+                  aiStateRef.current.adaptFactor = Math.max(0.85, 1.0 + (saldoGols * 0.08) + (aiStateRef.current.consecutiveHits * 0.02));
 
-                  if (hitP1) {
-                    const impactOffset = (game.current.ball.y - (game.current.p1Y + 50)) / 50;
+                  if (game.current.ball.dx > 0) {
+                    const distRestanteX = 725 - game.current.ball.x;
+                    const tempoAteImpacto = distRestanteX / game.current.ball.dx;
+                    const predicaoY = game.current.ball.y + (game.current.ball.dy * tempoAteImpacto * profile.predictFactor);
+                    
+                    const erroAleatorio = (Math.random() - 0.5) * (profile.errorRange / aiStateRef.current.adaptFactor);
+                    aiStateRef.current.estimatedTargetY = predicaoY - 50 + erroAleatorio;
+                  } else {
+                    aiStateRef.current.estimatedTargetY = 175;
+                  }
+
+                  const diferencaY = aiStateRef.current.estimatedTargetY - game.current.robotY;
+                  const step = diferencaY * (profile.baseSpeed * aiStateRef.current.adaptFactor);
+                  const clampedStep = Math.sign(step) * Math.min(Math.abs(step), profile.maxSpeed);
+                  
+                  game.current.robotY += clampedStep;
+                  game.current.robotY = Math.max(0, Math.min(350, game.current.robotY));
+
+                  const hitPlayer = game.current.ball.x <= 75 &&
+                                    game.current.ball.x >= 45 &&
+                                    game.current.ball.y >= game.current.playerY &&
+                                    game.current.ball.y <= game.current.playerY + 100;
+
+                  const hitRobot = game.current.ball.x >= 725 &&
+                                   game.current.ball.x <= 755 &&
+                                   game.current.ball.y >= game.current.robotY &&
+                                   game.current.ball.y <= game.current.robotY + 100;
+
+                  if (hitPlayer) {
+                    aiStateRef.current.consecutiveHits++;
+                    const impactOffset = (game.current.ball.y - (game.current.playerY + 50)) / 50;
                     const randomVariance = (Math.random() - 0.5) * 0.25;
                     const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
 
                     const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                    const newSpeed = Math.min(currentSpeed * 1.14, 28);
+                    const newSpeed = Math.min(currentSpeed * 1.12, 26);
 
                     game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
                     game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
                     game.current.ball.x = 76;
-                  } else if (hitP2) {
-                    const impactOffset = (game.current.ball.y - (game.current.p2Y + 50)) / 50;
-                    const randomVariance = (Math.random() - 0.5) * 0.25;
+                  } else if (hitRobot) {
+                    aiStateRef.current.consecutiveHits++;
+                    const impactOffset = (game.current.ball.y - (game.current.robotY + 50)) / 50;
+                    const randomVariance = (Math.random() - 0.5) * 0.2;
                     const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
 
                     const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                    const newSpeed = Math.min(currentSpeed * 1.14, 28);
+                    const newSpeed = Math.min(currentSpeed * 1.12, 26);
 
                     game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
                     game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
@@ -363,22 +541,24 @@ const GameLocal = () => {
                   }
 
                   if (game.current.ball.x < 0) {
-                    placarRef.current.p2 += 1;
-                    dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
+                    aiStateRef.current.consecutiveHits = 0;
+                    placarRef.current.robo += 1;
+                    dispararEfeitoGol('GOOOLLLL DA IA!');
                     setPlacar({ ...placarRef.current });
 
-                    if (placarRef.current.p2 >= 10) {
-                      finalizarPartidaLocal("PLAYER 2 (ALCANÇOU 10 PONTOS)");
+                    if (placarRef.current.robo >= 10) {
+                      finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
                     } else {
                       lancarBola(1);
                     }
                   } else if (game.current.ball.x > 800) {
-                    placarRef.current.p1 += 1;
-                    dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
+                    aiStateRef.current.consecutiveHits = 0;
+                    placarRef.current.voce += 1;
+                    dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
                     setPlacar({ ...placarRef.current });
 
-                    if (placarRef.current.p1 >= 10) {
-                      finalizarPartidaLocal("PLAYER 1 (ALCANÇOU 10 PONTOS)");
+                    if (placarRef.current.voce >= 10) {
+                      finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
                     } else {
                       lancarBola(-1);
                     }
@@ -387,63 +567,52 @@ const GameLocal = () => {
 
                 ctx.clearRect(0, 0, 800, 450);
 
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(10, 10, 780, 430);
-
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+                ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
                 ctx.lineWidth = 2;
-                ctx.setLineDash([6, 6]);
+                ctx.setLineDash([8, 8]);
                 ctx.beginPath();
-                ctx.moveTo(400, 10);
-                ctx.lineTo(400, 440);
+                ctx.moveTo(400, 0);
+                ctx.lineTo(400, 450);
                 ctx.stroke();
 
-                ctx.setLineDash([]);
                 ctx.beginPath();
-                ctx.arc(400, 225, 60, 0, Math.PI * 2);
+                ctx.arc(400, 225, 55, 0, Math.PI * 2);
                 ctx.stroke();
 
-                ctx.fillStyle = "#ffffff";
+                ctx.fillStyle = "rgba(70, 130, 180, 0.6)";
                 ctx.beginPath();
                 ctx.arc(400, 225, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillStyle = "rgba(0, 212, 255, 0.08)";
-                ctx.fillRect(10, 125, 45, 200);
-                ctx.strokeStyle = "#00d4ff";
-                ctx.strokeRect(10, 125, 45, 200);
-
-                ctx.fillStyle = "rgba(46, 204, 113, 0.08)";
-                ctx.fillRect(745, 125, 45, 200);
-                ctx.strokeStyle = "#2ecc71";
-                ctx.strokeRect(745, 125, 45, 200);
+                ctx.setLineDash([]);
+                ctx.strokeRect(0, 125, 45, 200);
+                ctx.strokeRect(755, 125, 45, 200);
 
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
-                ctx.fillText(`P1: ${placarRef.current.p1}`, 220, 40);
+                ctx.fillText(`${dadosJogador.nome.toUpperCase()}: ${placarRef.current.voce}`, 160, 35);
 
                 ctx.fillStyle = "#fbbf24";
-                ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 370, 40);
+                ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 375, 35);
 
-                ctx.fillStyle = "#2ecc71";
-                ctx.fillText(`P2: ${placarRef.current.p2}`, 480, 40);
+                ctx.fillStyle = "#ff0055";
+                ctx.fillText(`IA: ${placarRef.current.robo}`, 480, 35);
 
                 ctx.strokeStyle = "#00d4ff";
-                ctx.fillStyle = "rgba(0, 212, 255, 0.35)";
+                ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
                 ctx.lineWidth = 3;
-                ctx.strokeRect(55, game.current.p1Y, 20, 100);
-                ctx.fillRect(55, game.current.p1Y, 20, 100);
+                ctx.strokeRect(55, game.current.playerY, 20, 100);
+                ctx.fillRect(55, game.current.playerY, 20, 100);
 
-                ctx.strokeStyle = "#2ecc71";
-                ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
+                ctx.strokeStyle = "#ff0055";
+                ctx.fillStyle = "rgba(255, 0, 85, 0.25)";
                 ctx.lineWidth = 3;
-                ctx.strokeRect(725, game.current.p2Y, 20, 100);
-                ctx.fillRect(725, game.current.p2Y, 20, 100);
+                ctx.strokeRect(725, game.current.robotY, 20, 100);
+                ctx.fillRect(725, game.current.robotY, 20, 100);
 
                 if (!gameOverRef.current) {
                   ctx.shadowColor = "#ffffff";
-                  ctx.shadowBlur = 14;
+                  ctx.shadowBlur = 15;
                   ctx.fillStyle = "#ffffff";
                   ctx.beginPath();
                   ctx.arc(game.current.ball.x, game.current.ball.y, 9, 0, Math.PI * 2);
@@ -451,7 +620,7 @@ const GameLocal = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // ANIMAÇÃO DE GOOOLLLL NO CANVAS LOCAL
+                // ANIMAÇÃO DE GOOOLLLL NO CANVAS DE TREINO
                 if (mensagemGol) {
                   ctx.save();
                   ctx.font = "bold 42px 'Courier New', monospace";
@@ -464,36 +633,32 @@ const GameLocal = () => {
                   ctx.restore();
                 }
 
-                if (showLandmarksRef.current && results.landmarks) {
-                  for (const landmarksOriginal of results.landmarks) {
-                    const isLeft = (1 - landmarksOriginal[0].x) < 0.5;
-                    const counters = isLeft ? countersP1Ref.current : countersP2Ref.current;
+                if (showLandmarksRef.current && results.landmarks && results.landmarks.length > 0) {
+                  const landmarksOriginal = results.landmarks[0];
+                  const landmarks = landmarksOriginal as Landmark[];
+                  const hiddenMask = buildHiddenMask(landmarks, hiddenFingerCountersRef.current);
 
-                    const landmarks = landmarksOriginal as Landmark[];
-                    const hiddenMask = buildHiddenMask(landmarks, counters);
+                  const mirroredLandmarks = landmarksOriginal.map(pt => ({
+                    ...pt,
+                    x: 1 - pt.x
+                  }));
 
-                    const mirroredLandmarks = landmarksOriginal.map(pt => ({
-                      ...pt,
-                      x: 1 - pt.x
-                    }));
+                  const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
+                    const { start, end } = connection as { start: number; end: number };
+                    return !hiddenMask[start] && !hiddenMask[end];
+                  });
 
-                    const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
-                      const { start, end } = connection as { start: number; end: number };
-                      return !hiddenMask[start] && !hiddenMask[end];
-                    });
+                  const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
 
-                    const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
-
-                    drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
-                      color: isLeft ? '#00d4ff' : '#2ecc71',
-                      lineWidth: 3
-                    });
-                    drawingUtils.drawLandmarks(pontosVisiveis as any, {
-                      color: '#ffffff',
-                      lineWidth: 1,
-                      radius: 5
-                    });
-                  }
+                  drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
+                    color: '#00d4ff',
+                    lineWidth: 4
+                  });
+                  drawingUtils.drawLandmarks(pontosVisiveis as any, {
+                    color: '#ffffff',
+                    lineWidth: 1,
+                    radius: 6
+                  });
                 }
               }
               animationFrameId = requestAnimationFrame(renderLoop);
@@ -503,7 +668,7 @@ const GameLocal = () => {
           };
         }
       } catch (error) {
-        console.error("Erro na inicialização AR Presencial:", error);
+        console.error("Erro na inicialização AR Treino:", error);
       }
     };
 
@@ -512,8 +677,19 @@ const GameLocal = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
       if (landmarker) landmarker.close();
+
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        const currentStream = videoRef.current.srcObject as MediaStream;
+        currentStream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
     };
-  }, [mensagemGol]);
+  }, [dadosJogador.nome, mensagemGol]);
+
+  const botAtual = PERFIS_IA[dificuldade] || PERFIS_IA.medio;
 
   return (
     <div style={{
@@ -529,7 +705,7 @@ const GameLocal = () => {
       boxSizing: 'border-box'
     }}>
       <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '10px' }}>
-        MODO PRESENCIAL (1 DISPOSITIVO / 2 MÃOS) | META: 10 PONTOS OU 5 MINUTOS
+        MODO TREINO | META: 10 GOLS OU 5 MINUTOS
       </div>
 
       <div style={{
@@ -537,17 +713,234 @@ const GameLocal = () => {
         width: '100%',
         maxWidth: '960px',
         aspectRatio: '16/9',
-        border: '2px solid #22c55e',
+        border: '2px solid #00d4ff',
         borderRadius: '8px',
         overflow: 'hidden',
         backgroundColor: '#000',
-        boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)'
+        boxShadow: '0 0 25px rgba(0, 212, 255, 0.2)'
       }}>
+        {showVersus && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            fontFamily: "'Segoe UI', Roboto, sans-serif",
+            userSelect: 'none'
+          }}>
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 25% 50%, #ef4444 0%, #991b1b 65%, #450a0a 100%)',
+              clipPath: 'polygon(0 0, 57% 0, 43% 100%, 0% 100%)',
+              zIndex: 1
+            }} />
+
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 75% 50%, #2563eb 0%, #1e3a8a 65%, #090d16 100%)',
+              clipPath: 'polygon(57% 0, 100% 0, 100% 100%, 43% 100%)',
+              zIndex: 1
+            }} />
+
+            <div style={{
+              position: 'absolute',
+              top: '-15%',
+              bottom: '-15%',
+              left: '50%',
+              width: '5px',
+              background: 'linear-gradient(to bottom, transparent, #fff, #f87171, #60a5fa, transparent)',
+              transform: 'translateX(-50%) rotate(14deg)',
+              boxShadow: '0 0 25px 6px rgba(255, 255, 255, 0.9)',
+              zIndex: 2
+            }} />
+
+            <div style={{
+              position: 'relative',
+              zIndex: 3,
+              background: 'rgba(0, 0, 0, 0.7)',
+              padding: '6px 22px',
+              borderRadius: '999px',
+              border: '2px solid rgba(251, 191, 36, 0.6)',
+              marginBottom: '18px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.5)'
+            }}>
+              <span style={{ fontSize: '1rem', fontWeight: 900, letterSpacing: '3px', color: '#fbbf24' }}>
+                DESAFIO CONTRA IA
+              </span>
+            </div>
+
+            <div style={{
+              position: 'relative',
+              zIndex: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '88%',
+              maxWidth: '820px',
+              gap: '16px'
+            }}>
+              <div style={{
+                flex: 1,
+                maxWidth: '250px',
+                background: 'rgba(69, 10, 10, 0.78)',
+                border: '2px solid rgba(248, 113, 113, 0.55)',
+                borderRadius: '18px',
+                padding: '18px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.6)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
+                  JOGADOR 1
+                </span>
+                <div style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #f87171',
+                  boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#1f2937'
+                }}>
+                  <img
+                    src={dadosJogador.avatar}
+                    alt={dadosJogador.nome}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {dadosJogador.nome}
+                </h3>
+                <div style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span>
+                    <strong style={{ color: '#fbbf24' }}>{dadosJogador.pontos}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span>
+                    <strong style={{ color: '#4ade80' }}>{dadosJogador.vitorias}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                  fontSize: '4.2rem',
+                  fontWeight: 900,
+                  fontStyle: 'italic',
+                  color: '#fff',
+                  textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)',
+                  lineHeight: 1
+                }}>
+                  VS
+                </div>
+                <div style={{
+                  marginTop: '10px',
+                  background: 'rgba(0,0,0,0.85)',
+                  padding: '5px 18px',
+                  borderRadius: '8px',
+                  fontSize: '1.3rem',
+                  fontWeight: 900,
+                  letterSpacing: '3px',
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}>
+                  0 - 0
+                </div>
+                <div style={{
+                  marginTop: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: '#fde047',
+                  background: 'rgba(0,0,0,0.65)',
+                  padding: '4px 12px',
+                  borderRadius: '999px'
+                }}>
+                  Iniciando em {versusCountdown}s...
+                </div>
+              </div>
+
+              <div style={{
+                flex: 1,
+                maxWidth: '250px',
+                background: 'rgba(15, 23, 42, 0.82)',
+                border: '2px solid rgba(96, 165, 250, 0.55)',
+                borderRadius: '18px',
+                padding: '18px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.6)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
+                  DESAFIANTE IA
+                </span>
+                <div style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #60a5fa',
+                  boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#0f172a'
+                }}>
+                  <img
+                    src={botAtual.avatar}
+                    alt={botAtual.nome}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {botAtual.nome}
+                </h3>
+                <div style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>🤖 Nível:</span>
+                    <strong style={{ color: '#38bdf8' }}>{botAtual.nivelLabel}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#cbd5e1' }}>⚡ Precisão:</span>
+                    <strong style={{ color: '#f43f5e' }}>{botAtual.precisao}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#00d4ff', fontWeight: 'bold' }}>
-          PLAYER 1 (LOCAL ESQUERDA)
+          {dadosJogador.nome.toUpperCase()} (PLAYER 1)
         </div>
-        <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#2ecc71', fontWeight: 'bold' }}>
-          PLAYER 2 (LOCAL DIREITA)
+        <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #ff0055', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#ff0055', fontWeight: 'bold' }}>
+          {botAtual.nome.toUpperCase()} ({botAtual.nivelLabel})
         </div>
 
         <video
@@ -565,7 +958,7 @@ const GameLocal = () => {
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
         />
 
-        {isPaused && !vencedor && (
+        {isPaused && !vencedor && !showVersus && (
           <div style={{
             position: 'absolute',
             top: 0, left: 0, width: '100%', height: '100%',
@@ -581,7 +974,7 @@ const GameLocal = () => {
               onClick={alternarPausa}
               style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
             >
-              CONTINUAR JOGO
+              CONTINUAR TREINO
             </button>
           </div>
         )}
@@ -597,13 +990,13 @@ const GameLocal = () => {
             justifyContent: 'center',
             zIndex: 30
           }}>
-            <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE JOGO!</h2>
+            <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE TREINO!</h2>
             <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '30px' }}>
-              VENCEDOR: {vencedor}
+              {vencedor}
             </p>
             <div style={{ display: 'flex', gap: '20px' }}>
               <button
-                onClick={reiniciarPartida}
+                onClick={() => reiniciarPartida(true)}
                 style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
               >
                 JOGAR NOVAMENTE
@@ -620,8 +1013,21 @@ const GameLocal = () => {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '960px', marginTop: '15px' }}>
-        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-          DESEMPENHO LOCAL: <span style={{ color: '#4ade80' }}>{fps} FPS</span> | 0ms LATÊNCIA (NATIVO)
+        <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <span>DESEMPENHO: <b style={{ color: '#4ade80' }}>{fps} FPS</b></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>NÍVEL DA IA:</span>
+            <select
+              value={dificuldade}
+              onChange={(e) => setDificuldade(e.target.value)}
+              style={{ background: '#1e293b', color: '#38bdf8', border: '1px solid #475569', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              <option value="facil">FÁCIL</option>
+              <option value="medio">MÉDIO</option>
+              <option value="dificil">DIFÍCIL</option>
+              <option value="impossivel">IMPOSSÍVEL</option>
+            </select>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -643,7 +1049,7 @@ const GameLocal = () => {
           </button>
 
           <button
-            onClick={reiniciarPartida}
+            onClick={() => reiniciarPartida(true)}
             style={{
               background: '#2563eb',
               color: '#fff',
@@ -661,14 +1067,25 @@ const GameLocal = () => {
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', marginLeft: '5px' }}>
             <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />
-            <span>EXIBIR PONTOS NAS MÃOS</span>
+            <span>EXIBIR LANDMARKS</span>
           </label>
         </div>
       </div>
-      <br />
+
       <button
         onClick={() => navigate('/home')}
-        style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
+        style={{
+          marginTop: '12px',
+          background: '#dc2626',
+          color: '#fff',
+          border: 'none',
+          padding: '6px 14px',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          fontWeight: 'bold',
+          fontSize: '18px'
+        }}
       >
         Sair da Partida
       </button>
@@ -676,4 +1093,4 @@ const GameLocal = () => {
   );
 };
 
-export default GameLocal;
+export default GameTreino;
