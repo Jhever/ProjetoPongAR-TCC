@@ -4,6 +4,7 @@ import * as Vision from "@mediapipe/tasks-vision";
 import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
 import Denuncia from '../components/Denuncia';
+import { useInactivity } from '../services/Inatividade';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -124,7 +125,6 @@ const Game = () => {
   const isAdversarioAnonimo = adversarioNome.toUpperCase() === 'ANÔNIMO';
   const ocultarCameraAdversario = isLocalAnonimo || isAdversarioAnonimo;
 
-  // Exibir tela de VS apenas quando NÃO for partida local/offline no mesmo PC
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
@@ -166,6 +166,23 @@ const Game = () => {
   const placarRef = useRef({ p1: 0, p2: 0 });
   const partidaFinalizadaRef = useRef(false);
 
+  // --- CONFIGURAÇÃO DO TIMEOUT POR INATIVIDADE ---
+  const { isWarning, resetTimer } = useInactivity({
+    timeoutMs: 15000,
+    warningMs: 10000,
+    onTimeout: () => {
+      if (!partidaFinalizadaRef.current && gameStartedRef.current && !isPartidaLocalMesmoPC) {
+        socket.emit('player_timeout', { salaId });
+        finalizarPartidaOnline('VOCÊ FOI DESCLASSIFICADO POR INATIVIDADE', isHost ? 0 : 10, isHost ? 10 : 0, true);
+      }
+    }
+  });
+  
+  const resetTimerRef = useRef(resetTimer);
+  useEffect(() => {
+    resetTimerRef.current = resetTimer;
+  }, [resetTimer]);
+
   const [gameLogs, setGameLogs] = useState<string[]>([
     '[Socket] Connected to server',
     `[Room] Joined ${salaId}`,
@@ -178,7 +195,6 @@ const Game = () => {
     p2Y: 175
   });
 
-  // Busca os pontos e vitórias reais dos 2 jogadores no Ranking
   useEffect(() => {
     if (isPartidaLocalMesmoPC) return;
 
@@ -187,7 +203,6 @@ const Game = () => {
       .then((lista: any[]) => {
         if (!Array.isArray(lista)) return;
 
-        // Atualiza dados do jogador local
         const meuReg = lista.find(
           (u: any) =>
             (usuarioSalvo?.id && Number(u.id) === Number(usuarioSalvo.id)) ||
@@ -209,7 +224,6 @@ const Game = () => {
           });
         }
 
-        // Atualiza dados do adversário
         const advReg = lista.find(
           (u: any) =>
             (adversarioId && Number(u.id) === Number(adversarioId)) ||
@@ -229,7 +243,6 @@ const Game = () => {
       .catch(() => {});
   }, [adversarioId, adversarioNome, isPartidaLocalMesmoPC, nomeLocal, salaId, usuarioSalvo?.id]);
 
-  // Temporizador de 4 segundos da tela inicial de VS
   useEffect(() => {
     if (!showVersus) return;
 
@@ -319,7 +332,7 @@ const Game = () => {
     if (resultadoFinal === 'VITORIA') pontos = 30;
     else if (resultadoFinal === 'EMPATE') pontos = 15;
     else if (resultadoFinal === 'DERROTA') pontos = 5;
-    else if (resultadoFinal === 'ABANDONO') pontos = -15;
+    else if (resultadoFinal === 'ABANDONO') pontos = -50;
 
     const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
     const novaEntrada = {
@@ -329,7 +342,7 @@ const Game = () => {
     };
     localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
-    if (usuarioSalvo?.id) {
+    if (usuarioSalvo?.id && tipoPartida !== 'OFFLINE') {
       fetch(`${API_URL}/api/ranking/registrar-partida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -363,11 +376,12 @@ const Game = () => {
       return;
     }
 
-    const confirmacao = window.confirm("ATENÇÃO: Deseja realmente sair? Você perderá a partida e sofrerá penalidade nos seus pontos de ranking.");
+    const confirmacao = window.confirm("ATENÇÃO: Deseja realmente sair? Você perderá a partida e sofrerá penalidade de 50 pontos no ranking.");
 
     if (confirmacao) {
-      socket.disconnect();
+      socket.emit('player_surrender', { salaId });
       finalizarPartidaOnline('VOCÊ DESISTIU (DERROTA)', isHost ? 0 : 10, isHost ? 10 : 0, true);
+      setTimeout(() => socket.disconnect(), 200);
     }
   };
 
@@ -376,7 +390,6 @@ const Game = () => {
 
     socket.emit('entrarSala', { salaId });
 
-    // Envia as estatísticas locais para o oponente assim que entra na sala
     if (!isPartidaLocalMesmoPC) {
       setTimeout(() => {
         socket.emit('webrtc_signal', {
@@ -410,11 +423,27 @@ const Game = () => {
       }
     });
 
+    socket.on('vitoriaPorDesistencia', (data: { mensagem: string }) => {
+      addLog('[Socket] Opponent surrendered');
+      if (!partidaFinalizadaRef.current) {
+        alert(data.mensagem);
+        finalizarPartidaOnline('VITÓRIA POR DESISTÊNCIA (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
+      }
+    });
+
+    socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
+      addLog('[Socket] Opponent timeout');
+      if (!partidaFinalizadaRef.current) {
+        alert(data.mensagem);
+        finalizarPartidaOnline('VITÓRIA POR INATIVIDADE (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
+      }
+    });
+
     socket.on('adversarioDesconectou', () => {
       addLog('[Socket] Opponent disconnected');
       if (!partidaFinalizadaRef.current) {
-        alert('O oponente desconectou-se da partida.');
-        finalizarPartidaOnline('VITÓRIA POR W.O. (OPONENTE DESISTIU)', isHost ? 10 : 0, isHost ? 0 : 10);
+        alert('O oponente desconectou-se da partida (Perdeu Conexão).');
+        finalizarPartidaOnline('VITÓRIA POR DESCONEXÃO (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
       }
     });
 
@@ -430,6 +459,8 @@ const Game = () => {
       socket.off('adversarioMoveu');
       socket.off('bolaAtualizada');
       socket.off('placarAtualizado');
+      socket.off('vitoriaPorDesistencia');
+      socket.off('vitoriaPorInatividade');
       socket.off('adversarioDesconectou');
     };
   }, [isHost, navigate, salaId, adversarioNome, tipoPartida, isPartidaLocalMesmoPC]);
@@ -441,7 +472,6 @@ const Game = () => {
     let frameCount = 0;
     let activeStream: MediaStream | null = null;
 
-    // Listener de sinais para sincronizar "game_ready" e "player_stats" mesmo se a câmera estiver oculta
     const handleCustomSignals = (data: any) => {
       if (data?.type === 'player_stats' && data.stats) {
         setDadosAdversario(prev => ({
@@ -495,8 +525,8 @@ const Game = () => {
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
-              { urls: 'stun:stun3.l.google.com:19302' },
-              { urls: 'stun:stun4.l.google.com:19302' }
+              { urls: 'stun:stun.stunprotocol.org:3478' },
+              { urls: 'stun:s1.taraba.net' }
             ]
           });
           peerConnectionRef.current = pc;
@@ -565,7 +595,7 @@ const Game = () => {
           if (!isHost) {
             setTimeout(() => {
               socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
-            }, 1500);
+            }, 1000);
           }
         }
 
@@ -603,7 +633,13 @@ const Game = () => {
                 } else {
                   game.current.p2Y = paddleY;
                 }
+                
                 handDetected = true;
+                
+                if (gameStartedRef.current && !partidaFinalizadaRef.current) {
+                  resetTimerRef.current(); 
+                }
+                
                 socket.emit('moverRaquete', { salaId, y: paddleY });
               }
 
@@ -781,7 +817,6 @@ const Game = () => {
     };
   }, [isHost, salaId, showLandmarks, tipoPartida, adversarioNome, ocultarCameraAdversario]);
 
-  // Define quem aparece na Esquerda (Jogador 1 - Vermelho) e na Direita (Jogador 2 - Azul)
   const player1Stats: PlayerStats = isHost ? meusDados : dadosAdversario;
   const player2Stats: PlayerStats = isHost ? dadosAdversario : meusDados;
 
@@ -824,9 +859,28 @@ const Game = () => {
         backgroundColor: '#111',
         boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)'
       }}>
-        {/* ====================================================
-            TELA DE CONFRONTO "VS" (ONLINE E AMISTOSO)
-           ==================================================== */}
+
+        {isWarning && gameStarted && !vencedor && !isPartidaLocalMesmoPC && (
+          <div style={{
+            position: 'absolute',
+            top: '15%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(239, 68, 68, 0.95)',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            zIndex: 100,
+            fontWeight: 'bold',
+            border: '2px solid #fff',
+            boxShadow: '0 0 25px rgba(239, 68, 68, 0.8)',
+            animation: 'pulse 1s infinite',
+            letterSpacing: '1px'
+          }}>
+            ⚠️ ATENÇÃO: MEXA-SE OU PERDERÁ POR INATIVIDADE!
+          </div>
+        )}
+
         {showVersus && !isPartidaLocalMesmoPC && (
           <div style={{
             position: 'absolute',
@@ -840,7 +894,6 @@ const Game = () => {
             fontFamily: "'Segoe UI', Roboto, sans-serif",
             userSelect: 'none'
           }}>
-            {/* Lado Vermelho (Jogador 1) */}
             <div style={{
               position: 'absolute',
               inset: 0,
@@ -848,8 +901,6 @@ const Game = () => {
               clipPath: 'polygon(0 0, 57% 0, 43% 100%, 0% 100%)',
               zIndex: 1
             }} />
-
-            {/* Lado Azul (Jogador 2) */}
             <div style={{
               position: 'absolute',
               inset: 0,
@@ -857,8 +908,6 @@ const Game = () => {
               clipPath: 'polygon(57% 0, 100% 0, 100% 100%, 43% 100%)',
               zIndex: 1
             }} />
-
-            {/* Feixe Diagonal Central */}
             <div style={{
               position: 'absolute',
               top: '-15%',
@@ -870,8 +919,6 @@ const Game = () => {
               boxShadow: '0 0 25px 6px rgba(255, 255, 255, 0.9)',
               zIndex: 2
             }} />
-
-            {/* Topo: Modo da Partida */}
             <div style={{
               position: 'relative',
               zIndex: 3,
@@ -886,8 +933,6 @@ const Game = () => {
                 {tituloModoVS}
               </span>
             </div>
-
-            {/* Arena dos Cards */}
             <div style={{
               position: 'relative',
               zIndex: 3,
@@ -898,7 +943,6 @@ const Game = () => {
               maxWidth: '800px',
               gap: '16px'
             }}>
-              {/* CARD JOGADOR 1 (ESQUERDA - VERMELHO) */}
               <div style={{
                 flex: 1,
                 maxWidth: '245px',
@@ -925,74 +969,21 @@ const Game = () => {
                   marginBottom: '10px',
                   backgroundColor: '#1f2937'
                 }}>
-                  <img
-                    src={player1Stats.avatar}
-                    alt={player1Stats.nome}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
+                  <img src={player1Stats.avatar} alt={player1Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
                   {player1Stats.nome}
                 </h3>
-                <div style={{
-                  width: '100%',
-                  background: 'rgba(0,0,0,0.45)',
-                  borderRadius: '10px',
-                  padding: '8px 12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  fontSize: '0.85rem'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span>
-                    <strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span>
-                    <strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong>
-                  </div>
+                <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong></div>
                 </div>
               </div>
-
-              {/* CENTRO: VS */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{
-                  fontSize: '4.2rem',
-                  fontWeight: 900,
-                  fontStyle: 'italic',
-                  color: '#fff',
-                  textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)',
-                  lineHeight: 1
-                }}>
-                  VS
-                </div>
-                <div style={{
-                  marginTop: '10px',
-                  background: 'rgba(0,0,0,0.85)',
-                  padding: '5px 18px',
-                  borderRadius: '8px',
-                  fontSize: '1.3rem',
-                  fontWeight: 900,
-                  letterSpacing: '3px',
-                  border: '1px solid rgba(255,255,255,0.2)'
-                }}>
-                  0 - 0
-                </div>
-                <div style={{
-                  marginTop: '12px',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: '#fde047',
-                  background: 'rgba(0,0,0,0.65)',
-                  padding: '4px 12px',
-                  borderRadius: '999px'
-                }}>
-                  Arena em {versusCountdown}s...
-                </div>
+                <div style={{ fontSize: '4.2rem', fontWeight: 900, fontStyle: 'italic', color: '#fff', textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)', lineHeight: 1 }}>VS</div>
+                <div style={{ marginTop: '10px', background: 'rgba(0,0,0,0.85)', padding: '5px 18px', borderRadius: '8px', fontSize: '1.3rem', fontWeight: 900, letterSpacing: '3px', border: '1px solid rgba(255,255,255,0.2)' }}>0 - 0</div>
+                <div style={{ marginTop: '12px', fontSize: '0.8rem', fontWeight: 700, color: '#fde047', background: 'rgba(0,0,0,0.65)', padding: '4px 12px', borderRadius: '999px' }}>Arena em {versusCountdown}s...</div>
               </div>
-
-              {/* CARD JOGADOR 2 (DIREITA - AZUL) */}
               <div style={{
                 flex: 1,
                 maxWidth: '245px',
@@ -1019,33 +1010,12 @@ const Game = () => {
                   marginBottom: '10px',
                   backgroundColor: '#0f172a'
                 }}>
-                  <img
-                    src={player2Stats.avatar}
-                    alt={player2Stats.nome}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
+                  <img src={player2Stats.avatar} alt={player2Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
-                  {player2Stats.nome}
-                </h3>
-                <div style={{
-                  width: '100%',
-                  background: 'rgba(0,0,0,0.45)',
-                  borderRadius: '10px',
-                  padding: '8px 12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  fontSize: '0.85rem'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span>
-                    <strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span>
-                    <strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong>
-                  </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>{player2Stats.nome}</h3>
+                <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong></div>
                 </div>
               </div>
             </div>
@@ -1060,25 +1030,7 @@ const Game = () => {
         </div>
 
         {tipoPartida === 'ONLINE' && !ocultarCameraAdversario && (
-          <button
-            onClick={() => setShowDenunciaModal(true)}
-            style={{
-              position: 'absolute',
-              bottom: 12,
-              right: 15,
-              zIndex: 15,
-              background: 'rgba(220, 38, 38, 0.85)',
-              border: '1px solid #ef4444',
-              color: '#fff',
-              borderRadius: '4px',
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-          >
-            🚨 DENUNCIAR
-          </button>
+          <button onClick={() => setShowDenunciaModal(true)} style={{ position: 'absolute', bottom: 12, right: 15, zIndex: 15, background: 'rgba(220, 38, 38, 0.85)', border: '1px solid #ef4444', color: '#fff', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>🚨 DENUNCIAR</button>
         )}
 
         <div style={{ position: 'absolute', width: '100%', height: '100%', display: 'flex', zIndex: 1 }}>
@@ -1109,52 +1061,20 @@ const Game = () => {
           </div>
         </div>
 
-        <canvas
-          ref={canvasRef}
-          width={800}
-          height={450}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}
-        />
+        <canvas ref={canvasRef} width={800} height={450} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }} />
 
         {!gameStarted && !vencedor && !showVersus && (
-          <div style={{
-            position: 'absolute',
-            top: 0, left: 0, width: '100%', height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 20
-          }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
             {countdown !== null ? (
-              <h1 style={{ fontSize: '6rem', color: '#4ade80', textShadow: '0 0 20px #4ade80', margin: 0 }}>
-                {countdown}
-              </h1>
+              <h1 style={{ fontSize: '6rem', color: '#4ade80', textShadow: '0 0 20px #4ade80', margin: 0 }}>{countdown}</h1>
             ) : (
               <div style={{ textAlign: 'center' }}>
                 <h2 style={{ color: '#fff', marginBottom: '20px', letterSpacing: '2px' }}>PREPARE-SE PARA A PARTIDA!</h2>
-                <button
-                  onClick={handleReady}
-                  disabled={isReady}
-                  style={{
-                    background: isReady ? '#475569' : '#22c55e',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '15px 30px',
-                    borderRadius: '8px',
-                    fontSize: '1.2rem',
-                    fontWeight: 'bold',
-                    cursor: isReady ? 'not-allowed' : 'pointer',
-                    boxShadow: isReady ? 'none' : '0 0 15px rgba(34, 197, 94, 0.5)'
-                  }}
-                >
+                <button onClick={handleReady} disabled={isReady} style={{ background: isReady ? '#475569' : '#22c55e', color: '#fff', border: 'none', padding: '15px 30px', borderRadius: '8px', fontSize: '1.2rem', fontWeight: 'bold', cursor: isReady ? 'not-allowed' : 'pointer', boxShadow: isReady ? 'none' : '0 0 15px rgba(34, 197, 94, 0.5)' }}>
                   {isReady ? 'AGUARDANDO ADVERSÁRIO...' : 'ESTOU PRONTO!'}
                 </button>
                 {isAdversarioReady && !isReady && (
-                  <p style={{ color: '#38bdf8', marginTop: '15px', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>
-                    O adversário já está pronto!
-                  </p>
+                  <p style={{ color: '#38bdf8', marginTop: '15px', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>O adversário já está pronto!</p>
                 )}
               </div>
             )}
@@ -1162,54 +1082,26 @@ const Game = () => {
         )}
 
         {vencedor && (
-          <div style={{
-            position: 'absolute',
-            top: 0, left: 0, width: '100%', height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 30
-          }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 30 }}>
             <h2 style={{ fontSize: '2.2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE PARTIDA!</h2>
-            <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', padding: '0 20px' }}>
-              {vencedor}
-            </p>
+            <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', padding: '0 20px' }}>{vencedor}</p>
             <div style={{ display: 'flex', gap: '15px' }}>
               {tipoPartida === 'ONLINE' && (
-                <button
-                  onClick={() => navigate('/ranking')}
-                  style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  VER RANKING
-                </button>
+                <button onClick={() => navigate('/ranking')} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>VER RANKING</button>
               )}
-              <button
-                onClick={() => navigate('/home')}
-                style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                MENU PRINCIPAL
-              </button>
+              <button onClick={() => navigate('/home')} style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MENU PRINCIPAL</button>
             </div>
           </div>
         )}
       </div>
 
       {showDenunciaModal && (
-        <Denuncia
-          partidaId={salaId}
-          denunciadoNome={adversarioNome}
-          denunciadoId={adversarioId}
-          onClose={() => setShowDenunciaModal(false)}
-        />
+        <Denuncia partidaId={salaId} denunciadoNome={adversarioNome} denunciadoId={adversarioId} onClose={() => setShowDenunciaModal(false)} />
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '15px', width: '900px', marginTop: '15px' }}>
         <div style={{ border: '1px solid #334155', borderRadius: '4px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
-          <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
-            SOCKET.IO & STATE
-          </div>
+          <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>SOCKET.IO & STATE</div>
           <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
             <div>CONEXÃO: <span style={{ color: '#4ade80' }}>[ONLINE]</span> (Sala #{salaId})</div>
             <div>STATUS: <span style={{ color: '#4ade80' }}>[SINCRONIZADO]</span> ({fps} FPS, {latency}ms)</div>
@@ -1225,9 +1117,7 @@ const Game = () => {
         </div>
 
         <div style={{ border: '1px solid #334155', borderRadius: '4px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
-          <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
-            AR CONTROLS & SECURITY
-          </div>
+          <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>AR CONTROLS & SECURITY</div>
           <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />

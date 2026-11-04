@@ -158,7 +158,6 @@ export function setupGameSocket(io: Server) {
         const p1Front = 75;  
         const p2Front = 725; 
 
-        // 🎯 TOLERÂNCIA TÉCNICA DE LATÊNCIA (Apenas 4 pixels extras para compensar o atraso da internet sem parecer bugado)
         const margemCompensacao = 4;
 
         const hitP1 = (estado.ball.x - 10 <= p1Front + margemCompensacao && estado.ball.x >= p1Front - Math.abs(estado.ball.dx) - 2) && 
@@ -207,13 +206,12 @@ export function setupGameSocket(io: Server) {
       }, 1000 / 60);
     });
 
-    // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO (Evita saltos secos de rede)
+    // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO
     socket.on('moverRaquete', (dados: { salaId: string; y: number }) => {
       const sala = salas[dados.salaId];
       if (sala && sala.estadoJogo) {
         const jogador = sala.jogadores.find(j => j.socketId === socket.id);
         if (jogador) {
-          // Suaviza a transição de Y no servidor para casar com a câmera do cliente (Lerp de 70%)
           if (jogador.lado === 'esquerda') {
             sala.estadoJogo.p1Y += (dados.y - sala.estadoJogo.p1Y) * 0.7;
           }
@@ -223,6 +221,27 @@ export function setupGameSocket(io: Server) {
         }
       }
       socket.to(dados.salaId).emit('adversarioMoveu', { y: dados.y });
+    });
+
+    // 🏳️ TRATAMENTO DE DESISTÊNCIA / TIMEOUT DE INATIVIDADE
+    socket.on('player_surrender', (dados: { salaId: string }) => {
+      const sala = salas[dados.salaId];
+      if (sala) {
+        if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId);
+        // Avisa o adversário que ele venceu por W.O. / Desistência
+        socket.to(dados.salaId).emit('vitoriaPorDesistencia', { mensagem: 'O adversário desistiu da partida.' });
+        delete salas[dados.salaId];
+      }
+    });
+
+    socket.on('player_timeout', (dados: { salaId: string }) => {
+      const sala = salas[dados.salaId];
+      if (sala) {
+        if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId);
+        // Avisa o adversário que ele venceu por inatividade
+        socket.to(dados.salaId).emit('vitoriaPorInatividade', { mensagem: 'O adversário ficou inativo e perdeu por W.O.' });
+        delete salas[dados.salaId];
+      }
     });
 
     socket.on('webrtc_signal', (dados: { salaId: string; signal: any }) => {
@@ -239,7 +258,7 @@ export function setupGameSocket(io: Server) {
       for (const [salaId, sala] of Object.entries(salas)) {
         if (sala.jogadores.some(j => j.socketId === socket.id)) {
           if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId);
-          socket.to(salaId).emit('adversarioDesconectou');
+          socket.to(salaId).emit('adversarioDesconectou', { mensagem: 'O adversário se desconectou.' });
           delete salas[salaId];
         } else {
           sala.espectadores = sala.espectadores.filter(e => e.socketId !== socket.id);
