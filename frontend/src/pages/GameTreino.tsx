@@ -15,7 +15,7 @@ const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: st
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'Treinador João teste',
+    nome: 'Treinador João',
     nivelLabel: 'MÉDIO',
     precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
@@ -133,9 +133,6 @@ const GameTreino = () => {
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Efeito Visual de GOOOLLLL
-  const [mensagemGol, setMensagemGol] = useState<string | null>(null);
-
   // Estados da Tela de VS (Confronto Inicial)
   const [showVersus, setShowVersus] = useState(true);
   const [versusCountdown, setVersusCountdown] = useState(4);
@@ -155,6 +152,9 @@ const GameTreino = () => {
   const partidaRegistradaRef = useRef(false);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
+  const mensagemGolRef = useRef<string | null>(null);
+  const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const aiStateRef = useRef({
     adaptFactor: 1.0,
     consecutiveHits: 0,
@@ -165,13 +165,14 @@ const GameTreino = () => {
   useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
 
   const dispararEfeitoGol = (texto: string) => {
-    setMensagemGol(texto);
-    setTimeout(() => {
-      setMensagemGol(null);
+    mensagemGolRef.current = texto;
+    if (golTimeoutRef.current) clearTimeout(golTimeoutRef.current);
+    golTimeoutRef.current = setTimeout(() => {
+      mensagemGolRef.current = null;
     }, 1500);
   };
 
-  // BUSCA INTELIGENTE DE QUALQUER USUÁRIO LOGADO (LOCALSTORAGE + API DE RANKING)
+  // BUSCA INTELIGENTE DE QUALQUER USUÁRIO LOGADO
   useEffect(() => {
     const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
     
@@ -219,7 +220,7 @@ const GameTreino = () => {
       .catch(() => {});
   }, []);
 
-  // Controla o temporizador de 4 segundos da tela VS
+  // Controla o temporizador da tela VS
   useEffect(() => {
     if (!showVersus) return;
 
@@ -243,30 +244,10 @@ const GameTreino = () => {
   }, [showVersus, dificuldade]);
 
   const configIA = {
-    facil: { 
-      baseSpeed: 0.07, 
-      maxSpeed: 5, 
-      errorRange: 42, 
-      predictFactor: 0.15 
-    },
-    medio: { 
-      baseSpeed: 0.12, 
-      maxSpeed: 9, 
-      errorRange: 25, 
-      predictFactor: 0.45 
-    },
-    dificil: { 
-      baseSpeed: 0.20, 
-      maxSpeed: 15, 
-      errorRange: 12, 
-      predictFactor: 0.75 
-    },
-    impossivel: { 
-      baseSpeed: 0.32, 
-      maxSpeed: 22, 
-      errorRange: 2, 
-      predictFactor: 0.95 
-    }
+    facil: { baseSpeed: 0.07, maxSpeed: 5, errorRange: 42, predictFactor: 0.15 },
+    medio: { baseSpeed: 0.12, maxSpeed: 9, errorRange: 25, predictFactor: 0.45 },
+    dificil: { baseSpeed: 0.20, maxSpeed: 15, errorRange: 12, predictFactor: 0.75 },
+    impossivel: { baseSpeed: 0.32, maxSpeed: 22, errorRange: 2, predictFactor: 0.95 }
   };
 
   const game = useRef({
@@ -383,6 +364,7 @@ const GameTreino = () => {
     reiniciarPartida(true);
   }, [dificuldade]);
 
+  // Inicialização única do MediaPipe (Isolada para evitar reloads de contexto WebGL)
   useEffect(() => {
     let landmarker: Vision.HandLandmarker | null = null;
     let animationFrameId: number;
@@ -616,8 +598,8 @@ const GameTreino = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // ANIMAÇÃO DE GOOOLLLL NO CANVAS DE TREINO
-                if (mensagemGol) {
+                // ANIMAÇÃO DE GOOOLLLL LIDA DIRETAMENTE DA REF (SEM RE-RENDERIZAR O REACT)
+                if (mensagemGolRef.current) {
                   ctx.save();
                   ctx.font = "bold 42px 'Courier New', monospace";
                   ctx.textAlign = "center";
@@ -625,7 +607,7 @@ const GameTreino = () => {
                   ctx.shadowColor = "#fbbf24";
                   ctx.shadowBlur = 20;
                   ctx.fillStyle = "#fde047";
-                  ctx.fillText(mensagemGol, 400, 200);
+                  ctx.fillText(mensagemGolRef.current, 400, 200);
                   ctx.restore();
                 }
 
@@ -683,7 +665,7 @@ const GameTreino = () => {
         videoRef.current.srcObject = null;
       }
     };
-  }, [dadosJogador.nome, mensagemGol]);
+  }, []); // Array de dependência vazio isola o contexto do MediaPipe para nunca destruir o WebGL à toa!
 
   const botAtual = PERFIS_IA[dificuldade] || PERFIS_IA.medio;
 
