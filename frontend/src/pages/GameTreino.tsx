@@ -15,7 +15,7 @@ const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: st
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'Treinador João',
+    nome: 'Treinador João teste',
     nivelLabel: 'MÉDIO',
     precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
@@ -126,7 +126,6 @@ const GameTreino = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
 
-  const [placar, setPlacar] = useState({ voce: 0, robo: 0 });
   const [dificuldade, setDificuldade] = useState('medio');
   const [fps, setFps] = useState(60);
   const [showLandmarks, setShowLandmarks] = useState(true);
@@ -351,7 +350,6 @@ const GameTreino = () => {
 
   const reiniciarPartida = (mostrarTelaVS = true) => {
     placarRef.current = { voce: 0, robo: 0 };
-    setPlacar({ voce: 0, robo: 0 });
     setTempoRestante(300);
     tempoRestanteRef.current = 300;
     gameOverRef.current = false;
@@ -544,7 +542,6 @@ const GameTreino = () => {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
                     dispararEfeitoGol('GOOOLLLL DA IA!');
-                    setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.robo >= 10) {
                       finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
@@ -555,7 +552,6 @@ const GameTreino = () => {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.voce += 1;
                     dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
-                    setPlacar({ ...placarRef.current });
 
                     if (placarRef.current.voce >= 10) {
                       finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
@@ -590,13 +586,13 @@ const GameTreino = () => {
 
                 ctx.fillStyle = "#00d4ff";
                 ctx.font = "bold 18px 'Courier New', monospace";
-                ctx.fillText(`${dadosJogador.nome.toUpperCase()}: ${placarRef.current.voce}`, 160, 35);
+                ctx.fillText(`VOCÊ: ${placarRef.current.voce}`, 180, 35);
 
                 ctx.fillStyle = "#fbbf24";
                 ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 375, 35);
 
                 ctx.fillStyle = "#ff0055";
-                ctx.fillText(`IA: ${placarRef.current.robo}`, 480, 35);
+                ctx.fillText(`IA: ${placarRef.current.robo}`, 520, 35);
 
                 ctx.strokeStyle = "#00d4ff";
                 ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
