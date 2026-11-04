@@ -543,7 +543,14 @@ const { isWarning, resetTimer } = useInactivity({
           pc.ontrack = (event) => {
             if (remoteVideoRef.current && event.streams[0]) {
               remoteVideoRef.current.srcObject = event.streams[0];
-              remoteVideoRef.current.play().catch(e => console.error("Erro no play remoto:", e));
+              
+              // Tratamento seguro para evitar o AbortError
+              const playPromise = remoteVideoRef.current.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                  console.warn("Reprodução remota adiada ou interrompida com segurança:", error);
+                });
+              }
             }
           };
 

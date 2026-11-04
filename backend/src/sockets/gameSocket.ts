@@ -22,6 +22,7 @@ interface Sala {
   jogadores: Jogador[];
   espectadores: { socketId: string; jogadorId: number | string; nome: string }[];
   estadoJogo?: EstadoJogo;
+  ultimaAtividade?: Record<string, number>; // Guarda o timestamp da última ação de cada socketId
 }
 
 const salas: Record<string, Sala> = {};
