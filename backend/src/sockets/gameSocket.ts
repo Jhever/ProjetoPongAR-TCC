@@ -131,7 +131,7 @@ export function setupGameSocket(io: Server) {
     });
 
     // ------------------------------------------------------------------
-    // MOTOR DE FÍSICA NO NODE.JS A 60 FPS COM INTERPOLAÇÃO DE RAQUETE
+    // MOTOR DE FÍSICA NO NODE.JS A 60 FPS COM VIGIA DE INATIVIDADE
     // ------------------------------------------------------------------
     socket.on('iniciarFisica', (dados: { salaId: string }) => {
       const sala = salas[dados.salaId];
@@ -139,6 +139,39 @@ export function setupGameSocket(io: Server) {
 
       sala.estadoJogo.rodando = true;
       sala.estadoJogo.ball = lancarBola(Math.random() > 0.5 ? 1 : -1);
+
+      // Inicializa o registro de atividade para os jogadores da sala
+      if (!sala.ultimaAtividade) sala.ultimaAtividade = {};
+      sala.jogadores.forEach(j => {
+        sala.ultimaAtividade![j.socketId] = Date.now();
+      });
+
+      // VIGIA DE INATIVIDADE DO SERVIDOR (Checa a cada 2s se algum jogador parou por mais de 15s)[cite: 3]
+      const watchdogInterval = setInterval(() => {
+        if (!sala.estadoJogo || !sala.estadoJogo.rodando) {
+          clearInterval(watchdogInterval);
+          return;
+        }
+
+        const agora = Date.now();
+        if (sala.ultimaAtividade) {
+          for (const jogador of sala.jogadores) {
+            const ultimaAcao = sala.ultimaAtividade[jogador.socketId] || agora;
+            
+            if (agora - ultimaAcao > 15000) {
+              clearInterval(watchdogInterval);
+              if (sala.estadoJogo.intervalId) clearInterval(sala.estadoJogo.intervalId);
+
+              io.to(dados.salaId).emit('vitoriaPorInatividade', { 
+                mensagem: `O jogador ${jogador.nome} ficou inativo e perdeu por W.O.` 
+              });
+              
+              delete salas[dados.salaId];
+              break;
+            }
+          }
+        }
+      }, 2000);
 
       sala.estadoJogo.intervalId = setInterval(() => {
         const estado = sala.estadoJogo;
@@ -207,16 +240,14 @@ export function setupGameSocket(io: Server) {
       }, 1000 / 60);
     });
 
-    // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO
-   // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO E REGISTRO DE INATIVIDADE
+    // 🌊 INTERPOLAÇÃO SUAVIZADA DE MOVIMENTO E ATUALIZAÇÃO DE INATIVIDADE
     socket.on('moverRaquete', (dados: { salaId: string; y: number }) => {
       const sala = salas[dados.salaId];
       if (sala && sala.estadoJogo) {
-        // Registra o carimbo de tempo da última atividade deste jogador na sala
-        if (!(sala as any).ultimaAtividade) {
-          (sala as any).ultimaAtividade = {};
+        if (!sala.ultimaAtividade) {
+          sala.ultimaAtividade = {};
         }
-        (sala as any).ultimaAtividade[socket.id] = Date.now();
+        sala.ultimaAtividade[socket.id] = Date.now();
 
         const jogador = sala.jogadores.find(j => j.socketId === socket.id);
         if (jogador) {
@@ -231,27 +262,23 @@ export function setupGameSocket(io: Server) {
       socket.to(dados.salaId).emit('adversarioMoveu', { y: dados.y });
     });
 
-    // 🏳️ TRATAMENTO DE DESISTÊNCIA / TIMEOUT DE INATIVIDADE
+    // 🏳️ TRATAMENTO DE DESISTÊNCIA
     socket.on('player_surrender', (dados: { salaId: string }) => {
       const sala = salas[dados.salaId];
       if (sala) {
         if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId);
-        // Avisa o adversário que ele venceu por W.O. / Desistência
         socket.to(dados.salaId).emit('vitoriaPorDesistencia', { mensagem: 'O adversário desistiu da partida.' });
         delete salas[dados.salaId];
       }
     });
 
-   socket.on('player_timeout', (dados: { salaId: string }) => {
+    socket.on('player_timeout', (dados: { salaId: string }) => {
       const sala = salas[dados.salaId];
       if (sala) {
         if (sala.estadoJogo?.intervalId) clearInterval(sala.estadoJogo.intervalId);
-        
-        // Informa os dois jogadores da sala sobre a desclassificação por inatividade
         io.to(dados.salaId).emit('vitoriaPorInatividade', { 
           mensagem: 'O adversário ficou inativo por muito tempo e perdeu por W.O.' 
         });
-        
         delete salas[dados.salaId];
       }
     });
