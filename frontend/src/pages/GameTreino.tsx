@@ -15,7 +15,7 @@ const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: st
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'Treinador João',
+    nome: 'Treinador João teste',
     nivelLabel: 'MÉDIO',
     precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
