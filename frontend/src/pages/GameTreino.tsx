@@ -154,8 +154,6 @@ const GameTreino = () => {
 
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Ref dedicada para garantir que o nome do jogador esteja sempre acessível instantaneamente no loop do Canvas
   const nomeJogadorRef = useRef<string>('JOGADOR');
 
   const aiStateRef = useRef({
@@ -175,7 +173,7 @@ const GameTreino = () => {
     }, 1500);
   };
 
-  // BUSCA INTELIGENTE DE QUALQUER USUÁRIO LOGADO
+  // BUSCA INTELIGENTE DE QUALQUER USUÁRIO LOGADO E SUAS VITÓRIAS DA API
   useEffect(() => {
     const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
     
@@ -195,11 +193,18 @@ const GameTreino = () => {
       usuarioSalvo?.foto || 
       `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nomeReal)}`;
 
+    const vitoriasIniciais = Number(
+      usuarioSalvo?.vitoria ?? 
+      usuarioSalvo?.vitorias ?? 
+      usuarioSalvo?.total_vitorias ?? 
+      0
+    );
+
     setDadosJogador({
       nome: nomeReal,
       avatar: avatarReal,
       pontos: Number(usuarioSalvo?.pontos || usuarioSalvo?.pontuacao || 0),
-      vitorias: Number(usuarioSalvo?.vitorias || 0)
+      vitorias: vitoriasIniciais
     });
 
     fetch(`${API_URL}/api/ranking`)
@@ -207,7 +212,7 @@ const GameTreino = () => {
       .then((lista: any[]) => {
         if (Array.isArray(lista) && lista.length > 0) {
           const meuRegistro = lista.find((item: any) => 
-            (usuarioSalvo?.id && Number(item.id) === Number(usuarioSalvo.id)) ||
+            (usuarioSalvo?.id && Number(item.id_usuario ?? item.id) === Number(usuarioSalvo.id)) ||
             (item.nome && item.nome.toLowerCase() === nomeReal.toLowerCase()) ||
             (item.usuario && item.usuario.toLowerCase() === nomeReal.toLowerCase())
           );
@@ -215,11 +220,20 @@ const GameTreino = () => {
           if (meuRegistro) {
             const nomeFinal = meuRegistro.nome || meuRegistro.usuario || nomeReal;
             nomeJogadorRef.current = nomeFinal;
+
+            // Lendo 'vitoria' (singular da API) com fallback seguro para 'vitorias'
+            const vitoriasApi = Number(
+              meuRegistro.vitoria ?? 
+              meuRegistro.vitorias ?? 
+              meuRegistro.total_vitorias ?? 
+              vitoriasIniciais
+            );
+
             setDadosJogador({
               nome: nomeFinal,
               avatar: meuRegistro.avatar || meuRegistro.foto || avatarReal,
               pontos: Number(meuRegistro.pontos ?? meuRegistro.pontuacao ?? 0),
-              vitorias: Number(meuRegistro.vitorias ?? 0)
+              vitorias: vitoriasApi
             });
           }
         }
@@ -455,7 +469,6 @@ const GameTreino = () => {
                 if (!gameOverRef.current && !isPausedRef.current) {
                   game.current.playerY += (game.current.targetPlayerY - game.current.playerY) * 0.4;
 
-                  // Se a mensagem de gol estiver ativa, trava a bola no centro exato da mesa (400, 225) com velocidade zero
                   if (mensagemGolRef.current) {
                     game.current.ball.x = 400;
                     game.current.ball.y = 225;
@@ -535,7 +548,6 @@ const GameTreino = () => {
                     game.current.ball.x = 724;
                   }
 
-                  // Detecção de Gol (só pontua se não houver mensagem ativa na tela)
                   if (game.current.ball.x < 0 && !mensagemGolRef.current) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
@@ -553,7 +565,6 @@ const GameTreino = () => {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.voce += 1;
                     
-                    // Pega diretamente da ref atualizada para nunca falhar o nome de nenhum jogador
                     const nomeUser = (nomeJogadorRef.current || 'JOGADOR').toUpperCase();
                     dispararEfeitoGol(`GOOOLLLL DE ${nomeUser}!`);
 
@@ -622,7 +633,6 @@ const GameTreino = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // ANIMAÇÃO DE GOOOLLLL COM O NOME CORRETO
                 if (mensagemGolRef.current) {
                   ctx.save();
                   ctx.font = "bold 42px 'Courier New', monospace";
@@ -992,7 +1002,7 @@ const GameTreino = () => {
             justifyContent: 'center',
             zIndex: 30
           }}>
-            <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE TREINO!</h2>
+            <h2 style={{ fontSize: '2.0rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE TREINO!</h2>
             <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '30px' }}>
               {vencedor}
             </p>
