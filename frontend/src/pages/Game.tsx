@@ -184,13 +184,14 @@ const Game = () => {
     }, 1500);
   };
 
-  const { isWarning, resetTimer } = useInactivity({
+ const { isWarning, resetTimer } = useInactivity({
     timeoutMs: 15000,
     warningMs: 10000,
     onTimeout: () => {
       if (!partidaFinalizadaRef.current && gameStartedRef.current && !isPartidaLocalMesmoPC) {
         socket.emit('player_timeout', { salaId });
-        finalizarPartidaOnline('VOCÊ FOI DESCLASSIFICADO POR INATIVIDADE', isHost ? 0 : 10, isHost ? 10 : 0, true);
+        // Mensagem explícita para a tela de quem ficou inativo
+        finalizarPartidaOnline(`DERROTA: ${nomeLocal.toUpperCase()} PERDEU POR INATIVIDADE`, isHost ? 0 : 10, isHost ? 10 : 0, true);
       }
     }
   });
@@ -467,11 +468,12 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
       }
     });
 
-    socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
+   socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
       addLog('[Socket] Opponent timeout');
       if (!partidaFinalizadaRef.current) {
         alert(data.mensagem);
-        finalizarPartidaOnline('VITÓRIA POR INATIVIDADE (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
+        // Personaliza a mensagem para mostrar claramente que o adversário perdeu por inatividade
+        finalizarPartidaOnline(`VITÓRIA POR INATIVIDADE: ${adversarioNome.toUpperCase()} FOI DESCLASSIFICADO`, isHost ? 10 : 0, isHost ? 0 : 10);
       }
     });
 
@@ -1165,7 +1167,7 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
               
 
             </div>
-              <button onClick={() => navigate('/modoJogo')} style={{ background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
+              <button onClick={() => navigate('/modo-Jogo')} style={{ background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
           </div>
         )}
       </div>
