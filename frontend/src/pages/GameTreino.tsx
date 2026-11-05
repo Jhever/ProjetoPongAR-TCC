@@ -15,7 +15,7 @@ const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: st
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'Treinador João teste',
+    nome: 'Treinador João',
     nivelLabel: 'MÉDIO',
     precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
@@ -155,6 +155,9 @@ const GameTreino = () => {
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ref dedicada para garantir que o nome do jogador esteja sempre acessível instantaneamente no loop do Canvas
+  const nomeJogadorRef = useRef<string>('JOGADOR');
+
   const aiStateRef = useRef({
     adaptFactor: 1.0,
     consecutiveHits: 0,
@@ -183,7 +186,9 @@ const GameTreino = () => {
       usuarioSalvo?.username || 
       usuarioSalvo?.login || 
       localStorage.getItem('nome_usuario') || 
-      '';
+      'Jogador';
+
+    nomeJogadorRef.current = nomeReal;
 
     const avatarReal = 
       usuarioSalvo?.avatar || 
@@ -208,8 +213,10 @@ const GameTreino = () => {
           );
 
           if (meuRegistro) {
+            const nomeFinal = meuRegistro.nome || meuRegistro.usuario || nomeReal;
+            nomeJogadorRef.current = nomeFinal;
             setDadosJogador({
-              nome: meuRegistro.nome || meuRegistro.usuario || nomeReal,
+              nome: nomeFinal,
               avatar: meuRegistro.avatar || meuRegistro.foto || avatarReal,
               pontos: Number(meuRegistro.pontos ?? meuRegistro.pontuacao ?? 0),
               vitorias: Number(meuRegistro.vitorias ?? 0)
@@ -448,7 +455,7 @@ const GameTreino = () => {
                 if (!gameOverRef.current && !isPausedRef.current) {
                   game.current.playerY += (game.current.targetPlayerY - game.current.playerY) * 0.4;
 
-                  // Se a mensagem de gol estiver ativa, mantém a bola travada no centro exato da mesa (400, 225)
+                  // Se a mensagem de gol estiver ativa, trava a bola no centro exato da mesa (400, 225) com velocidade zero
                   if (mensagemGolRef.current) {
                     game.current.ball.x = 400;
                     game.current.ball.y = 225;
@@ -528,25 +535,26 @@ const GameTreino = () => {
                     game.current.ball.x = 724;
                   }
 
-                  // Detecção de Gol (só pontua se não houver gol ativo na tela)
+                  // Detecção de Gol (só pontua se não houver mensagem ativa na tela)
                   if (game.current.ball.x < 0 && !mensagemGolRef.current) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
                     const nomeTreinador = PERFIS_IA[dificuldadeRef.current]?.nome || 'IA';
-                    dispararEfeitoGol(`GOOOLLLL TESTE DO ${nomeTreinador.toUpperCase()}!`);
+                    dispararEfeitoGol(`GOOOLLLL DO ${nomeTreinador.toUpperCase()}!`);
 
                     if (placarRef.current.robo >= 10) {
                       finalizarPartidaTreino(`${nomeTreinador} VENCEU (10 PONTOS)!`);
                     } else {
                       setTimeout(() => {
                         if (!gameOverRef.current) lancarBola(1);
-                      }, 1500); // Lança para o jogador após 1.5s
+                      }, 1500);
                     }
                   } else if (game.current.ball.x > 800 && !mensagemGolRef.current) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.voce += 1;
-                    const nomeUser = dadosJogador.nome ? dadosJogador.nome.toUpperCase() : 'JOGADOR';
-                    // dadosJogador.nome.toUpperCase
+                    
+                    // Pega diretamente da ref atualizada para nunca falhar o nome de nenhum jogador
+                    const nomeUser = (nomeJogadorRef.current || 'JOGADOR').toUpperCase();
                     dispararEfeitoGol(`GOOOLLLL DE ${nomeUser}!`);
 
                     if (placarRef.current.voce >= 10) {
@@ -554,7 +562,7 @@ const GameTreino = () => {
                     } else {
                       setTimeout(() => {
                         if (!gameOverRef.current) lancarBola(-1);
-                      }, 1500); // Lança para a IA após 1.5s
+                      }, 1500);
                     }
                   }
                 }
@@ -614,7 +622,7 @@ const GameTreino = () => {
                   ctx.shadowBlur = 0;
                 }
 
-                // ANIMAÇÃO DE GOOOLLLL COM NOME PERSONALIZADO
+                // ANIMAÇÃO DE GOOOLLLL COM O NOME CORRETO
                 if (mensagemGolRef.current) {
                   ctx.save();
                   ctx.font = "bold 42px 'Courier New', monospace";
