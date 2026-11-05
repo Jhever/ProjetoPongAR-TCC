@@ -520,26 +520,39 @@ const GameTreino = () => {
                     game.current.ball.x = 724;
                   }
 
-                  if (game.current.ball.x < 0) {
+                  if (game.current.ball.x < 0 || game.current.ball.x > 800) {
+                    const pontoDaIa = game.current.ball.x < 0;
                     aiStateRef.current.consecutiveHits = 0;
-                    placarRef.current.robo += 1;
-                    dispararEfeitoGol('GOOOLLLL DA IA!');
+
+                    if (pontoDaIa) {
+                      placarRef.current.robo += 1;
+                      dispararEfeitoGol('GOOOLLLL DA IA!');
+                    } else {
+                      placarRef.current.voce += 1;
+                      dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
+                    }
 
                     if (placarRef.current.robo >= 10) {
                       finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
-                    } else {
-                      lancarBola(1);
-                    }
-                  } else if (game.current.ball.x > 800) {
-                    aiStateRef.current.consecutiveHits = 0;
-                    placarRef.current.voce += 1;
-                    dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
-
-                    if (placarRef.current.voce >= 10) {
+                      return;
+                    } else if (placarRef.current.voce >= 10) {
                       finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
-                    } else {
-                      lancarBola(-1);
+                      return;
                     }
+
+                    // Zera a velocidade da bola momentaneamente e posiciona no centro exato (x: 400, y: 225)
+                    // Isso evita qualquer salto brusco ou piscada de tela no WebGL
+                    game.current.ball.x = 400;
+                    game.current.ball.y = 225;
+                    game.current.ball.dx = 0;
+                    game.current.ball.dy = 0;
+
+                    // Aguarda 1.2 segundos com a mensagem na tela e só depois relança a bola
+                    setTimeout(() => {
+                      if (!gameOverRef.current) {
+                        lancarBola(pontoDaIa ? 1 : -1);
+                      }
+                    }, 1200);
                   }
                 }
 
