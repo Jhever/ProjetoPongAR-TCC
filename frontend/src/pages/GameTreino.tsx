@@ -524,7 +524,7 @@ const GameTreino = () => {
                   if (game.current.ball.x < 0) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
-                    dispararEfeitoGol('GOOOLLLL DA IA!');
+                    dispararEfeitoGol(`GOOOLLLL DA ${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'}!`);
 
                     if (placarRef.current.robo >= 10) {
                       finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
@@ -534,10 +534,9 @@ const GameTreino = () => {
                   } else if (game.current.ball.x > 800) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.voce += 1;
-                    dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
-
+dispararEfeitoGol(`GOOOLLLL DE ${dadosJogador.nome ? dadosJogador.nome.toUpperCase() : 'JOGADOR'}!`);
                     if (placarRef.current.voce >= 10) {
-                      finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
+                      finalizarPartidaTreino(`VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!`);
                     } else {
                       lancarBola(-1);
                     }
