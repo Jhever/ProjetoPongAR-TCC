@@ -15,7 +15,7 @@ const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: st
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'Treinador João teste',
+    nome: 'Treinador João',
     nivelLabel: 'MÉDIO',
     precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
@@ -152,6 +152,7 @@ const GameTreino = () => {
   const partidaRegistradaRef = useRef(false);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
+  // Refs de Gol isoladas para evitar re-renderizações indesejadas do React
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -364,7 +365,7 @@ const GameTreino = () => {
     reiniciarPartida(true);
   }, [dificuldade]);
 
-  // Inicialização única do MediaPipe (Isolada para evitar reloads de contexto WebGL)
+  // Inicialização única e estável do MediaPipe (Array de dependências vazio)
   useEffect(() => {
     let landmarker: Vision.HandLandmarker | null = null;
     let animationFrameId: number;
@@ -520,39 +521,26 @@ const GameTreino = () => {
                     game.current.ball.x = 724;
                   }
 
-                  if (game.current.ball.x < 0 || game.current.ball.x > 800) {
-                    const pontoDaIa = game.current.ball.x < 0;
+                  if (game.current.ball.x < 0) {
                     aiStateRef.current.consecutiveHits = 0;
-
-                    if (pontoDaIa) {
-                      placarRef.current.robo += 1;
-                      dispararEfeitoGol('GOOOLLLL DA IA!');
-                    } else {
-                      placarRef.current.voce += 1;
-                      dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
-                    }
+                    placarRef.current.robo += 1;
+                    dispararEfeitoGol('GOOOLLLL DA IA!');
 
                     if (placarRef.current.robo >= 10) {
                       finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
-                      return;
-                    } else if (placarRef.current.voce >= 10) {
-                      finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
-                      return;
+                    } else {
+                      lancarBola(1);
                     }
+                  } else if (game.current.ball.x > 800) {
+                    aiStateRef.current.consecutiveHits = 0;
+                    placarRef.current.voce += 1;
+                    dispararEfeitoGol('GOOOLLLL DO JOGADOR!');
 
-                    // Zera a velocidade da bola momentaneamente e posiciona no centro exato (x: 400, y: 225)
-                    // Isso evita qualquer salto brusco ou piscada de tela no WebGL
-                    game.current.ball.x = 400;
-                    game.current.ball.y = 225;
-                    game.current.ball.dx = 0;
-                    game.current.ball.dy = 0;
-
-                    // Aguarda 1.2 segundos com a mensagem na tela e só depois relança a bola
-                    setTimeout(() => {
-                      if (!gameOverRef.current) {
-                        lancarBola(pontoDaIa ? 1 : -1);
-                      }
-                    }, 1200);
+                    if (placarRef.current.voce >= 10) {
+                      finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
+                    } else {
+                      lancarBola(-1);
+                    }
                   }
                 }
 
@@ -678,7 +666,7 @@ const GameTreino = () => {
         videoRef.current.srcObject = null;
       }
     };
-  }, []); // Array de dependência vazio isola o contexto do MediaPipe para nunca destruir o WebGL à toa!
+  }, []); // Array vazio garante que a câmara abre uma única vez e nunca mais é reiniciada!
 
   const botAtual = PERFIS_IA[dificuldade] || PERFIS_IA.medio;
 
