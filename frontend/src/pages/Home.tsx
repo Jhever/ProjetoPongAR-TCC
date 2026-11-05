@@ -374,7 +374,7 @@ const Home = () => {
                 onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
                 onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
               >
-                SIM TESTE
+                SIM
               </button>
               <button 
                 style={styles.modalBtnNo} 

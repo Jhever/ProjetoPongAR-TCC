@@ -429,16 +429,13 @@ const Game = () => {
     socket.on('bolaAtualizada', (novaBola: { x: number; y: number; dx: number; dy: number }) => {
       game.current.ball = novaBola;
     });
-
-  socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
+socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
       if (novoPlacar.esquerda > placarRef.current.p1) {
-        // Pega o nome do player 1 (se for anônimo, exibe ANÔNIMO, senão o nome real)
         const nomeP1 = (player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') 
           ? player1Stats.nome.toUpperCase() 
           : 'JOGADOR';
         dispararEfeitoGol(`GOOOLLLL DE ${nomeP1}!`);
       } else if (novoPlacar.direita > placarRef.current.p2) {
-        // Pega o nome do player 2
         const nomeP2 = (player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') 
           ? player2Stats.nome.toUpperCase() 
           : 'JOGADOR';
@@ -451,7 +448,13 @@ const Game = () => {
 
       if (novoPlacar.esquerda >= 10 || novoPlacar.direita >= 10) {
         const venceuP1 = novoPlacar.esquerda >= 10;
-        const msg = venceuP1 ? 'PLAYER 1 VENCEU!' : 'PLAYER 2 VENCEU!';
+        
+        // Pega os nomes reais para a mensagem de vitória final da partida online
+        const nomeVencedor = venceuP1 
+          ? ((player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') ? player1Stats.nome.toUpperCase() : 'JOGADOR 1')
+          : ((player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') ? player2Stats.nome.toUpperCase() : 'JOGADOR 2');
+
+        const msg = `${nomeVencedor} VENCEU A PARTIDA!`;
         finalizarPartidaOnline(msg, novoPlacar.esquerda, novoPlacar.direita);
       }
     });
