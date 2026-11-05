@@ -430,11 +430,19 @@ const Game = () => {
       game.current.ball = novaBola;
     });
 
-    socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
+  socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
       if (novoPlacar.esquerda > placarRef.current.p1) {
-        dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
+        // Pega o nome do player 1 (se for anônimo, exibe ANÔNIMO, senão o nome real)
+        const nomeP1 = (player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') 
+          ? player1Stats.nome.toUpperCase() 
+          : 'JOGADOR';
+        dispararEfeitoGol(`GOOOLLLL DE ${nomeP1}!`);
       } else if (novoPlacar.direita > placarRef.current.p2) {
-        dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
+        // Pega o nome do player 2
+        const nomeP2 = (player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') 
+          ? player2Stats.nome.toUpperCase() 
+          : 'JOGADOR';
+        dispararEfeitoGol(`GOOOLLLL DE ${nomeP2}!`);
       }
 
       placarRef.current = { p1: novoPlacar.esquerda, p2: novoPlacar.direita };
