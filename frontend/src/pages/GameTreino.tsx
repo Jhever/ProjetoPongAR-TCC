@@ -547,7 +547,7 @@ const GameTreino = () => {
                     placarRef.current.voce += 1;
                     const nomeUser = dadosJogador.nome ? dadosJogador.nome.toUpperCase() : 'JOGADOR';
                     // dadosJogador.nome.toUpperCase
-                    dispararEfeitoGol(`GOOOLLLL DE ${dadosJogador.nome}!`);
+                    dispararEfeitoGol(`GOOOLLLL DE ${nomeUser}!`);
 
                     if (placarRef.current.voce >= 10) {
                       finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
