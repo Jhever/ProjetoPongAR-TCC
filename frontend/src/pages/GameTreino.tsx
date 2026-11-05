@@ -533,7 +533,7 @@ const GameTreino = () => {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
                     const nomeTreinador = PERFIS_IA[dificuldadeRef.current]?.nome || 'IA';
-                    dispararEfeitoGol(`GOOOLLLL DO ${nomeTreinador.toUpperCase()}!`);
+                    dispararEfeitoGol(`GOOOLLLL TESTE DO ${nomeTreinador.toUpperCase()}!`);
 
                     if (placarRef.current.robo >= 10) {
                       finalizarPartidaTreino(`${nomeTreinador} VENCEU (10 PONTOS)!`);
