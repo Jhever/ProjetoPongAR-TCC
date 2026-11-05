@@ -184,14 +184,13 @@ const Game = () => {
     }, 1500);
   };
 
- const { isWarning, resetTimer } = useInactivity({
+const { isWarning, resetTimer } = useInactivity({
     timeoutMs: 15000,
     warningMs: 10000,
     onTimeout: () => {
+      // Apenas avisa o servidor que este cliente ficou inativo, sem decretar a derrota sozinho
       if (!partidaFinalizadaRef.current && gameStartedRef.current && !isPartidaLocalMesmoPC) {
         socket.emit('player_timeout', { salaId });
-        // Mensagem explícita para a tela de quem ficou inativo
-        finalizarPartidaOnline(`DERROTA: ${nomeLocal.toUpperCase()} PERDEU POR INATIVIDADE`, isHost ? 0 : 10, isHost ? 10 : 0, true);
       }
     }
   });
