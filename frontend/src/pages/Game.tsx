@@ -188,7 +188,6 @@ const { isWarning, resetTimer } = useInactivity({
     timeoutMs: 15000,
     warningMs: 10000,
     onTimeout: () => {
-      // Apenas avisa o servidor que este cliente ficou inativo, sem decretar a derrota sozinho
       if (!partidaFinalizadaRef.current && gameStartedRef.current && !isPartidaLocalMesmoPC) {
         socket.emit('player_timeout', { salaId });
       }
@@ -467,7 +466,7 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
       }
     });
 
- socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
+    socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
       addLog('[Socket] Inatividade detectada');
       if (!partidaFinalizadaRef.current) {
         // Exibe exatamente a mensagem que veio do servidor (ex: informando quem foi desclassificado)
