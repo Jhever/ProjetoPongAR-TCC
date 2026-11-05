@@ -467,12 +467,11 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
       }
     });
 
-   socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
-      addLog('[Socket] Opponent timeout');
+ socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
+      addLog('[Socket] Inatividade detectada');
       if (!partidaFinalizadaRef.current) {
-        alert(data.mensagem);
-        // Personaliza a mensagem para mostrar claramente que o adversário perdeu por inatividade
-        finalizarPartidaOnline(`VITÓRIA POR INATIVIDADE: ${adversarioNome.toUpperCase()} FOI DESCLASSIFICADO`, isHost ? 10 : 0, isHost ? 0 : 10);
+        // Exibe exatamente a mensagem que veio do servidor (ex: informando quem foi desclassificado)
+        finalizarPartidaOnline(data.mensagem || 'PARTIDA ENCERRADA POR INATIVIDADE', placarRef.current.p1, placarRef.current.p2);
       }
     });
 
