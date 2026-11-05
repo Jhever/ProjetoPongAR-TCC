@@ -129,14 +129,21 @@ const Game = () => {
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
 
-  // Efeito Visual de GOOOLLLL
-  const [mensagemGol, setMensagemGol] = useState<string | null>(null);
+  const mensagemGolRef = useRef<string | null>(null);
+  const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const vitoriasIniciais = Number(
+    usuarioSalvo.vitoria ?? 
+    usuarioSalvo.vitorias ?? 
+    usuarioSalvo.total_vitorias ?? 
+    0
+  );
 
   const [meusDados, setMeusDados] = useState<PlayerStats>({
     nome: nomeLocal,
     avatar: usuarioSalvo.avatar || usuarioSalvo.foto || getDefaultAvatar(nomeLocal),
     pontos: Number(usuarioSalvo.pontos ?? usuarioSalvo.pontuacao ?? 0),
-    vitorias: Number(usuarioSalvo.vitorias ?? 0),
+    vitorias: vitoriasIniciais,
   });
 
   const [dadosAdversario, setDadosAdversario] = useState<PlayerStats>({
@@ -169,12 +176,12 @@ const Game = () => {
   const placarRef = useRef({ p1: 0, p2: 0 });
   const partidaFinalizadaRef = useRef(false);
 
-  // Disparar efeito visual de gol
   const dispararEfeitoGol = (texto: string) => {
-    setMensagemGol(texto);
-    setTimeout(() => {
-      setMensagemGol(null);
-    }, 1500); // Exibe por 1.5 segundos
+    mensagemGolRef.current = texto;
+    if (golTimeoutRef.current) clearTimeout(golTimeoutRef.current);
+    golTimeoutRef.current = setTimeout(() => {
+      mensagemGolRef.current = null;
+    }, 1500);
   };
 
   const { isWarning, resetTimer } = useInactivity({
@@ -215,17 +222,18 @@ const Game = () => {
 
         const meuReg = lista.find(
           (u: any) =>
-            (usuarioSalvo?.id && Number(u.id) === Number(usuarioSalvo.id)) ||
+            (usuarioSalvo?.id && Number(u.id_usuario ?? u.id) === Number(usuarioSalvo.id)) ||
             (u.nome && u.nome.toLowerCase() === nomeLocal.toLowerCase()) ||
             (u.usuario && u.usuario.toLowerCase() === nomeLocal.toLowerCase())
         );
 
         if (meuReg) {
+          const vitoriasAtualizadas = Number(meuReg.vitoria ?? meuReg.vitorias ?? meuReg.total_vitorias ?? vitoriasIniciais);
           const novosMeusDados: PlayerStats = {
             nome: nomeLocal,
             avatar: meuReg.avatar || meuReg.foto || meusDadosRef.current.avatar,
             pontos: Number(meuReg.pontos ?? meuReg.pontuacao ?? 0),
-            vitorias: Number(meuReg.vitorias ?? 0),
+            vitorias: vitoriasAtualizadas,
           };
           setMeusDados(novosMeusDados);
           socket.emit('webrtc_signal', {
@@ -236,22 +244,23 @@ const Game = () => {
 
         const advReg = lista.find(
           (u: any) =>
-            (adversarioId && Number(u.id) === Number(adversarioId)) ||
+            (adversarioId && Number(u.id_usuario ?? u.id) === Number(adversarioId)) ||
             (u.nome && u.nome.toLowerCase() === adversarioNome.toLowerCase()) ||
             (u.usuario && u.usuario.toLowerCase() === adversarioNome.toLowerCase())
         );
 
         if (advReg) {
+          const vitoriasAdv = Number(advReg.vitoria ?? advReg.vitorias ?? advReg.total_vitorias ?? 0);
           setDadosAdversario(prev => ({
             nome: adversarioNome,
             avatar: advReg.avatar || advReg.foto || prev.avatar,
             pontos: Number(advReg.pontos ?? advReg.pontuacao ?? prev.pontos),
-            vitorias: Number(advReg.vitorias ?? prev.vitorias),
+            vitorias: vitoriasAdv,
           }));
         }
       })
       .catch(() => {});
-  }, [adversarioId, adversarioNome, isPartidaLocalMesmoPC, nomeLocal, salaId, usuarioSalvo?.id]);
+  }, [adversarioId, adversarioNome, isPartidaLocalMesmoPC, nomeLocal, salaId, usuarioSalvo?.id, vitoriasIniciais]);
 
   useEffect(() => {
     if (!showVersus) return;
@@ -422,7 +431,6 @@ const Game = () => {
     });
 
     socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
-      // Dispara o efeito visual se o placar mudou
       if (novoPlacar.esquerda > placarRef.current.p1) {
         dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
       } else if (novoPlacar.direita > placarRef.current.p2) {
@@ -491,20 +499,22 @@ const Game = () => {
 
     const handleCustomSignals = (data: any) => {
       if (data?.type === 'player_stats' && data.stats) {
+        const vitAdv = Number(data.stats.vitoria ?? data.stats.vitorias ?? 0);
         setDadosAdversario(prev => ({
           nome: adversarioNome || data.stats.nome || prev.nome,
           avatar: data.stats.avatar || prev.avatar,
           pontos: Number(data.stats.pontos ?? prev.pontos),
-          vitorias: Number(data.stats.vitorias ?? prev.vitorias),
+          vitorias: vitAdv,
         }));
       }
       if (data?.type === 'game_ready') {
         if (data.stats) {
+          const vitAdv = Number(data.stats.vitoria ?? data.stats.vitorias ?? 0);
           setDadosAdversario(prev => ({
             nome: adversarioNome || data.stats.nome || prev.nome,
             avatar: data.stats.avatar || prev.avatar,
             pontos: Number(data.stats.pontos ?? prev.pontos),
-            vitorias: Number(data.stats.vitorias ?? prev.vitorias),
+            vitorias: vitAdv,
           }));
         }
         setIsAdversarioReady(true);
@@ -666,8 +676,15 @@ const Game = () => {
               }
 
               if (tipoPartida === 'OFFLINE' && !partidaFinalizadaRef.current && gameStartedRef.current) {
-                game.current.ball.x += game.current.ball.dx;
-                game.current.ball.y += game.current.ball.dy;
+                if (mensagemGolRef.current) {
+                  game.current.ball.x = 400;
+                  game.current.ball.y = 225;
+                  game.current.ball.dx = 0;
+                  game.current.ball.dy = 0;
+                } else {
+                  game.current.ball.x += game.current.ball.dx;
+                  game.current.ball.y += game.current.ball.dy;
+                }
 
                 if (game.current.ball.y <= 10) {
                   game.current.ball.y = 10;
@@ -696,7 +713,7 @@ const Game = () => {
                   game.current.ball.x = 724;
                 }
 
-                if (game.current.ball.x < 0) {
+                if (game.current.ball.x < 0 && !mensagemGolRef.current) {
                   const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
                   dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
                   placarRef.current = novoPlacar;
@@ -705,9 +722,13 @@ const Game = () => {
                   if (novoPlacar.p2 >= 10) {
                     finalizarPartidaOnline('PLAYER 2 VENCEU!', novoPlacar.p1, novoPlacar.p2);
                   } else {
-                    game.current.ball = lancarBola(1);
+                    setTimeout(() => {
+                      if (!partidaFinalizadaRef.current) {
+                        game.current.ball = lancarBola(1);
+                      }
+                    }, 1500);
                   }
-                } else if (game.current.ball.x > 800) {
+                } else if (game.current.ball.x > 800 && !mensagemGolRef.current) {
                   const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
                   dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
                   placarRef.current = novoPlacar;
@@ -716,7 +737,11 @@ const Game = () => {
                   if (novoPlacar.p1 >= 10) {
                     finalizarPartidaOnline('PLAYER 1 VENCEU!', novoPlacar.p1, novoPlacar.p2);
                   } else {
-                    game.current.ball = lancarBola(-1);
+                    setTimeout(() => {
+                      if (!partidaFinalizadaRef.current) {
+                        game.current.ball = lancarBola(-1);
+                      }
+                    }, 1500);
                   }
                 }
               }
@@ -777,8 +802,7 @@ const Game = () => {
                 ctx.shadowBlur = 0;
               }
 
-              // ANIMAÇÃO DE GOOOLLLL NO CANVAS
-              if (mensagemGol) {
+              if (mensagemGolRef.current) {
                 ctx.save();
                 ctx.font = "bold 42px 'Courier New', monospace";
                 ctx.textAlign = "center";
@@ -786,7 +810,7 @@ const Game = () => {
                 ctx.shadowColor = "#fbbf24";
                 ctx.shadowBlur = 20;
                 ctx.fillStyle = "#fde047";
-                ctx.fillText(mensagemGol, 400, 200);
+                ctx.fillText(mensagemGolRef.current, 400, 200);
                 ctx.restore();
               }
 
