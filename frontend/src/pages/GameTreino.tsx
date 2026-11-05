@@ -15,7 +15,7 @@ const PERFIS_IA: Record<string, { nome: string; nivelLabel: string; precisao: st
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Recruta&backgroundColor=1e293b'
   },
   medio: {
-    nome: 'Treinador João',
+    nome: 'Treinador João teste',
     nivelLabel: 'MÉDIO',
     precisao: '60%',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=CyberVision&backgroundColor=1e3a8a'
@@ -152,7 +152,6 @@ const GameTreino = () => {
   const partidaRegistradaRef = useRef(false);
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
 
-  // Refs de Gol isoladas para evitar re-renderizações indesejadas do React
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -365,7 +364,7 @@ const GameTreino = () => {
     reiniciarPartida(true);
   }, [dificuldade]);
 
-  // Inicialização única e estável do MediaPipe (Array de dependências vazio)
+  // Inicialização única do MediaPipe
   useEffect(() => {
     let landmarker: Vision.HandLandmarker | null = null;
     let animationFrameId: number;
@@ -449,8 +448,16 @@ const GameTreino = () => {
                 if (!gameOverRef.current && !isPausedRef.current) {
                   game.current.playerY += (game.current.targetPlayerY - game.current.playerY) * 0.4;
 
-                  game.current.ball.x += game.current.ball.dx;
-                  game.current.ball.y += game.current.ball.dy;
+                  // Se a mensagem de gol estiver ativa, mantém a bola travada no centro exato da mesa (400, 225)
+                  if (mensagemGolRef.current) {
+                    game.current.ball.x = 400;
+                    game.current.ball.y = 225;
+                    game.current.ball.dx = 0;
+                    game.current.ball.dy = 0;
+                  } else {
+                    game.current.ball.x += game.current.ball.dx;
+                    game.current.ball.y += game.current.ball.dy;
+                  }
 
                   if (game.current.ball.y <= 10) {
                     game.current.ball.y = 10;
@@ -521,24 +528,32 @@ const GameTreino = () => {
                     game.current.ball.x = 724;
                   }
 
-                  if (game.current.ball.x < 0) {
+                  // Detecção de Gol (só pontua se não houver gol ativo na tela)
+                  if (game.current.ball.x < 0 && !mensagemGolRef.current) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.robo += 1;
-                    dispararEfeitoGol(`GOOOLLLL DA ${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'}!`);
+                    const nomeTreinador = PERFIS_IA[dificuldadeRef.current]?.nome || 'IA';
+                    dispararEfeitoGol(`GOOOLLLL DO ${nomeTreinador.toUpperCase()}!`);
 
                     if (placarRef.current.robo >= 10) {
-                      finalizarPartidaTreino(`${PERFIS_IA[dificuldadeRef.current]?.nome || 'IA'} VENCEU (10 PONTOS)!`);
+                      finalizarPartidaTreino(`${nomeTreinador} VENCEU (10 PONTOS)!`);
                     } else {
-                      lancarBola(1);
+                      setTimeout(() => {
+                        if (!gameOverRef.current) lancarBola(1);
+                      }, 1500); // Lança para o jogador após 1.5s
                     }
-                  } else if (game.current.ball.x > 800) {
+                  } else if (game.current.ball.x > 800 && !mensagemGolRef.current) {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.voce += 1;
-dispararEfeitoGol(`GOOOLLLL DE ${dadosJogador.nome ? dadosJogador.nome.toUpperCase() : 'JOGADOR'}!`);
+                    const nomeUser = dadosJogador.nome ? dadosJogador.nome.toUpperCase() : 'JOGADOR';
+                    dispararEfeitoGol(`GOOOLLLL DE ${nomeUser}!`);
+
                     if (placarRef.current.voce >= 10) {
-                      finalizarPartidaTreino(`VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!`);
+                      finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
                     } else {
-                      lancarBola(-1);
+                      setTimeout(() => {
+                        if (!gameOverRef.current) lancarBola(-1);
+                      }, 1500); // Lança para a IA após 1.5s
                     }
                   }
                 }
@@ -598,7 +613,7 @@ dispararEfeitoGol(`GOOOLLLL DE ${dadosJogador.nome ? dadosJogador.nome.toUpperCa
                   ctx.shadowBlur = 0;
                 }
 
-                // ANIMAÇÃO DE GOOOLLLL LIDA DIRETAMENTE DA REF (SEM RE-RENDERIZAR O REACT)
+                // ANIMAÇÃO DE GOOOLLLL COM NOME PERSONALIZADO
                 if (mensagemGolRef.current) {
                   ctx.save();
                   ctx.font = "bold 42px 'Courier New', monospace";
@@ -665,7 +680,7 @@ dispararEfeitoGol(`GOOOLLLL DE ${dadosJogador.nome ? dadosJogador.nome.toUpperCa
         videoRef.current.srcObject = null;
       }
     };
-  }, []); // Array vazio garante que a câmara abre uma única vez e nunca mais é reiniciada!
+  }, []);
 
   const botAtual = PERFIS_IA[dificuldade] || PERFIS_IA.medio;
 
