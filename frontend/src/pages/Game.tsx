@@ -1162,6 +1162,9 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
                 <button onClick={() => navigate('/ranking')} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>VER RANKING</button>
               )}
               <button onClick={() => navigate('/home')} style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MENU PRINCIPAL</button>
+              
+              <button onClick={() => navigate('/modoJogo')} style={{ background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
+
             </div>
           </div>
         )}
