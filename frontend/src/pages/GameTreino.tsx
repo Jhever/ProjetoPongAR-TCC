@@ -546,7 +546,8 @@ const GameTreino = () => {
                     aiStateRef.current.consecutiveHits = 0;
                     placarRef.current.voce += 1;
                     const nomeUser = dadosJogador.nome ? dadosJogador.nome.toUpperCase() : 'JOGADOR';
-                    dispararEfeitoGol(`GOOOLLLL DE ${nomeUser}!`);
+                    // dadosJogador.nome.toUpperCase
+                    dispararEfeitoGol(`GOOOLLLL DE ${dadosJogador.nome}!`);
 
                     if (placarRef.current.voce >= 10) {
                       finalizarPartidaTreino("VOCÊ VENCEU (ALCANÇOU 10 PONTOS)!");
