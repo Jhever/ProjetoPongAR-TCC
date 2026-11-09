@@ -161,6 +161,13 @@ const Game = () => {
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [showLandmarks, setShowLandmarks] = useState(true);
+  
+  // SOLUÇÃO DEFINITIVA DO ENGASGO: Referência leve para controlar as marcas
+  const showLandmarksRef = useRef(showLandmarks);
+  useEffect(() => {
+    showLandmarksRef.current = showLandmarks;
+  }, [showLandmarks]);
+
   const [showDenunciaModal, setShowDenunciaModal] = useState(false);
   const [vencedor, setVencedor] = useState<string | null>(null);
   const [latency, setLatency] = useState(15);
@@ -184,7 +191,7 @@ const Game = () => {
     }, 1500);
   };
 
-const { isWarning, resetTimer } = useInactivity({
+  const { isWarning, resetTimer } = useInactivity({
     timeoutMs: 15000,
     warningMs: 10000,
     onTimeout: () => {
@@ -428,7 +435,8 @@ const { isWarning, resetTimer } = useInactivity({
     socket.on('bolaAtualizada', (novaBola: { x: number; y: number; dx: number; dy: number }) => {
       game.current.ball = novaBola;
     });
-socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
+
+    socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
       if (novoPlacar.esquerda > placarRef.current.p1) {
         const nomeP1 = (player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') 
           ? player1Stats.nome.toUpperCase() 
@@ -448,7 +456,6 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
       if (novoPlacar.esquerda >= 10 || novoPlacar.direita >= 10) {
         const venceuP1 = novoPlacar.esquerda >= 10;
         
-        // Pega os nomes reais para a mensagem de vitória final da partida online
         const nomeVencedor = venceuP1 
           ? ((player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') ? player1Stats.nome.toUpperCase() : 'JOGADOR 1')
           : ((player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') ? player2Stats.nome.toUpperCase() : 'JOGADOR 2');
@@ -461,7 +468,6 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
     socket.on('vitoriaPorDesistencia', (data: { mensagem: string }) => {
       addLog('[Socket] Opponent surrendered');
       if (!partidaFinalizadaRef.current) {
-        alert(data.mensagem);
         finalizarPartidaOnline('VITÓRIA POR DESISTÊNCIA (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
       }
     });
@@ -469,7 +475,6 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
     socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
       addLog('[Socket] Inatividade detectada');
       if (!partidaFinalizadaRef.current) {
-        // Exibe exatamente a mensagem que veio do servidor (ex: informando quem foi desclassificado)
         finalizarPartidaOnline(data.mensagem || 'PARTIDA ENCERRADA POR INATIVIDADE', placarRef.current.p1, placarRef.current.p2);
       }
     });
@@ -477,7 +482,6 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
     socket.on('adversarioDesconectou', () => {
       addLog('[Socket] Opponent disconnected');
       if (!partidaFinalizadaRef.current) {
-        alert('O oponente desconectou-se da partida (Perdeu Conexão).');
         finalizarPartidaOnline('VITÓRIA POR DESCONEXÃO (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
       }
     });
@@ -824,7 +828,8 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
                 ctx.restore();
               }
 
-              if (showLandmarks && handDetected && results.landmarks) {
+              // SOLUÇÃO DO ENGASGO: Ler direto da Ref para não bugar a câmera no Re-Render
+              if (showLandmarksRef.current && handDetected && results.landmarks) {
                 for (const landmarksOriginal of results.landmarks) {
                   const landmarks = landmarksOriginal as Landmark[];
                   const hiddenMask = buildHiddenMask(landmarks, hiddenFingerCountersRef.current);
@@ -886,7 +891,7 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
         remoteVideoRef.current.srcObject = null;
       }
     };
-  }, [isHost, salaId, showLandmarks, tipoPartida, adversarioNome, ocultarCameraAdversario]);
+  }, [isHost, salaId, tipoPartida, adversarioNome, ocultarCameraAdversario]);
 
   const player1Stats: PlayerStats = isHost ? meusDados : dadosAdversario;
   const player2Stats: PlayerStats = isHost ? dadosAdversario : meusDados;
@@ -1164,7 +1169,7 @@ socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }
               
 
             </div>
-              <button onClick={() => navigate('/modo-Jogo')} style={{ background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
+              <button onClick={() => navigate('/modo-Jogo')} style={{ marginTop: '15px', background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
           </div>
         )}
       </div>
