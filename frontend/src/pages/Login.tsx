@@ -38,7 +38,7 @@ const Login = () => {
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "'Courier New', Courier, monospace",
+      fontFamily: "Arial, 'Courier New', Courier, monospace",
       margin: 0,
       padding: '20px',
       boxSizing: 'border-box' as const,
