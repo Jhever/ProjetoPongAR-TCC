@@ -47,7 +47,7 @@ const Register = () => {
   const styles = {
     screen: {
       width: '100vw',
-      height: '100vh',
+      minHeight: '100vh', // CORREÇÃO: Permite que a tela cresça sem cortar o card
       backgroundColor: '#000000',
       display: 'flex',
       flexDirection: 'column' as const,
@@ -55,16 +55,35 @@ const Register = () => {
       justifyContent: 'center',
       fontFamily: 'Arial, sans-serif',
       margin: 0,
-      padding: '20px',
-      overflow: 'hidden',
+      padding: '40px 20px', // Mais espaço para respirar se tiver que rolar a página
       position: 'relative' as const,
       boxSizing: 'border-box' as const,
+      overflowX: 'hidden' as const, // Previne barra de rolagem horizontal, mas permite a vertical
+    },
+    backgroundGlow1: {
+      position: 'absolute' as const,
+      top: '-20%',
+      left: '-10%',
+      width: '500px',
+      height: '500px',
+      background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+      zIndex: 0,
+    },
+    backgroundGlow2: {
+      position: 'absolute' as const,
+      bottom: '-20%',
+      right: '-10%',
+      width: '600px',
+      height: '600px',
+      background: 'radial-gradient(circle, rgba(46, 204, 113, 0.1) 0%, transparent 70%)',
+      zIndex: 0,
     },
     titleContainer: {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       marginBottom: '40px',
+      zIndex: 1,
     },
     title: {
       color: '#87CEEB',
@@ -101,6 +120,7 @@ const Register = () => {
       alignItems: 'center',
       border: '1px solid #1a1a1a',
       boxShadow: '0 15px 40px rgba(0,0,0,0.8), 0 0 15px rgba(135, 206, 235, 0.1)',
+      zIndex: 1,
     },
     cardTitle: {
       color: '#87CEEB',
@@ -140,6 +160,9 @@ const Register = () => {
       boxSizing: 'border-box' as const,
       outline: 'none',
       transition: 'all 0.3s ease',
+      // CORREÇÃO DO AUTOFILL DO NAVEGADOR (Impede que fique branco)
+      WebkitBoxShadow: '0 0 0px 1000px #111111 inset',
+      WebkitTextFillColor: '#ffffff',
     },
     eyeButton: {
       position: 'absolute' as const,
