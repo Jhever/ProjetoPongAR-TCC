@@ -47,7 +47,7 @@ const Register = () => {
   const styles = {
     screen: {
       width: '100vw',
-      minHeight: '100vh', // CORREÇÃO: Permite que a tela cresça sem cortar o card
+      minHeight: '100vh',
       backgroundColor: '#000000',
       display: 'flex',
       flexDirection: 'column' as const,
@@ -55,10 +55,10 @@ const Register = () => {
       justifyContent: 'center',
       fontFamily: 'Arial, sans-serif',
       margin: 0,
-      padding: '40px 20px', // Mais espaço para respirar se tiver que rolar a página
+      padding: '15px', // Reduzido para dar mais respiro na tela toda
       position: 'relative' as const,
       boxSizing: 'border-box' as const,
-      overflowX: 'hidden' as const, // Previne barra de rolagem horizontal, mas permite a vertical
+      overflowX: 'hidden' as const,
     },
     backgroundGlow1: {
       position: 'absolute' as const,
@@ -82,12 +82,12 @@ const Register = () => {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
-      marginBottom: '40px',
+      marginBottom: '20px', // Reduzido de 40px para 20px
       zIndex: 1,
     },
     title: {
       color: '#87CEEB',
-      fontSize: '4.5rem',
+      fontSize: '3.5rem', // Reduzido de 4.5rem para caber melhor com o form maior
       fontFamily: 'Arial, sans-serif',
       fontStyle: 'italic',
       fontWeight: '900',
@@ -101,16 +101,16 @@ const Register = () => {
     subtitle: {
       color: '#ffffff',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '1.2rem',
+      fontSize: '1.1rem',
       fontWeight: 'bold',
-      letterSpacing: '6px',
+      letterSpacing: '5px',
       margin: 0,
       textAlign: 'center' as const,
       textShadow: '0 0 10px rgba(135, 206, 235, 0.5)',
     },
     card: {
       backgroundColor: '#0a0a0a',
-      padding: '30px',
+      padding: '25px 30px', // Reduzido o padding vertical (top/bottom) de 30px para 25px
       borderRadius: '12px',
       width: '100%',
       maxWidth: '420px',
@@ -126,48 +126,47 @@ const Register = () => {
       color: '#87CEEB',
       fontFamily: 'Arial, sans-serif',
       textAlign: 'center' as const,
-      fontSize: '1.4rem',
+      fontSize: '1.3rem',
       fontWeight: 'bold',
-      margin: '0 0 25px 0',
+      margin: '0 0 15px 0', // Reduzido de 25px para 15px
       letterSpacing: '2px',
       width: '100%',
     },
     inputGroup: {
       width: '100%',
-      marginBottom: '15px',
+      marginBottom: '12px', // Reduzido de 15px para 12px
       display: 'flex',
       flexDirection: 'column' as const,
-      gap: '8px',
+      gap: '6px', // Reduzido de 8px para 6px
       position: 'relative' as const,
     },
     label: {
       color: '#87CEEB',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '0.85rem',
+      fontSize: '0.8rem',
       fontWeight: 'bold',
       letterSpacing: '1px',
     },
     input: {
       width: '100%',
-      height: '50px',
+      height: '45px', // Reduzido de 50px para 45px
       backgroundColor: '#111111',
       border: '1px solid #333333',
       borderRadius: '6px',
-      padding: '0 45px 0 15px',
+      padding: '0 40px 0 12px',
       color: '#ffffff',
-      fontSize: '1rem',
+      fontSize: '0.95rem',
       fontFamily: 'Arial, sans-serif',
       boxSizing: 'border-box' as const,
       outline: 'none',
       transition: 'all 0.3s ease',
-      // CORREÇÃO DO AUTOFILL DO NAVEGADOR (Impede que fique branco)
       WebkitBoxShadow: '0 0 0px 1000px #111111 inset',
       WebkitTextFillColor: '#ffffff',
     },
     eyeButton: {
       position: 'absolute' as const,
-      right: '12px',
-      bottom: '13px',
+      right: '10px',
+      bottom: '10px', // Ajustado para a nova altura de 45px
       background: 'none',
       border: 'none',
       cursor: 'pointer',
@@ -178,17 +177,17 @@ const Register = () => {
     },
     registerButton: {
       width: '100%',
-      height: '55px',
+      height: '50px', // Reduzido de 55px para 50px
       backgroundColor: '#87CEEB',
       color: '#000000',
       border: 'none',
       borderRadius: '6px',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '1.1rem',
+      fontSize: '1.05rem',
       fontWeight: '900',
       letterSpacing: '2px',
       cursor: 'pointer',
-      marginTop: '15px',
+      marginTop: '10px', // Reduzido de 15px para 10px
       transition: 'all 0.2s ease',
       textTransform: 'uppercase' as const,
       boxShadow: '0 0 15px rgba(135, 206, 235, 0.3)',
@@ -198,7 +197,7 @@ const Register = () => {
       flexDirection: 'column' as const,
       width: '100%',
       alignItems: 'center',
-      marginTop: '25px',
+      marginTop: '15px', // Reduzido de 25px para 15px
     },
     linkButton: {
       background: 'none',
@@ -206,7 +205,7 @@ const Register = () => {
       color: '#aaaaaa',
       cursor: 'pointer',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '0.9rem',
+      fontSize: '0.85rem',
       textDecoration: 'underline',
       transition: 'color 0.2s',
       padding: 0,
@@ -215,9 +214,9 @@ const Register = () => {
       color: '#ff4444',
       fontFamily: 'Arial, sans-serif',
       textAlign: 'center' as const,
-      fontSize: '0.9rem',
-      margin: error ? '0 0 15px 0' : '0',
-      padding: error ? '10px' : '0',
+      fontSize: '0.85rem',
+      margin: error ? '0 0 10px 0' : '0', // Margem menor
+      padding: error ? '8px' : '0', // Padding menor
       backgroundColor: error ? 'rgba(255,0,0,0.1)' : 'transparent',
       borderRadius: '6px',
       borderLeft: error ? '3px solid #ff4444' : 'none',
@@ -320,7 +319,7 @@ const Register = () => {
               style={styles.eyeButton}
               tabIndex={-1}
             >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
