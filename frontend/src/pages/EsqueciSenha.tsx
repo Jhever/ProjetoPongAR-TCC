@@ -35,11 +35,11 @@ const EsqueciSenha = () => {
         setStatusMsg('✅ ' + data.message); 
         setEmail('');
       } else {
-        setStatusMsg(`❌ ${data.error || 'Erro ao tentar recuperar a senha.'}`);
+        setStatusMsg(`${data.error || 'Erro ao tentar recuperar a senha.'}`);
       }
     } catch (error) {
       console.error('Erro de requisição:', error);
-      setStatusMsg('❌ Erro de conexão com o servidor. O backend está rodando?');
+      setStatusMsg('Erro de conexão com o servidor. O backend está rodando?');
     } finally {
       setIsLoading(false);
     }
@@ -242,7 +242,7 @@ const EsqueciSenha = () => {
           <label style={styles.label}>E-MAIL CADASTRADO</label>
           <input
             type="email"
-            placeholder="seu email"
+            placeholder="seu_Email@gmail.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={styles.input}
