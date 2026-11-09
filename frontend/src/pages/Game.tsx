@@ -162,7 +162,7 @@ const Game = () => {
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [showLandmarks, setShowLandmarks] = useState(true);
   
-  // SOLUÇÃO DEFINITIVA DO ENGASGO: Referência leve para controlar as marcas
+  // REFERÊNCIA DO LANDMARK PARA EVITAR TRAVAMENTO DE TELA
   const showLandmarksRef = useRef(showLandmarks);
   useEffect(() => {
     showLandmarksRef.current = showLandmarks;
@@ -475,6 +475,7 @@ const Game = () => {
     socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
       addLog('[Socket] Inatividade detectada');
       if (!partidaFinalizadaRef.current) {
+        // ALERT REMOVIDO: O W.O fecha a partida limpo!
         finalizarPartidaOnline(data.mensagem || 'PARTIDA ENCERRADA POR INATIVIDADE', placarRef.current.p1, placarRef.current.p2);
       }
     });
@@ -665,9 +666,31 @@ const Game = () => {
 
               let handDetected = false;
               if (results.landmarks && results.landmarks.length > 0) {
-                auditoriaGlobal.registrarFrame(results.landmarks[0]);
+                const hand = results.landmarks[0] as Landmark[];
+                auditoriaGlobal.registrarFrame(hand);
 
-                const hand = results.landmarks[0];
+                // --- 🚨 IA DE MODERAÇÃO EM TEMPO REAL 🚨 ---
+                // Verifica matematicamente a posição dos dedos para denúncia
+                const dedosOcultos = detectHiddenFingers(hand);
+                
+                // Regra do Gesto Obsceno: Dedo do meio esticado (false) + os outros 3 dobrados (true)
+                const isGestoObsceno = 
+                  !dedosOcultos.middle && 
+                  dedosOcultos.index && 
+                  dedosOcultos.ring && 
+                  dedosOcultos.pinky;
+
+                if (isGestoObsceno) {
+                  console.warn("⚠️ ALERTA DA IA: Gesto obsceno flagrado no frame!");
+                  if (typeof (auditoriaGlobal as any).registrarInfracao === 'function') {
+                    (auditoriaGlobal as any).registrarInfracao('GESTO_OBSCENO', {
+                      timestamp: Date.now(),
+                      pontos: hand
+                    });
+                  }
+                }
+                // ------------------------------------------
+
                 const palmY = hand[9] ? hand[9].y : hand[0].y;
                 const sensibilidade = 1.6;
                 let adjustedY = (palmY - 0.5) * sensibilidade + 0.5;
@@ -828,7 +851,7 @@ const Game = () => {
                 ctx.restore();
               }
 
-              // SOLUÇÃO DO ENGASGO: Ler direto da Ref para não bugar a câmera no Re-Render
+              // LER DIRETO DA REFERÊNCIA (Impede lag ao ocultar landmarks)
               if (showLandmarksRef.current && handDetected && results.landmarks) {
                 for (const landmarksOriginal of results.landmarks) {
                   const landmarks = landmarksOriginal as Landmark[];
@@ -1166,8 +1189,6 @@ const Game = () => {
                 <button onClick={() => navigate('/ranking')} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>VER RANKING</button>
               )}
               <button onClick={() => navigate('/home')} style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MENU PRINCIPAL</button>
-              
-
             </div>
               <button onClick={() => navigate('/modo-Jogo')} style={{ marginTop: '15px', background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
           </div>
@@ -1187,12 +1208,6 @@ const Game = () => {
             <div>VOCÊ: {isHost ? 'Player 1' : 'Player 2'}</div>
             <div>MODO: <span style={{ color: tipoPartida === 'ONLINE' ? '#38bdf8' : '#a855f7' }}>{tipoPartida}</span></div>
           </div>
-          {/* <div style={{ marginTop: '10px', fontSize: '11px', color: '#94a3b8' }}>
-            <div style={{ color: '#cbd5e1', fontWeight: 'bold' }}>GAME EVENT LOG</div>
-            {gameLogs.map((log, index) => (
-              <div key={index} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log}</div>
-            ))}
-          </div> */}
         </div>
 
         <div style={{ border: '1px solid #334155', borderRadius: '4px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
@@ -1203,8 +1218,6 @@ const Game = () => {
               <span>SHOW LANDMARKS (HAND TRACKING)</span>
             </label>
             <div style={{ marginTop: '5px', fontSize: '11px', color: '#94a3b8' }}>
-              {/* <div>MODERAÇÃO AUTOMATIZADA:</div> */}
-              {/* <div>Telemetria Ativa {ocultarCameraAdversario && '(Vídeo P2P Bloqueado)'}</div> */}
               <div>{tipoPartida === 'ONLINE' && !ocultarCameraAdversario ? 'Denúncia Habilitada' : 'Denúncia Oculta (Modo Privado)'}</div>
             </div>
 
