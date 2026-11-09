@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 const EsqueciSenha = () => {
@@ -22,7 +21,6 @@ const EsqueciSenha = () => {
     setStatusMsg('Processando...');
 
     try {
-      // Faz a requisição para a rota que envia o e-mail via Nodemailer
       const response = await fetch(`${API_URL}/forgot-password`, {
         method: 'POST',
         headers: {
@@ -35,7 +33,7 @@ const EsqueciSenha = () => {
 
       if (response.ok) {
         setStatusMsg('✅ ' + data.message); 
-        setEmail(''); // Limpa o campo após o sucesso
+        setEmail('');
       } else {
         setStatusMsg(`❌ ${data.error || 'Erro ao tentar recuperar a senha.'}`);
       }
@@ -47,7 +45,6 @@ const EsqueciSenha = () => {
     }
   };
 
-  // --- ESTILOS INLINE ESPELHADOS DA TELA DE LOGIN ---
   const styles = {
     container: {
       minHeight: '100vh',
@@ -55,97 +52,149 @@ const EsqueciSenha = () => {
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#000000',
-      fontFamily: 'Arial, sans-serif',
+      backgroundColor: '#0a0d14',
+      fontFamily: "'Courier New', monospace, sans-serif",
       padding: '20px',
+      position: 'relative' as const,
+      overflow: 'hidden',
+    },
+    backgroundGlow1: {
+      position: 'absolute' as const,
+      top: '-20%',
+      left: '-10%',
+      width: '500px',
+      height: '500px',
+      background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+      zIndex: 0,
+    },
+    backgroundGlow2: {
+      position: 'absolute' as const,
+      bottom: '-20%',
+      right: '-10%',
+      width: '600px',
+      height: '600px',
+      background: 'radial-gradient(circle, rgba(46, 204, 113, 0.1) 0%, transparent 70%)',
+      zIndex: 0,
     },
     neonTitle: {
-      color: '#87CEEB',
+      color: '#fff',
       fontStyle: 'italic',
       fontWeight: '900',
-      fontSize: '3.5rem',
-      letterSpacing: '2px',
-      textShadow: '0 0 10px rgba(135, 206, 235, 0.8), 0 0 20px rgba(135, 206, 235, 0.6), 0 0 40px rgba(135, 206, 235, 0.4)',
+      fontSize: '4.5rem',
+      letterSpacing: '4px',
+      textShadow: '0 0 20px #3b82f6, 0 0 40px #00d4ff, 0 5px 15px rgba(0,0,0,0.8)',
       margin: '0 0 40px 0',
       textAlign: 'center' as const,
+      zIndex: 1,
+      lineHeight: 1,
     },
     card: {
-      backgroundColor: '#1c1c1c',
+      backgroundColor: 'rgba(15, 23, 42, 0.75)',
       padding: '40px 30px',
-      borderRadius: '20px',
+      borderRadius: '16px',
       width: '100%',
-      maxWidth: '400px',
+      maxWidth: '420px',
       boxSizing: 'border-box' as const,
       display: 'flex',
       flexDirection: 'column' as const,
-      gap: '20px',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+      gap: '24px',
+      boxShadow: '0 15px 50px rgba(0,0,0,0.6)',
+      border: '1px solid rgba(59, 130, 246, 0.3)',
+      backdropFilter: 'blur(12px)',
+      zIndex: 1,
     },
     cardTitle: {
-      color: '#ffffff',
+      color: '#60a5fa',
       textAlign: 'center' as const,
-      fontSize: '1.5rem',
-      fontWeight: 'normal',
+      fontSize: '1.6rem',
+      fontWeight: 'bold',
       margin: '0',
+      letterSpacing: '2px',
+      borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+      paddingBottom: '15px',
     },
     instructionText: {
-      color: '#aaaaaa',
+      color: '#94a3b8',
       textAlign: 'center' as const,
-      fontSize: '0.9rem',
+      fontSize: '0.95rem',
       margin: '0',
-      lineHeight: '1.4',
+      lineHeight: '1.5',
+    },
+    inputGroup: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '8px',
+    },
+    label: {
+      color: '#93c5fd',
+      fontSize: '0.85rem',
+      fontWeight: 'bold',
+      letterSpacing: '1px',
     },
     input: {
       width: '100%',
-      padding: '15px',
-      borderRadius: '5px',
-      border: 'none',
-      backgroundColor: '#f0f8ff',
-      color: '#333333',
+      padding: '14px 16px',
+      borderRadius: '8px',
+      border: '1px solid rgba(96, 165, 250, 0.4)',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      color: '#e2e8f0',
       fontSize: '1rem',
+      fontFamily: "'Courier New', monospace",
       boxSizing: 'border-box' as const,
       outline: 'none',
+      transition: 'border-color 0.3s, box-shadow 0.3s',
     },
     button: {
       width: '100%',
-      padding: '15px',
+      padding: '16px',
       borderRadius: '8px',
       border: 'none',
-      backgroundColor: '#87CEEB',
-      color: '#000000',
+      backgroundColor: '#3b82f6',
+      color: '#fff',
       fontSize: '1.1rem',
       fontWeight: 'bold',
+      letterSpacing: '2px',
       cursor: 'pointer',
       marginTop: '10px',
-      transition: 'opacity 0.2s',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 0 15px rgba(59, 130, 246, 0.4)',
     },
     linkContainer: {
       display: 'flex',
       flexDirection: 'column' as const,
       gap: '15px',
       alignItems: 'center',
-      marginTop: '10px',
+      marginTop: '15px',
     },
     link: {
-      color: '#87CEEB',
-      textDecoration: 'underline',
+      color: '#60a5fa',
+      textDecoration: 'none',
       background: 'none',
       border: 'none',
       cursor: 'pointer',
-      fontSize: '0.95rem',
-      padding: '0',
+      fontSize: '0.9rem',
+      padding: '5px 10px',
+      transition: 'color 0.2s',
+      fontWeight: 'bold',
     },
     statusMessage: {
-      color: '#a3e635',
+      color: statusMsg.includes('✅') ? '#4ade80' : '#ef4444',
       textAlign: 'center' as const,
       fontSize: '0.9rem',
       margin: '0',
+      padding: '10px',
+      backgroundColor: 'rgba(0,0,0,0.3)',
+      borderRadius: '6px',
+      borderLeft: `3px solid ${statusMsg.includes('✅') ? '#4ade80' : '#ef4444'}`,
     }
   };
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.neonTitle}>PONG COM AR</h1>
+      <div style={styles.backgroundGlow1} />
+      <div style={styles.backgroundGlow2} />
+      
+      <h1 style={styles.neonTitle}>PONG AR</h1>
       
       <form style={styles.card} onSubmit={handleRecuperar}>
         <h2 style={styles.cardTitle}>RECUPERAR SENHA</h2>
@@ -154,23 +203,40 @@ const EsqueciSenha = () => {
           Digite o e-mail associado à sua conta para receber as instruções de redefinição de senha.
         </p>
 
-        <input
-          type="email"
-          placeholder="Seu email de cadastro"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={styles.input}
-          required
-        />
+        <div style={styles.inputGroup}>
+          <label style={styles.label}>E-MAIL CADASTRADO</label>
+          <input
+            type="email"
+            placeholder="jheverson@unoesc.edu.br"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={styles.input}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#60a5fa';
+              e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+              e.target.style.boxShadow = 'none';
+            }}
+            required
+          />
+        </div>
 
         {statusMsg && <p style={styles.statusMessage}>{statusMsg}</p>}
 
         <button 
           type="submit" 
-          style={{ ...styles.button, opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
+          style={{ 
+            ...styles.button, 
+            opacity: isLoading ? 0.7 : 1, 
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            backgroundColor: isLoading ? '#475569' : '#3b82f6',
+            boxShadow: isLoading ? 'none' : styles.button.boxShadow
+          }}
           disabled={isLoading}
-          onMouseOver={(e) => !isLoading && (e.currentTarget.style.opacity = '0.8')}
-          onMouseOut={(e) => !isLoading && (e.currentTarget.style.opacity = '1')}
+          onMouseOver={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#2563eb')}
+          onMouseOut={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#3b82f6')}
         >
           {isLoading ? 'ENVIANDO...' : 'ENVIAR LINK'}
         </button>
@@ -180,8 +246,10 @@ const EsqueciSenha = () => {
             type="button" 
             onClick={() => navigate('/')}
             style={styles.link}
+            onMouseOver={(e) => e.currentTarget.style.color = '#93c5fd'}
+            onMouseOut={(e) => e.currentTarget.style.color = '#60a5fa'}
           >
-            Lembrei minha senha! Voltar para login
+            ← Voltar para o Login
           </button>
         </div>
       </form>

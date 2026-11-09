@@ -5,101 +5,152 @@ import { useConfig } from '../context/ConfigContext';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { loginUser } = useConfig(); // Pegamos a função que criamos no contexto
+  const { loginUser } = useConfig();
   const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); // Adicione estado de erro
+  const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    // 1. Alerta de diagnóstico para cravar que o clique funcionou
-    // console.log("--> O Botão ENTRAR foi clicado com sucesso!");
-    // console.log("Tentando logar com:", { user, password });
 
     try {
-      // 2. Dispara a função do contexto e rastreia o resultado
-      console.log("Chamando a função loginUser do ConfigContext...");
-      const success = await loginUser(user, password); 
-      console.log("Resultado retornado pelo contexto:", success);
+      const success = await loginUser(user, password);
 
       if (success) {
-        console.log("Login validado! Redirecionando para /home");
         navigate('/home');
       } else {
-        console.log("O contexto retornou falso (Credenciais incorretas).");
         setError('E-mail ou senha incorretos!');
-        alert('Erro: E-mail ou senha incorretos!'); // Força um aviso na tela
       }
     } catch (err: any) {
-      // 3. Captura qualquer erro oculto que esteja fazendo a função travar
       console.error("ERRO CRÍTICO CAPTURADO NO LOGIN:", err);
-      alert(`O login travou por um erro: ${err.message}`);
+      setError(`O login travou por um erro: ${err.message}`);
     }
   };
-  
+
   const styles = {
     screen: {
       width: '100vw',
       height: '100vh',
-      backgroundColor: '#000',
+      backgroundColor: '#0a0d14',
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: '"Segoe UI", Roboto, sans-serif',
+      fontFamily: "'Courier New', monospace, sans-serif",
       margin: 0,
-      padding: 0,
+      padding: '20px',
       overflow: 'hidden',
+      position: 'relative' as const,
+      boxSizing: 'border-box' as const,
     },
-    title: {
-      color: '#87CEEB',
-      fontSize: '4.5rem',
-      fontFamily: '"Arial Black", sans-serif',
-      fontStyle: 'italic',
-      marginBottom: '30px',
-      textShadow: '0 0 20px rgba(135, 206, 235, 0.6)',
-      textTransform: 'uppercase' as const,
+    backgroundGlow1: {
+      position: 'absolute' as const,
+      top: '-20%',
+      left: '-10%',
+      width: '500px',
+      height: '500px',
+      background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+      zIndex: 0,
     },
-    loginCard: {
-      background: '#1a1a1a',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      borderRadius: '20px',
-      padding: '40px',
-      width: '450px',
+    backgroundGlow2: {
+      position: 'absolute' as const,
+      bottom: '-20%',
+      right: '-10%',
+      width: '600px',
+      height: '600px',
+      background: 'radial-gradient(circle, rgba(46, 204, 113, 0.1) 0%, transparent 70%)',
+      zIndex: 0,
+    },
+    titleContainer: {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
-      boxShadow: '0 25px 50px rgba(0, 0, 0, 0.8)',
+      marginBottom: '40px',
+      zIndex: 1,
+    },
+    title: {
+      color: '#fff',
+      fontSize: '4.5rem',
+      fontStyle: 'italic',
+      fontWeight: '900',
+      letterSpacing: '4px',
+      textShadow: '0 0 20px #3b82f6, 0 0 40px #00d4ff, 0 5px 15px rgba(0,0,0,0.8)',
+      margin: '0 0 5px 0',
+      lineHeight: 1,
+      textAlign: 'center' as const,
+    },
+    subtitle: {
+      color: '#93c5fd',
+      fontSize: '1.2rem',
+      fontWeight: 'bold',
+      letterSpacing: '3px',
+      margin: 0,
+      textAlign: 'center' as const,
+    },
+    loginCard: {
+      backgroundColor: 'rgba(15, 23, 42, 0.75)',
+      padding: '40px 30px',
+      borderRadius: '16px',
+      width: '100%',
+      maxWidth: '420px',
+      boxSizing: 'border-box' as const,
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      boxShadow: '0 15px 50px rgba(0,0,0,0.6)',
+      border: '1px solid rgba(59, 130, 246, 0.3)',
+      backdropFilter: 'blur(12px)',
+      zIndex: 1,
+    },
+    cardTitle: {
+      color: '#60a5fa',
+      textAlign: 'center' as const,
+      fontSize: '1.6rem',
+      fontWeight: 'bold',
+      margin: '0 0 25px 0',
+      letterSpacing: '2px',
+      borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+      paddingBottom: '15px',
+      width: '100%',
     },
     inputGroup: {
       width: '100%',
-      marginBottom: '20px',
+      marginBottom: '15px',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '8px',
       position: 'relative' as const,
+    },
+    label: {
+      color: '#93c5fd',
+      fontSize: '0.85rem',
+      fontWeight: 'bold',
+      letterSpacing: '1px',
     },
     input: {
       width: '100%',
-      height: '55px',
-      backgroundColor: '#f1f5f9',
-      border: 'none',
-      borderRadius: '4px',
-      padding: '0 50px 0 15px',
-      color: '#000',
-      fontSize: '1.1rem',
+      height: '50px',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      border: '1px solid rgba(96, 165, 250, 0.4)',
+      borderRadius: '8px',
+      padding: '0 45px 0 16px',
+      color: '#e2e8f0',
+      fontSize: '1rem',
+      fontFamily: "'Courier New', monospace",
       boxSizing: 'border-box' as const,
       outline: 'none',
+      transition: 'border-color 0.3s, box-shadow 0.3s',
     },
     eyeButton: {
       position: 'absolute' as const,
-      right: '15px',
-      top: '50%',
-      transform: 'translateY(-50%)',
+      right: '12px',
+      bottom: '13px',
       background: 'none',
       border: 'none',
       cursor: 'pointer',
-      color: '#87CEEB',
+      color: '#60a5fa',
       display: 'flex',
       alignItems: 'center',
       padding: 0,
@@ -107,57 +158,102 @@ const handleLogin = async (e: React.FormEvent) => {
     },
     loginButton: {
       width: '100%',
-      height: '55px',
-      backgroundColor: '#87CEEB',
-      color: '#000',
+      padding: '16px',
+      backgroundColor: '#3b82f6',
+      color: '#fff',
       border: 'none',
       borderRadius: '8px',
-      fontSize: '1.2rem',
+      fontSize: '1.1rem',
       fontWeight: 'bold' as const,
+      letterSpacing: '2px',
       cursor: 'pointer',
-      marginTop: '10px',
-      textTransform: 'uppercase' as const,
-      transition: '0.2s',
+      marginTop: '15px',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 0 15px rgba(59, 130, 246, 0.4)',
+    },
+    linkContainer: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '12px',
+      width: '100%',
+      alignItems: 'center',
+      marginTop: '20px',
     },
     linkButton: {
       background: 'none',
       border: 'none',
-      color: '#87CEEB',
-      marginTop: '15px',
+      color: '#60a5fa',
       cursor: 'pointer',
-      fontSize: '0.95rem',
-      textDecoration: 'underline',
+      fontSize: '0.9rem',
+      fontWeight: 'bold',
+      textDecoration: 'none',
+      transition: 'color 0.2s',
+      padding: 0,
+    },
+    statusMessage: {
+      color: '#ef4444',
+      textAlign: 'center' as const,
+      fontSize: '0.9rem',
+      margin: '10px 0',
+      padding: '10px',
+      backgroundColor: 'rgba(0,0,0,0.3)',
+      borderRadius: '6px',
+      borderLeft: '3px solid #ef4444',
+      width: '100%',
+      boxSizing: 'border-box' as const,
     }
   };
 
   return (
     <div style={styles.screen}>
-      <h1 style={styles.title}>PONG AR </h1>
-      <div> <h1 style={styles.title}>(REALIDADE AUMENTADA)</h1></div>
+      <div style={styles.backgroundGlow1} />
+      <div style={styles.backgroundGlow2} />
+      
+      <div style={styles.titleContainer}>
+        <h1 style={styles.title}>PONG AR</h1>
+        <h2 style={styles.subtitle}>(REALIDADE AUMENTADA)</h2>
+      </div>
 
       <div style={styles.loginCard}>
-        <h2 style={{ color: '#fff', marginBottom: '30px', fontWeight: '400' }}>BEM-VINDO</h2>
+        <h2 style={styles.cardTitle}>BEM-VINDO</h2>
         
         <form onSubmit={handleLogin} style={{ width: '100%' }}>
-          {/* Campo Usuário */}
+          
           <div style={styles.inputGroup}>
+            <label style={styles.label}>E-MAIL OU USUÁRIO</label>
             <input 
               style={styles.input} 
-              placeholder="Seu email ou nome de usuário" 
+              placeholder="jheverson@unoesc.edu.br" 
               value={user}
               onChange={(e) => setUser(e.target.value)}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#60a5fa';
+                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.boxShadow = 'none';
+              }}
               required
             />
           </div>
 
-          {/* Campo Senha */}
           <div style={styles.inputGroup}>
+            <label style={styles.label}>SENHA</label>
             <input 
               style={styles.input} 
               type={showPassword ? "text" : "password"} 
-              placeholder="Sua senha" 
+              placeholder="••••••••" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#60a5fa';
+                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.boxShadow = 'none';
+              }}
               required
             />
             <button 
@@ -165,33 +261,41 @@ const handleLogin = async (e: React.FormEvent) => {
               onClick={() => setShowPassword(!showPassword)}
               style={styles.eyeButton}
             >
-              {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
+
+          {error && <p style={styles.statusMessage}>{error}</p>}
 
           <button 
             type="submit"
             style={styles.loginButton}
-            onMouseOver={(e) => (e.currentTarget.style.filter = 'brightness(1.1)')}
-            onMouseOut={(e) => (e.currentTarget.style.filter = 'brightness(1)')}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
           >
             ENTRAR
           </button>
         </form>
 
-        <button 
-          style={styles.linkButton}
-          onClick={() => navigate('/esqueci-senha')}
-        >
-          Esqueci minha senha
-        </button>
-        
-        <button 
-          style={styles.linkButton}
-          onClick={() => navigate('/register')}
-        >
-          Criar nova conta
-        </button>
+        <div style={styles.linkContainer}>
+          <button 
+            style={styles.linkButton}
+            onClick={() => navigate('/esqueci-senha')}
+            onMouseOver={(e) => e.currentTarget.style.color = '#93c5fd'}
+            onMouseOut={(e) => e.currentTarget.style.color = '#60a5fa'}
+          >
+            Esqueci minha senha
+          </button>
+          
+          <button 
+            style={styles.linkButton}
+            onClick={() => navigate('/register')}
+            onMouseOver={(e) => e.currentTarget.style.color = '#93c5fd'}
+            onMouseOut={(e) => e.currentTarget.style.color = '#60a5fa'}
+          >
+            Criar nova conta
+          </button>
+        </div>
       </div>
     </div>
   );

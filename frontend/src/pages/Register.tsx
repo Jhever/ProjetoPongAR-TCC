@@ -7,17 +7,14 @@ const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 const Register = () => {
   const navigate = useNavigate();
   
-  // Estados para os campos do formulário
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
   const [user, setUser] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   
-  // Estado para controlar a visibilidade da senha
   const [showPassword, setShowPassword] = useState(false);
 
-  // Função para validar e criar conta
   const handleCreateAccount = async () => {
     if (email === '' || user === '' || password === '') {
       setError('PREENCHA TODOS OS CAMPOS!');
@@ -51,193 +48,296 @@ const Register = () => {
     screen: {
       width: '100vw',
       height: '100vh',
-      backgroundColor: '#000',
+      backgroundColor: '#0a0d14',
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: "'Courier New', monospace, sans-serif",
       margin: 0,
+      padding: '20px',
+      overflow: 'hidden',
+      position: 'relative' as const,
+      boxSizing: 'border-box' as const,
     },
-    title: {
-      color: '#87CEEB',
-      fontSize: '4rem',
-      fontFamily: '"Arial Black", sans-serif',
-      fontStyle: 'italic',
-      marginBottom: '30px',
-      textTransform: 'uppercase' as const,
-      textShadow: '0 0 15px rgba(135, 206, 235, 0.4)',
-    },
-    window: {
-      backgroundColor: '#cbd5e1',
+    backgroundGlow1: {
+      position: 'absolute' as const,
+      top: '-20%',
+      left: '-10%',
       width: '500px',
-      borderRadius: '20px',
-      padding: '40px',
+      height: '500px',
+      background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+      zIndex: 0,
+    },
+    backgroundGlow2: {
+      position: 'absolute' as const,
+      bottom: '-20%',
+      right: '-10%',
+      width: '600px',
+      height: '600px',
+      background: 'radial-gradient(circle, rgba(46, 204, 113, 0.1) 0%, transparent 70%)',
+      zIndex: 0,
+    },
+    titleContainer: {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
-      boxShadow: '0 0 30px rgba(135, 206, 235, 0.2)',
+      marginBottom: '40px',
+      zIndex: 1,
     },
-    headerWindow: {
-      width: '100%',
-      display: 'flex',
-      justifyContent: 'flex-end',
-      gap: '10px',
-      marginBottom: '20px'
-    },
-    circle: {
-      width: '20px',
-      height: '20px',
-      borderRadius: '50%',
-      backgroundColor: '#94a3b8'
-    },
-    subtitle: {
-      color: '#1e293b',
-      fontSize: '1.5rem',
-      fontWeight: 'bold' as const,
-      marginBottom: '20px',
-    },
-    input: {
-      width: '320px',
-      height: '45px',
-      marginBottom: '15px',
-      border: '1px solid #64748b',
-      borderRadius: '4px',
-      padding: '0 15px',
-      fontSize: '1rem',
+    title: {
+      color: '#fff',
+      fontSize: '4.5rem',
+      fontStyle: 'italic',
+      fontWeight: '900',
+      letterSpacing: '4px',
+      textShadow: '0 0 20px #3b82f6, 0 0 40px #00d4ff, 0 5px 15px rgba(0,0,0,0.8)',
+      margin: '0 0 5px 0',
+      lineHeight: 1,
       textAlign: 'center' as const,
-      backgroundColor: '#f1f5f9',
-      color: '#000',
-      outline: 'none',
+    },
+    subtitleGlow: {
+      color: '#93c5fd',
+      fontSize: '1.2rem',
+      fontWeight: 'bold',
+      letterSpacing: '3px',
+      margin: 0,
+      textAlign: 'center' as const,
+    },
+    card: {
+      backgroundColor: 'rgba(15, 23, 42, 0.75)',
+      padding: '40px 30px',
+      borderRadius: '16px',
+      width: '100%',
+      maxWidth: '420px',
       boxSizing: 'border-box' as const,
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      boxShadow: '0 15px 50px rgba(0,0,0,0.6)',
+      border: '1px solid rgba(59, 130, 246, 0.3)',
+      backdropFilter: 'blur(12px)',
+      zIndex: 1,
+    },
+    cardTitle: {
+      color: '#60a5fa',
+      textAlign: 'center' as const,
+      fontSize: '1.6rem',
+      fontWeight: 'bold',
+      margin: '0 0 25px 0',
+      letterSpacing: '2px',
+      borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+      paddingBottom: '15px',
+      width: '100%',
     },
     inputGroup: {
-      position: 'relative' as const,
-      width: '320px',
+      width: '100%',
       marginBottom: '15px',
       display: 'flex',
-      alignItems: 'center',
+      flexDirection: 'column' as const,
+      gap: '8px',
+      position: 'relative' as const,
     },
-    passwordInput: {
+    label: {
+      color: '#93c5fd',
+      fontSize: '0.85rem',
+      fontWeight: 'bold',
+      letterSpacing: '1px',
+    },
+    input: {
       width: '100%',
-      height: '45px',
-      border: '1px solid #64748b',
-      borderRadius: '4px',
-      padding: '0 40px 0 15px',
+      height: '50px',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      border: '1px solid rgba(96, 165, 250, 0.4)',
+      borderRadius: '8px',
+      padding: '0 45px 0 16px',
+      color: '#e2e8f0',
       fontSize: '1rem',
-      textAlign: 'center' as const,
-      backgroundColor: '#f1f5f9',
-      color: '#000',
-      outline: 'none',
+      fontFamily: "'Courier New', monospace",
       boxSizing: 'border-box' as const,
+      outline: 'none',
+      transition: 'border-color 0.3s, box-shadow 0.3s',
     },
     eyeButton: {
       position: 'absolute' as const,
-      right: '10px',
+      right: '12px',
+      bottom: '13px',
       background: 'none',
       border: 'none',
       cursor: 'pointer',
-      color: '#64748b',
+      color: '#60a5fa',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center',
-      padding: '5px',
+      padding: 0,
+      zIndex: 2,
     },
-    errorText: {
-      color: '#dc2626',
-      fontSize: '0.9rem',
+    registerButton: {
+      width: '100%',
+      padding: '16px',
+      backgroundColor: '#3b82f6',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '1.1rem',
       fontWeight: 'bold' as const,
-      marginBottom: '15px',
-      height: '20px',
+      letterSpacing: '2px',
+      cursor: 'pointer',
+      marginTop: '15px',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 0 15px rgba(59, 130, 246, 0.4)',
     },
-    footerActions: {
+    linkContainer: {
       display: 'flex',
-      gap: '30px',
+      flexDirection: 'column' as const,
+      width: '100%',
+      alignItems: 'center',
       marginTop: '20px',
     },
-    actionButton: {
+    linkButton: {
       background: 'none',
       border: 'none',
-      color: '#1e293b',
-      fontSize: '0.9rem',
-      fontWeight: 'bold' as const,
+      color: '#60a5fa',
       cursor: 'pointer',
-      textDecoration: 'underline',
-      transition: '0.2s',
+      fontSize: '0.9rem',
+      fontWeight: 'bold',
+      textDecoration: 'none',
+      transition: 'color 0.2s',
+      padding: 0,
+    },
+    errorText: {
+      color: '#ef4444',
+      textAlign: 'center' as const,
+      fontSize: '0.9rem',
+      margin: error ? '0 0 15px 0' : '0',
+      padding: error ? '10px' : '0',
+      backgroundColor: error ? 'rgba(0,0,0,0.3)' : 'transparent',
+      borderRadius: '6px',
+      borderLeft: error ? '3px solid #ef4444' : 'none',
+      width: '100%',
+      boxSizing: 'border-box' as const,
+      height: error ? 'auto' : '0',
+      overflow: 'hidden',
     }
   };
 
   return (
     <div style={styles.screen}>
-      <h1 style={styles.title}>PONG COM AR</h1>
+      <div style={styles.backgroundGlow1} />
+      <div style={styles.backgroundGlow2} />
 
-      <div style={styles.window}>
-        <div style={styles.headerWindow}>
-          <div style={styles.circle}></div>
-          <div style={{ ...styles.circle, width: '60px', borderRadius: '10px' }}></div>
-        </div>
+      <div style={styles.titleContainer}>
+        <h1 style={styles.title}>PONG AR</h1>
+        <h2 style={styles.subtitleGlow}>(REALIDADE AUMENTADA)</h2>
+      </div>
 
-        <h2 style={styles.subtitle}>CRIAÇÃO DE CONTA</h2>
+      <div style={styles.card}>
+        <h2 style={styles.cardTitle}>CRIAR CONTA</h2>
 
         <p style={styles.errorText}>{error}</p>
 
-        <input
-          style={styles.input}
-          placeholder="EMAIL"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        
-        <input
-          style={styles.input}
-          placeholder="CONFIRMAR EMAIL"
-          type="email"
-          value={confirmEmail}
-          onChange={(e) => setConfirmEmail(e.target.value)}
-        />
+        <div style={{ width: '100%' }}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>NOME DE USUÁRIO</label>
+            <input
+              style={styles.input}
+              placeholder="Digite seu nickname"
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#60a5fa';
+                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+          </div>
 
-        <input
-          style={styles.input}
-          placeholder="NOME USUÁRIO"
-          value={user}
-          onChange={(e) => setUser(e.target.value)}
-        />
-        
-        <div style={styles.inputGroup}>
-          <input
-            style={styles.passwordInput}
-            type={showPassword ? "text" : "password"}
-            placeholder="SENHA"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button 
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            style={styles.eyeButton}
-            tabIndex={-1}
-          >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
-        </div>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>E-MAIL</label>
+            <input
+              style={styles.input}
+              placeholder="seu@email.com"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#60a5fa';
+                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+          </div>
+          
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>CONFIRMAR E-MAIL</label>
+            <input
+              style={styles.input}
+              placeholder="Confirme seu e-mail"
+              type="email"
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#60a5fa';
+                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+          </div>
 
-        <div style={styles.footerActions}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>SENHA</label>
+            <input
+              style={styles.input}
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#60a5fa';
+                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+            <button 
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+
           <button 
-            style={{...styles.actionButton, color: '#000'}} 
+            style={styles.registerButton} 
             onClick={handleCreateAccount}
-            onMouseOver={(e) => (e.currentTarget.style.color = '#475569')}
-            onMouseOut={(e) => (e.currentTarget.style.color = '#000')}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
           >
-            CRIAR SUA CONTA
+            FINALIZAR CADASTRO
           </button>
           
-          <button 
-            style={styles.actionButton}
-            onClick={() => navigate('/')}
-          >
-            VOLTAR PÁGINA LOGIN
-          </button>
+          <div style={styles.linkContainer}>
+            <button 
+              style={styles.linkButton}
+              onClick={() => navigate('/')}
+              onMouseOver={(e) => e.currentTarget.style.color = '#93c5fd'}
+              onMouseOut={(e) => e.currentTarget.style.color = '#60a5fa'}
+            >
+              ← Voltar para o Login
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1187,12 +1187,12 @@ const Game = () => {
             <div>VOCÊ: {isHost ? 'Player 1' : 'Player 2'}</div>
             <div>MODO: <span style={{ color: tipoPartida === 'ONLINE' ? '#38bdf8' : '#a855f7' }}>{tipoPartida}</span></div>
           </div>
-          <div style={{ marginTop: '10px', fontSize: '11px', color: '#94a3b8' }}>
+          {/* <div style={{ marginTop: '10px', fontSize: '11px', color: '#94a3b8' }}>
             <div style={{ color: '#cbd5e1', fontWeight: 'bold' }}>GAME EVENT LOG</div>
             {gameLogs.map((log, index) => (
               <div key={index} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log}</div>
             ))}
-          </div>
+          </div> */}
         </div>
 
         <div style={{ border: '1px solid #334155', borderRadius: '4px', padding: '12px', background: 'rgba(15, 23, 42, 0.6)' }}>
@@ -1203,8 +1203,8 @@ const Game = () => {
               <span>SHOW LANDMARKS (HAND TRACKING)</span>
             </label>
             <div style={{ marginTop: '5px', fontSize: '11px', color: '#94a3b8' }}>
-              <div>MODERAÇÃO AUTOMATIZADA:</div>
-              <div>Telemetria Ativa {ocultarCameraAdversario && '(Vídeo P2P Bloqueado)'}</div>
+              {/* <div>MODERAÇÃO AUTOMATIZADA:</div> */}
+              {/* <div>Telemetria Ativa {ocultarCameraAdversario && '(Vídeo P2P Bloqueado)'}</div> */}
               <div>{tipoPartida === 'ONLINE' && !ocultarCameraAdversario ? 'Denúncia Habilitada' : 'Denúncia Oculta (Modo Privado)'}</div>
             </div>
 
