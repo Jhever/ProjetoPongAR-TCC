@@ -242,7 +242,7 @@ const EsqueciSenha = () => {
           <label style={styles.label}>E-MAIL CADASTRADO</label>
           <input
             type="email"
-            placeholder="jheverson@unoesc.edu.br"
+            placeholder="seu email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={styles.input}
