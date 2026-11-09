@@ -33,12 +33,12 @@ const Login = () => {
     screen: {
       width: '100vw',
       height: '100vh',
-      backgroundColor: '#000000', // Fundo 100% preto original
+      backgroundColor: '#000000',
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "Arial, 'Courier New', Courier, monospace",
+      fontFamily: 'Arial, sans-serif', // Arial no container global
       margin: 0,
       padding: '20px',
       boxSizing: 'border-box' as const,
@@ -50,8 +50,9 @@ const Login = () => {
       marginBottom: '40px',
     },
     title: {
-      color: '#87CEEB', // Seu Azul Neon Original
+      color: '#87CEEB',
       fontSize: '4.5rem',
+      fontFamily: 'Arial, sans-serif', // Arial forçado no título
       fontStyle: 'italic',
       fontWeight: '900',
       letterSpacing: '4px',
@@ -63,6 +64,7 @@ const Login = () => {
     },
     subtitle: {
       color: '#ffffff',
+      fontFamily: 'Arial, sans-serif',
       fontSize: '1.2rem',
       fontWeight: 'bold',
       letterSpacing: '6px',
@@ -71,7 +73,7 @@ const Login = () => {
       textShadow: '0 0 10px rgba(135, 206, 235, 0.5)',
     },
     loginCard: {
-      backgroundColor: '#0a0a0a', // Cinza quase preto
+      backgroundColor: '#0a0a0a',
       padding: '40px 30px',
       borderRadius: '12px',
       width: '100%',
@@ -85,6 +87,7 @@ const Login = () => {
     },
     cardTitle: {
       color: '#87CEEB',
+      fontFamily: 'Arial, sans-serif',
       textAlign: 'center' as const,
       fontSize: '1.4rem',
       fontWeight: 'bold',
@@ -101,6 +104,7 @@ const Login = () => {
     },
     label: {
       color: '#87CEEB',
+      fontFamily: 'Arial, sans-serif',
       fontSize: '0.85rem',
       fontWeight: 'bold',
       letterSpacing: '1px',
@@ -108,13 +112,13 @@ const Login = () => {
     input: {
       width: '100%',
       height: '50px',
-      backgroundColor: '#111111', // Inputs escuros para combinar com o tema
+      backgroundColor: '#111111',
       border: '1px solid #333333',
       borderRadius: '6px',
       padding: '0 45px 0 15px',
       color: '#ffffff',
       fontSize: '1rem',
-      fontFamily: "'Courier New', Courier, monospace",
+      fontFamily: 'Arial, sans-serif', // Arial forçado dentro da caixa de texto
       boxSizing: 'border-box' as const,
       outline: 'none',
       transition: 'all 0.3s ease',
@@ -135,9 +139,10 @@ const Login = () => {
       width: '100%',
       height: '55px',
       backgroundColor: '#87CEEB',
-      color: '#000000', // Texto preto para alto contraste arcade
+      color: '#000000',
       border: 'none',
       borderRadius: '6px',
+      fontFamily: 'Arial, sans-serif', // Arial forçado no botão
       fontSize: '1.1rem',
       fontWeight: '900',
       letterSpacing: '2px',
@@ -160,6 +165,7 @@ const Login = () => {
       border: 'none',
       color: '#aaaaaa',
       cursor: 'pointer',
+      fontFamily: 'Arial, sans-serif', // Arial forçado nos links
       fontSize: '0.9rem',
       textDecoration: 'underline',
       transition: 'color 0.2s',
@@ -167,6 +173,7 @@ const Login = () => {
     },
     statusMessage: {
       color: '#ff4444',
+      fontFamily: 'Arial, sans-serif',
       textAlign: 'center' as const,
       fontSize: '0.9rem',
       margin: '0 0 15px 0',
