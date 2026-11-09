@@ -21,7 +21,7 @@ const Register = () => {
       return;
     } 
     if (email !== confirmEmail) {
-      setError('OS EMAILS NÃO SÃO IGUAIS!');
+      setError('OS E-MAILS NÃO SÃO IGUAIS!');
       return;
     }
 
@@ -48,86 +48,68 @@ const Register = () => {
     screen: {
       width: '100vw',
       height: '100vh',
-      backgroundColor: '#0a0d14',
+      backgroundColor: '#000000',
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "'Courier New', monospace, sans-serif",
+      fontFamily: 'Arial, sans-serif',
       margin: 0,
       padding: '20px',
       overflow: 'hidden',
       position: 'relative' as const,
       boxSizing: 'border-box' as const,
     },
-    backgroundGlow1: {
-      position: 'absolute' as const,
-      top: '-20%',
-      left: '-10%',
-      width: '500px',
-      height: '500px',
-      background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
-      zIndex: 0,
-    },
-    backgroundGlow2: {
-      position: 'absolute' as const,
-      bottom: '-20%',
-      right: '-10%',
-      width: '600px',
-      height: '600px',
-      background: 'radial-gradient(circle, rgba(46, 204, 113, 0.1) 0%, transparent 70%)',
-      zIndex: 0,
-    },
     titleContainer: {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
       marginBottom: '40px',
-      zIndex: 1,
     },
     title: {
-      color: '#fff',
+      color: '#87CEEB',
       fontSize: '4.5rem',
+      fontFamily: 'Arial, sans-serif',
       fontStyle: 'italic',
       fontWeight: '900',
       letterSpacing: '4px',
-      textShadow: '0 0 20px #3b82f6, 0 0 40px #00d4ff, 0 5px 15px rgba(0,0,0,0.8)',
+      textShadow: '0 0 10px rgba(135, 206, 235, 0.8), 0 0 20px rgba(135, 206, 235, 0.6), 0 0 40px rgba(135, 206, 235, 0.4)',
       margin: '0 0 5px 0',
       lineHeight: 1,
       textAlign: 'center' as const,
+      textTransform: 'uppercase' as const,
     },
-    subtitleGlow: {
-      color: '#93c5fd',
+    subtitle: {
+      color: '#ffffff',
+      fontFamily: 'Arial, sans-serif',
       fontSize: '1.2rem',
       fontWeight: 'bold',
-      letterSpacing: '3px',
+      letterSpacing: '6px',
       margin: 0,
       textAlign: 'center' as const,
+      textShadow: '0 0 10px rgba(135, 206, 235, 0.5)',
     },
     card: {
-      backgroundColor: 'rgba(15, 23, 42, 0.75)',
-      padding: '40px 30px',
-      borderRadius: '16px',
+      backgroundColor: '#0a0a0a',
+      padding: '30px',
+      borderRadius: '12px',
       width: '100%',
       maxWidth: '420px',
       boxSizing: 'border-box' as const,
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
-      boxShadow: '0 15px 50px rgba(0,0,0,0.6)',
-      border: '1px solid rgba(59, 130, 246, 0.3)',
-      backdropFilter: 'blur(12px)',
-      zIndex: 1,
+      border: '1px solid #1a1a1a',
+      boxShadow: '0 15px 40px rgba(0,0,0,0.8), 0 0 15px rgba(135, 206, 235, 0.1)',
     },
     cardTitle: {
-      color: '#60a5fa',
+      color: '#87CEEB',
+      fontFamily: 'Arial, sans-serif',
       textAlign: 'center' as const,
-      fontSize: '1.6rem',
+      fontSize: '1.4rem',
       fontWeight: 'bold',
       margin: '0 0 25px 0',
       letterSpacing: '2px',
-      borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
-      paddingBottom: '15px',
       width: '100%',
     },
     inputGroup: {
@@ -139,7 +121,8 @@ const Register = () => {
       position: 'relative' as const,
     },
     label: {
-      color: '#93c5fd',
+      color: '#87CEEB',
+      fontFamily: 'Arial, sans-serif',
       fontSize: '0.85rem',
       fontWeight: 'bold',
       letterSpacing: '1px',
@@ -147,16 +130,16 @@ const Register = () => {
     input: {
       width: '100%',
       height: '50px',
-      backgroundColor: 'rgba(15, 23, 42, 0.9)',
-      border: '1px solid rgba(96, 165, 250, 0.4)',
-      borderRadius: '8px',
-      padding: '0 45px 0 16px',
-      color: '#e2e8f0',
+      backgroundColor: '#111111',
+      border: '1px solid #333333',
+      borderRadius: '6px',
+      padding: '0 45px 0 15px',
+      color: '#ffffff',
       fontSize: '1rem',
-      fontFamily: "'Courier New', monospace",
+      fontFamily: 'Arial, sans-serif',
       boxSizing: 'border-box' as const,
       outline: 'none',
-      transition: 'border-color 0.3s, box-shadow 0.3s',
+      transition: 'all 0.3s ease',
     },
     eyeButton: {
       position: 'absolute' as const,
@@ -165,54 +148,56 @@ const Register = () => {
       background: 'none',
       border: 'none',
       cursor: 'pointer',
-      color: '#60a5fa',
+      color: '#87CEEB',
       display: 'flex',
       alignItems: 'center',
       padding: 0,
-      zIndex: 2,
     },
     registerButton: {
       width: '100%',
-      padding: '16px',
-      backgroundColor: '#3b82f6',
-      color: '#fff',
+      height: '55px',
+      backgroundColor: '#87CEEB',
+      color: '#000000',
       border: 'none',
-      borderRadius: '8px',
+      borderRadius: '6px',
+      fontFamily: 'Arial, sans-serif',
       fontSize: '1.1rem',
-      fontWeight: 'bold' as const,
+      fontWeight: '900',
       letterSpacing: '2px',
       cursor: 'pointer',
       marginTop: '15px',
-      transition: 'all 0.3s ease',
-      boxShadow: '0 0 15px rgba(59, 130, 246, 0.4)',
+      transition: 'all 0.2s ease',
+      textTransform: 'uppercase' as const,
+      boxShadow: '0 0 15px rgba(135, 206, 235, 0.3)',
     },
     linkContainer: {
       display: 'flex',
       flexDirection: 'column' as const,
       width: '100%',
       alignItems: 'center',
-      marginTop: '20px',
+      marginTop: '25px',
     },
     linkButton: {
       background: 'none',
       border: 'none',
-      color: '#60a5fa',
+      color: '#aaaaaa',
       cursor: 'pointer',
+      fontFamily: 'Arial, sans-serif',
       fontSize: '0.9rem',
-      fontWeight: 'bold',
-      textDecoration: 'none',
+      textDecoration: 'underline',
       transition: 'color 0.2s',
       padding: 0,
     },
     errorText: {
-      color: '#ef4444',
+      color: '#ff4444',
+      fontFamily: 'Arial, sans-serif',
       textAlign: 'center' as const,
       fontSize: '0.9rem',
       margin: error ? '0 0 15px 0' : '0',
       padding: error ? '10px' : '0',
-      backgroundColor: error ? 'rgba(0,0,0,0.3)' : 'transparent',
+      backgroundColor: error ? 'rgba(255,0,0,0.1)' : 'transparent',
       borderRadius: '6px',
-      borderLeft: error ? '3px solid #ef4444' : 'none',
+      borderLeft: error ? '3px solid #ff4444' : 'none',
       width: '100%',
       boxSizing: 'border-box' as const,
       height: error ? 'auto' : '0',
@@ -222,12 +207,9 @@ const Register = () => {
 
   return (
     <div style={styles.screen}>
-      <div style={styles.backgroundGlow1} />
-      <div style={styles.backgroundGlow2} />
-
       <div style={styles.titleContainer}>
         <h1 style={styles.title}>PONG AR</h1>
-        <h2 style={styles.subtitleGlow}>(REALIDADE AUMENTADA)</h2>
+        <h2 style={styles.subtitle}>(REALIDADE AUMENTADA)</h2>
       </div>
 
       <div style={styles.card}>
@@ -244,11 +226,11 @@ const Register = () => {
               value={user}
               onChange={(e) => setUser(e.target.value)}
               onFocus={(e) => {
-                e.target.style.borderColor = '#60a5fa';
-                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+                e.target.style.borderColor = '#87CEEB';
+                e.target.style.boxShadow = '0 0 10px rgba(135, 206, 235, 0.2)';
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.borderColor = '#333333';
                 e.target.style.boxShadow = 'none';
               }}
             />
@@ -263,11 +245,11 @@ const Register = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onFocus={(e) => {
-                e.target.style.borderColor = '#60a5fa';
-                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+                e.target.style.borderColor = '#87CEEB';
+                e.target.style.boxShadow = '0 0 10px rgba(135, 206, 235, 0.2)';
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.borderColor = '#333333';
                 e.target.style.boxShadow = 'none';
               }}
             />
@@ -282,11 +264,11 @@ const Register = () => {
               value={confirmEmail}
               onChange={(e) => setConfirmEmail(e.target.value)}
               onFocus={(e) => {
-                e.target.style.borderColor = '#60a5fa';
-                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+                e.target.style.borderColor = '#87CEEB';
+                e.target.style.boxShadow = '0 0 10px rgba(135, 206, 235, 0.2)';
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.borderColor = '#333333';
                 e.target.style.boxShadow = 'none';
               }}
             />
@@ -301,11 +283,11 @@ const Register = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onFocus={(e) => {
-                e.target.style.borderColor = '#60a5fa';
-                e.target.style.boxShadow = '0 0 10px rgba(96, 165, 250, 0.2)';
+                e.target.style.borderColor = '#87CEEB';
+                e.target.style.boxShadow = '0 0 10px rgba(135, 206, 235, 0.2)';
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(96, 165, 250, 0.4)';
+                e.target.style.borderColor = '#333333';
                 e.target.style.boxShadow = 'none';
               }}
             />
@@ -322,8 +304,14 @@ const Register = () => {
           <button 
             style={styles.registerButton} 
             onClick={handleCreateAccount}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = '#a3ddf2';
+              e.currentTarget.style.boxShadow = '0 0 25px rgba(135, 206, 235, 0.6)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = '#87CEEB';
+              e.currentTarget.style.boxShadow = '0 0 15px rgba(135, 206, 235, 0.3)';
+            }}
           >
             FINALIZAR CADASTRO
           </button>
@@ -332,8 +320,8 @@ const Register = () => {
             <button 
               style={styles.linkButton}
               onClick={() => navigate('/')}
-              onMouseOver={(e) => e.currentTarget.style.color = '#93c5fd'}
-              onMouseOut={(e) => e.currentTarget.style.color = '#60a5fa'}
+              onMouseOver={(e) => e.currentTarget.style.color = '#87CEEB'}
+              onMouseOut={(e) => e.currentTarget.style.color = '#aaaaaa'}
             >
               ← Voltar para o Login
             </button>
