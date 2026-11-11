@@ -21,32 +21,44 @@ export interface ResultadoAuditoria {
 }
 
 // ==========================================
-// DETECÇÃO GEOMÉTRICA DE GESTO OBSCENO (DEDO DO MEIO)
+// DETECÇÃO GEOMÉTRICA DE GESTO OBSCENO APRIMORADA
 // ==========================================
-function dist2D(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function dist3D(a: { x: number; y: number; z?: number }, b: { x: number; y: number; z?: number }): number {
+  const z1 = a.z || 0;
+  const z2 = b.z || 0;
+  return Math.hypot(a.x - b.x, a.y - b.y, z1 - z2);
 }
 
-export function verificarDedoMedio(landmarks: Array<{ x: number; y: number }>): boolean {
+export function verificarDedoMedio(landmarks: Array<{ x: number; y: number; z?: number }>): boolean {
   if (!landmarks || landmarks.length < 21) return false;
 
   const wrist = landmarks[0];
-  const middleTip = landmarks[12];
-  const middleMcp = landmarks[9];
+  
+  // Pontas dos dedos
   const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
   const ringTip = landmarks[16];
   const pinkyTip = landmarks[20];
 
-  const distMiddle = dist2D(wrist, middleTip);
-  const distMiddleMcp = dist2D(wrist, middleMcp);
-  const distIndex = dist2D(wrist, indexTip);
-  const distRing = dist2D(wrist, ringTip);
-  const distPinky = dist2D(wrist, pinkyTip);
+  // Articulações base (MCP)
+  const middleMcp = landmarks[9];
 
-  const middleEstendido = distMiddle > distMiddleMcp * 1.35;
-  const indexRetraido = distIndex < distMiddle * 0.65;
-  const ringRetraido = distRing < distMiddle * 0.65;
-  const pinkyRetraido = distPinky < distMiddle * 0.65;
+  // Distância do pulso até as pontas
+  const distMiddle = dist3D(wrist, middleTip);
+  const distIndex = dist3D(wrist, indexTip);
+  const distRing = dist3D(wrist, ringTip);
+  const distPinky = dist3D(wrist, pinkyTip);
+
+  // Distância da própria articulação (para garantir que está reto)
+  const distMiddleBase = dist3D(middleMcp, middleTip);
+
+  // O dedo do meio precisa estar esticado em relação à própria base
+  const middleEstendido = distMiddleBase > 0.05; 
+
+  // E a distância dele até o pulso deve ser significativamente maior que os outros
+  const indexRetraido = distIndex < distMiddle * 0.70;
+  const ringRetraido = distRing < distMiddle * 0.70;
+  const pinkyRetraido = distPinky < distMiddle * 0.70;
 
   return middleEstendido && indexRetraido && ringRetraido && pinkyRetraido;
 }
@@ -56,7 +68,7 @@ export function verificarDedoMedio(landmarks: Array<{ x: number; y: number }>): 
 // ==========================================
 export class AuditoriaIA {
   private buffer: TelemetriaFrame[] = [];
-  private readonly maxFrames: number = 120; 
+  private readonly maxFrames: number = 300; // Aumentado para ~10 segundos de memória
 
   public registrarFrame(landmarks: Array<{ x: number; y: number; z?: number }>, snapshotBase64?: string) {
     this.buffer.push({
@@ -70,28 +82,41 @@ export class AuditoriaIA {
     }
   }
 
-  // MÉTODO NECESSÁRIO: Devolve a gravação para o frontend repassar ao Node.js
   public obterFrames(): TelemetriaFrame[] {
     return this.buffer;
   }
 
-  // ATUALIZADO: Recebe placares opcionais para julgar denúncias de raiva
   public async analisarIncidente(
     motivo: MotivoDenuncia, 
     placarDenunciante: number = 0, 
     placarDenunciado: number = 0
   ): Promise<ResultadoAuditoria> {
+    
+    // Simula tempo de processamento para UX
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     const totalFrames = this.buffer.length;
     if (totalFrames === 0) {
       return {
-        procedente: false,
-        confianca: 0.1,
-        detalhes: "Dados de telemetria insuficientes para comprovação no momento.",
-        evidenciasDetectadas: []
+        procedente: false, confianca: 0.1, detalhes: "Dados de telemetria insuficientes para comprovação no momento.", evidenciasDetectadas: []
+      };
+    }
+
+    // ==========================================
+    // LÓGICA ANTI-RAGE REPORT (Prioridade 1)
+    // ==========================================
+    const diferencaGols = placarDenunciado - placarDenunciante;
+    if (diferencaGols >= 4) {
+      return {
+        procedente: false, confianca: 0.99, 
+        detalhes: `RAGE REPORT DETECTADO: Denúncia falsa gerada por frustração com o placar adverso (${placarDenunciado}x${placarDenunciante}). Denúncias falsas causam penalidades.`,
+        evidenciasDetectadas: ["Placar adverso detectado. Ausência total de infrações físicas nos quadros."]
       };
     }
 
     let infracoesGeometricas = 0;
+    let maxConsecutivos = 0;
+    let atuaisConsecutivos = 0;
     const evidencias: string[] = [];
 
     // 1. Verificação de Gesto Obsceno
@@ -99,15 +124,20 @@ export class AuditoriaIA {
       for (const frame of this.buffer) {
         if (verificarDedoMedio(frame.landmarks)) {
           infracoesGeometricas++;
+          atuaisConsecutivos++;
+          if (atuaisConsecutivos > maxConsecutivos) maxConsecutivos = atuaisConsecutivos;
+        } else {
+          atuaisConsecutivos = 0;
         }
       }
 
-      const percentual = infracoesGeometricas / totalFrames;
-      if (percentual >= 0.15) { 
-        evidencias.push(`Assinatura vetorial de dedo do meio identificada em ${infracoesGeometricas} quadros.`);
+      // Exige pelo menos 6 frames consecutivos para descartar "glitches" da câmera no rosto
+      if (maxConsecutivos >= 6) { 
+        evidencias.push(`Assinatura vetorial de dedo do meio sustentada por ${maxConsecutivos} quadros contínuos.`);
+        const percentual = infracoesGeometricas / totalFrames;
         return {
           procedente: true,
-          confianca: Math.min(0.98, 0.75 + percentual * 0.23),
+          confianca: Math.min(0.99, 0.75 + (maxConsecutivos * 0.02)),
           detalhes: "A IA confirmou conformidade biométrica de gesto obsceno sustentado.",
           evidenciasDetectadas: evidencias
         };
@@ -120,49 +150,25 @@ export class AuditoriaIA {
       const taxaAusencia = framesSemMao / totalFrames;
 
       if (taxaAusencia > 0.8) {
-        // ✅ Correção aplicada na linha abaixo (adicionado o operador de multiplicação '*')
         evidencias.push(`Ausência de rastreamento manual detectada em ${(taxaAusencia * 100).toFixed(0)}% do período.`);
         return {
-          procedente: true,
-          confianca: 0.92,
-          detalhes: "Comportamento anti-jogo (inatividade completa ou oclusão proposital).",
-          evidenciasDetectadas: evidencias
+          procedente: true, confianca: 0.92, detalhes: "Comportamento anti-jogo (inatividade completa ou oclusão proposital).", evidenciasDetectadas: evidencias
         };
       }
     }
 
-    // 3. Verificação de Texto ou Nudez (Encaminhamento estático)
+    // 3. Verificação de Texto ou Nudez
     if (motivo === 'TEXTO_OFENSIVO' || motivo === 'CONTEUDO_IMPROPRIO') {
       evidencias.push("Quadro estático do momento foi marcado para auditoria OCR e classificador de imagem externo.");
       return {
-        procedente: true,
-        confianca: 0.85,
-        detalhes: "Quadro capturado e encaminhado à fila de moderação de conteúdo impróprio.",
-        evidenciasDetectadas: evidencias
-      };
-    }
-
-    // ==========================================
-    // 4. LÓGICA ANTI-RAGE REPORT
-    // ==========================================
-    const diferencaGols = placarDenunciado - placarDenunciante;
-    
-    // Se quem está denunciando está perdendo de 4 ou mais gols de diferença...
-    if (diferencaGols >= 4) {
-      evidencias.push(`Placar adverso detectado (${placarDenunciado}x${placarDenunciante}). Ausência total de infrações físicas nos últimos quadros.`);
-      return {
-        procedente: false,
-        confianca: 0.99, 
-        detalhes: "RAGE REPORT DETECTADO: A denúncia foi classificada como falsa, gerada por frustração com o placar. Denúncias falsas causam penalidades.",
-        evidenciasDetectadas: evidencias
+        procedente: true, confianca: 0.85, detalhes: "Quadro capturado e encaminhado à fila de moderação de conteúdo impróprio.", evidenciasDetectadas: evidencias
       };
     }
 
     return {
-      procedente: false,
-      confianca: 0.4,
+      procedente: false, confianca: 0.88,
       detalhes: "A análise automática não encontrou padrões consistentes de infração no intervalo informado.",
-      evidenciasDetectadas: evidencias
+      evidenciasDetectadas: []
     };
   }
 }

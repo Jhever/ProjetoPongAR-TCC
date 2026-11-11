@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import * as Vision from "@mediapipe/tasks-vision";
 import { socket } from '../services/socket';
 import { auditoriaGlobal } from '../services/Denuncia';
-import Denuncia from '../components/Denuncia';
+import Denuncia from '../components/Denuncia.tsx';
 import { useInactivity } from '../services/Inatividade';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
@@ -1195,8 +1195,15 @@ const Game = () => {
         )}
       </div>
 
-      {showDenunciaModal && (
-        <Denuncia partidaId={salaId} denunciadoNome={adversarioNome} denunciadoId={adversarioId} onClose={() => setShowDenunciaModal(false)} />
+    {showDenunciaModal && (
+        <Denuncia 
+          partidaId={salaId} 
+          denunciadoNome={adversarioNome} 
+          denunciadoId={adversarioId} 
+          placarDenunciante={isHost ? placar.p1 : placar.p2}
+          placarDenunciado={isHost ? placar.p2 : placar.p1}
+          onClose={() => setShowDenunciaModal(false)} 
+        />
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '15px', width: '900px', marginTop: '15px' }}>

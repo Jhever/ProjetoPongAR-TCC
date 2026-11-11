@@ -37,40 +37,48 @@ def health_check():
     return {
         "status": "online",
         "servico": "Moderador AR - Pong TCC",
-        "versao": "1.1.0 (Com Anti-Rage Report)"
+        "versao": "2.0.0 (Com Anti-Rage Report e Filtro 3D)"
     }
 
-def dist_euclidiana(p1: Landmark, p2: Landmark) -> float:
-    return np.hypot(p1.x - p2.x, p1.y - p2.y)
+# ATUALIZADO: Agora calcula a distância em 3D (X, Y, Z) para evitar bug do queixo
+def dist_3d(p1: Landmark, p2: Landmark) -> float:
+    z1 = p1.z if p1.z is not None else 0.0
+    z2 = p2.z if p2.z is not None else 0.0
+    return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (z1 - z2)**2)
 
 def verificar_dedo_medio_frame(landmarks: List[Landmark]) -> bool:
     """
-    Avalia a geometria dos 21 pontos do MediaPipe no plano 2D normalizado.
+    Avalia a geometria dos 21 pontos do MediaPipe no plano 3D normalizado.
     """
     if len(landmarks) < 21:
         return False
 
     pulso = landmarks[0]
-    medio_tip = landmarks[12]
-    medio_mcp = landmarks[9]
-
+    
+    # Pontas dos dedos
     indicador_tip = landmarks[8]
+    medio_tip = landmarks[12]
     anelar_tip = landmarks[16]
     minimo_tip = landmarks[20]
 
-    dist_medio = dist_euclidiana(pulso, medio_tip)
-    dist_medio_base = dist_euclidiana(pulso, medio_mcp)
+    # Base do dedo do meio
+    medio_mcp = landmarks[9]
 
-    dist_indicador = dist_euclidiana(pulso, indicador_tip)
-    dist_anelar = dist_euclidiana(pulso, anelar_tip)
-    dist_minimo = dist_euclidiana(pulso, minimo_tip)
+    # Distâncias até o pulso
+    dist_medio = dist_3d(pulso, medio_tip)
+    dist_indicador = dist_3d(pulso, indicador_tip)
+    dist_anelar = dist_3d(pulso, anelar_tip)
+    dist_minimo = dist_3d(pulso, minimo_tip)
 
-    medio_estendido = dist_medio > (dist_medio_base * 1.35)
+    # Verifica se o dedo do meio está esticado em relação à própria base (evita falsos positivos de profundidade)
+    dist_medio_base = dist_3d(medio_mcp, medio_tip)
+    medio_estendido = dist_medio_base > 0.05 
 
+    # Os outros dedos devem estar significativamente mais próximos do pulso do que o dedo do meio
     outros_recolhidos = (
-        dist_indicador < (dist_medio * 0.68) and
-        dist_anelar < (dist_medio * 0.68) and
-        dist_minimo < (dist_medio * 0.68)
+        dist_indicador < (dist_medio * 0.70) and
+        dist_anelar < (dist_medio * 0.70) and
+        dist_minimo < (dist_medio * 0.70)
     )
 
     return medio_estendido and outros_recolhidos
@@ -107,12 +115,12 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
 
     taxa_presenca = ocorrencias / total_frames
 
-    # Critério de detecção: presente em >= 25% dos quadros OU 8 frames consecutivos
-    infracao_detectada = taxa_presenca >= 0.25 or max_consecutivos >= 8
+    # ATUALIZADO: Exige pelo menos 6 frames consecutivos para confirmar a infração (Sustentação)
+    infracao_detectada = max_consecutivos >= 6
     
     # 2. SE FOI CULPADO DE VERDADE
     if infracao_detectada:
-        confianca = min(0.99, float(0.60 + (taxa_presenca * 0.35)))
+        confianca = min(0.99, float(0.70 + (max_consecutivos * 0.02)))
         return {
             "procedente": True,
             "confianca": round(confianca * 100, 1),
@@ -122,7 +130,7 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
                 "max_frames_consecutivos": max_consecutivos,
                 "taxa_recorrencia": f"{round(taxa_presenca * 100, 1)}%"
             },
-            "detalhes": f"Gesto obsceno detectado de forma recorrente em {ocorrencias} quadros (pico de {max_consecutivos} consecutivos)."
+            "detalhes": f"Gesto obsceno detectado e sustentado de forma clara por {max_consecutivos} quadros consecutivos."
         }
 
     # ==========================================
@@ -149,7 +157,7 @@ def analisar_gesto_recorrente(payload: InspecaoRequest):
         "estatisticas": {
             "total_frames_analisados": total_frames
         },
-        "detalhes": "Nenhum padrão ofensivo sustentado foi encontrado nos dados analisados."
+        "detalhes": "Nenhum padrão ofensivo sustentado foi encontrado nos dados biométricos."
     }
 
 if __name__ == "__main__":

@@ -8,35 +8,22 @@ router.post('/', async (req: Request, res: Response) => {
     partida_id, 
     denunciante_id, 
     denunciado_id, 
-    tipo_denuncia, 
-    historico_frames, 
-    placar_denunciante, 
-    placar_denunciado 
+    denunciado_nome,
+    motivo, 
+    status_ia,     // Recebe o Veredito da IA (Edge Computing no React)
+    confianca_ia,  // Porcentagem de certeza
+    detalhes 
   } = req.body;
 
   try {
-    // 1. Envia os dados para a sua Inteligência Artificial (FastAPI em Python)
-    const respostaPython = await fetch('http://localhost:8000/api/auditoria/analisar-gesto', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jogador_id: denunciado_id,
-        tipo_denuncia: tipo_denuncia,
-        historico_frames: historico_frames,
-        placar_denunciante: placar_denunciante || 0,
-        placar_denunciado: placar_denunciado || 0
-      })
-    });
-
-    const resultadoIA = await respostaPython.json();
-
-    // 2. Se a IA julgou como CULPADO (procedente: true)
-    if (resultadoIA.procedente && denunciado_id) {
+    // 1. Se a IA local julgou como CULPADO (PROCEDENTE)
+    if (status_ia === 'PROCEDENTE' && denunciado_id) {
       
-      console.log(`🚨 PUNIÇÃO: Jogador ${denunciado_id} cometeu infração!`);
+      console.log(`🚨 PUNIÇÃO: Jogador ${denunciado_id} (${denunciado_nome}) cometeu infração: ${motivo}`);
+      console.log(`🤖 Confiança da IA: ${confianca_ia}% | Detalhes: ${detalhes}`);
 
       // ==========================================
-      // AQUI VOCÊ DESCONTA OS PONTOS E APLICA BANIMENTO USANDO O POOL
+      // APLICAÇÃO DA PENALIDADE NO SUPABASE
       // ==========================================
       
       // Busca a ficha criminal atual do jogador infrator
@@ -46,15 +33,16 @@ router.post('/', async (req: Request, res: Response) => {
       );
 
       if (jogador.rows.length > 0) {
-        let infracoes = jogador.rows[0].total_infracoes + 1;
-        let pontosAtuais = jogador.rows[0].pontos_totais;
+        // TRAVA DE SEGURANÇA: Se for null no banco, assume 0
+        let infracoes = (jogador.rows[0].total_infracoes || 0) + 1;
+        let pontosAtuais = (jogador.rows[0].pontos_totais || 0);
         
         let pontosRemovidos = 0;
         let statusConta = 'ATIVA';
 
         // Escala Progressiva de Punição
         if (infracoes === 1) {
-          // Apenas um susto, não tira pontos na primeira vez (ou tira, você decide)
+          // Apenas um susto, não tira pontos na primeira vez
           pontosRemovidos = 0; 
         } 
         else if (infracoes === 2) {
@@ -81,15 +69,15 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Responde pro Frontend para ele fechar o modal e avisar o usuário
+    // 2. Responde pro Frontend para ele fechar o modal e avisar o usuário
     return res.json({ 
       success: true, 
-      auditoria: resultadoIA 
+      message: "Denúncia processada e auditada com sucesso." 
     });
 
   } catch (error) {
-    console.error("❌ Erro ao conectar com o serviço de IA Python:", error);
-    return res.status(500).json({ error: "Falha na moderação automatizada." });
+    console.error("❌ Erro no banco de dados ao processar denúncia:", error);
+    return res.status(500).json({ error: "Falha na persistência da moderação automatizada." });
   }
 });
 
