@@ -5,7 +5,8 @@ import { transporter } from '../services/mailer.js';
 
 const router = Router();
 
-const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel.app';
+// const CLIENT_URL = process.env.CLIENT_URL || 'https://projeto-pong-ar-tcc.vercel.app';
+const CLIENT_URL = process.env.CLIENT_URL || 'https://pongar-586223137534.southamerica-east1.run.app';
 
 // =====================================
 // REGISTRO

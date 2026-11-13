@@ -282,7 +282,7 @@ const Suporte = () => {
           onMouseEnter={(e) => handleHover(e, true)}
           onMouseLeave={(e) => handleHover(e, false)}
         >
-          🎮 Guia de Controle (Híbrido)
+            Guia de Controle (Híbrido)
         </button>
 
         <button 
@@ -291,7 +291,7 @@ const Suporte = () => {
           onMouseEnter={(e) => handleHover(e, true)}
           onMouseLeave={(e) => handleHover(e, false)}
         >
-          ✨ Dicas de Visão Computacional
+            Dicas de Visão Computacional
         </button>
 
         <button 
@@ -300,7 +300,7 @@ const Suporte = () => {
           onMouseEnter={(e) => handleHover(e, true)}
           onMouseLeave={(e) => handleHover(e, false)}
         >
-          📷 Teste de Câmera
+            Teste de Câmera
         </button>
 
         <button 
@@ -309,7 +309,7 @@ const Suporte = () => {
           onMouseEnter={(e) => handleHover(e, true)}
           onMouseLeave={(e) => handleHover(e, false)}
         >
-          🎧 Chamar Suporte
+            Chamar Suporte
         </button>
       </div>
 
