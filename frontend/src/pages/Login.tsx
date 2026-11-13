@@ -199,7 +199,7 @@ const Login = () => {
         <form onSubmit={handleLogin} style={{ width: '100%' }}>
           
           <div style={styles.inputGroup}>
-            <label style={styles.label}>E-MAIL OU USUÁRIO teste</label>
+            <label style={styles.label}>E-MAIL OU USUÁRIO</label>
             <input 
               style={styles.input} 
               placeholder="jheverson@unoesc.edu.br" 
