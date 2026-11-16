@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../services/socket';
 
@@ -10,10 +10,30 @@ interface UsuarioStorage {
 
 const ProcurarPartida = () => {
   const navigate = useNavigate();
-  const [statusMensagem, setStatusMensagem] = useState('PROCURANDO ADVERSÁRIO...');
+  const [statusMensagem, setStatusMensagem] = useState('ENTRANDO NA FILA...');
+  const [tempoFila, setTempoFila] = useState(0);
+  const [partidaEncontrada, setPartidaEncontrada] = useState(false);
+  const timerRef = useRef<number | null>(null);
+  // Inicia e controla o cronômetro visual da fila
+  useEffect(() => {
+    if (!partidaEncontrada) {
+      timerRef.current = setInterval(() => {
+        setTempoFila((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [partidaEncontrada]);
+
+  // Formata os segundos para MM:SS
+  const formatarTempo = (segundos: number) => {
+    const m = Math.floor(segundos / 60).toString().padStart(2, '0');
+    const s = (segundos % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   useEffect(() => {
-    // 1. Valida se o usuário tem conta real para jogar partidas ranqueadas
     const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
 
     if (!usuarioSalvo.id || usuarioSalvo.is_anonimo) {
@@ -22,7 +42,6 @@ const ProcurarPartida = () => {
       return;
     }
 
-    // 2. Conecta o socket caso não esteja conectado
     if (!socket.connected) {
       socket.connect();
     }
@@ -30,24 +49,22 @@ const ProcurarPartida = () => {
     const jogadorId = usuarioSalvo.id;
     const nome = usuarioSalvo.usuario || 'Jogador';
 
-    // 3. Entra na fila competitiva no backend
     socket.emit('entrarFila', { jogadorId, nome, tipoPartida: 'ONLINE' });
 
-    // 4. Aguardando adversário
     socket.on('aguardandoAdversario', () => {
-      setStatusMensagem('AGUARDANDO OPONENTE...');
+      setStatusMensagem('PROCURANDO ADVERSÁRIO');
     });
 
-    // 5. Partida encontrada: envia para a tela de jogo marcando explicitamente como ONLINE
     socket.on('partidaEncontrada', (dados: {
       salaId: string;
       lado: 'esquerda' | 'direita';
       adversario: string;
       adversarioId: number | string;
     }) => {
-      setStatusMensagem('PARTIDA ENCONTRADA!');
+      setPartidaEncontrada(true);
+      setStatusMensagem('PARTIDA ENCONTRADA');
       
-      // Pequeno delay para o jogador ler a mensagem antes de sumir
+      // Delay de transição dramática
       setTimeout(() => {
         navigate('/game', {
           state: {
@@ -57,7 +74,7 @@ const ProcurarPartida = () => {
             jogadorNome: nome
           }
         });
-      }, 1000);
+      }, 1500);
     });
 
     return () => {
@@ -67,6 +84,8 @@ const ProcurarPartida = () => {
   }, [navigate]);
 
   const handleCancelar = () => {
+    if (partidaEncontrada) return; // Trava o botão se a partida já foi achada
+    
     const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
     if (socket.connected) {
       socket.emit('cancelarFila', { jogadorId: usuarioSalvo.id });
@@ -79,117 +98,94 @@ const ProcurarPartida = () => {
     screen: {
       width: '100vw',
       minHeight: '100vh',
-      backgroundColor: '#050505',
+      backgroundColor: '#0f172a', // Fundo slate bem escuro e liso
       display: 'flex',
       flexDirection: 'column' as const,
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'Arial, sans-serif',
-      position: 'relative' as const,
-      overflow: 'hidden',
-      boxSizing: 'border-box' as const,
-    },
-    backgroundGlow1: {
-      position: 'absolute' as const,
-      top: '-20%', left: '-10%', width: '500px', height: '500px',
-      background: 'radial-gradient(circle, rgba(135, 206, 235, 0.15) 0%, transparent 70%)',
-      zIndex: 0,
-    },
-    backgroundGlow2: {
-      position: 'absolute' as const,
-      bottom: '-20%', right: '-10%', width: '600px', height: '600px',
-      background: 'radial-gradient(circle, rgba(147, 51, 234, 0.15) 0%, transparent 70%)',
-      zIndex: 0,
-    },
-    content: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '100%',
-      maxWidth: '600px',
-      zIndex: 2,
+      justifyContent: 'space-between',
+      fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      color: '#f8fafc',
       padding: '40px',
-      backgroundColor: 'rgba(10, 10, 10, 0.6)',
-      backdropFilter: 'blur(10px)',
-      borderRadius: '20px',
-      border: '1px solid rgba(255,255,255,0.05)',
-      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+      boxSizing: 'border-box' as const,
+      overflow: 'hidden',
     },
-    mainTitle: {
-      color: '#87CEEB',
-      fontSize: '2.5rem',
-      fontStyle: 'italic',
-      fontWeight: '900',
-      letterSpacing: '4px',
-      textShadow: '0 0 10px rgba(135, 206, 235, 0.8), 0 0 20px rgba(135, 206, 235, 0.4)',
-      margin: '0 0 5px 0',
-      textAlign: 'center' as const,
-      textTransform: 'uppercase' as const,
+    header: {
+      display: 'flex',
+      justifyContent: 'flex-start',
+      alignItems: 'center',
     },
-    statusTitle: {
-      color: '#a855f7',
-      fontSize: '1.2rem',
+    headerText: {
+      fontSize: '0.85rem',
       fontWeight: 'bold',
-      letterSpacing: '6px',
-      margin: '0 0 40px 0',
-      textAlign: 'center' as const,
-      textShadow: '0 0 10px rgba(168, 85, 247, 0.5)',
+      letterSpacing: '4px',
+      color: '#64748b', // Slate cinza
       textTransform: 'uppercase' as const,
     },
-    loaderWrapper: {
-      position: 'relative' as const,
-      width: '120px',
-      height: '120px',
-      marginBottom: '40px',
+    centerArea: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flex: 1,
+    },
+    spinnerWrapper: {
+      width: '60px',
+      height: '60px',
+      marginBottom: '30px',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
+      position: 'relative' as const,
     },
-    radarCircle: {
+    spinnerRing: {
       position: 'absolute' as const,
       width: '100%',
       height: '100%',
-      border: '2px dashed rgba(135, 206, 235, 0.3)',
+      border: '3px solid rgba(255, 255, 255, 0.05)',
+      borderTopColor: partidaEncontrada ? '#4ade80' : '#38bdf8', // Muda de azul pra verde
       borderRadius: '50%',
-      animation: 'spin 4s linear infinite',
+      animation: partidaEncontrada ? 'none' : 'spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite',
     },
-    radarCore: {
-      width: '40px',
-      height: '40px',
-      backgroundColor: statusMensagem.includes('ENCONTRADA') ? '#4ade80' : '#87CEEB',
+    spinnerCore: {
+      width: '24px',
+      height: '24px',
+      backgroundColor: partidaEncontrada ? '#4ade80' : 'transparent',
       borderRadius: '50%',
-      boxShadow: statusMensagem.includes('ENCONTRADA') 
-        ? '0 0 20px #4ade80, 0 0 40px #4ade80' 
-        : '0 0 20px #87CEEB, 0 0 40px #87CEEB, 0 0 60px #87CEEB',
-      animation: statusMensagem.includes('ENCONTRADA') ? 'none' : 'pulseOrbe 1.5s ease-in-out infinite',
       transition: 'all 0.3s ease',
     },
-    infoText: {
-      color: statusMensagem.includes('ENCONTRADA') ? '#4ade80' : '#ffffff',
-      fontSize: '1.2rem',
-      fontWeight: 'bold' as const,
-      letterSpacing: '2px',
-      margin: '0 0 40px 0',
-      textAlign: 'center' as const,
+    statusText: {
+      fontSize: '1.8rem',
+      fontWeight: '900',
+      letterSpacing: '3px',
+      margin: '0 0 15px 0',
       textTransform: 'uppercase' as const,
-      animation: statusMensagem.includes('ENCONTRADA') ? 'none' : 'pulseText 2s infinite',
+      color: partidaEncontrada ? '#4ade80' : '#ffffff',
     },
-    cancelButton: {
-      backgroundColor: 'transparent',
-      color: '#f87171',
-      border: '2px solid #f87171',
-      borderRadius: '8px',
-      padding: '15px 40px',
+    timerText: {
       fontSize: '1rem',
-      fontFamily: 'Arial, sans-serif',
-      fontWeight: 'bold' as const,
+      fontFamily: "'Courier New', monospace",
+      color: '#94a3b8',
       letterSpacing: '2px',
-      cursor: 'pointer',
-      textTransform: 'uppercase' as const,
-      transition: 'all 0.3s ease',
-      boxShadow: '0 0 10px rgba(248, 113, 113, 0.1)',
     },
+    footer: {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingBottom: '20px',
+    },
+    cancelBtn: {
+      backgroundColor: 'transparent',
+      color: '#ef4444',
+      border: '1px solid rgba(239, 68, 68, 0.3)',
+      padding: '12px 40px',
+      fontSize: '0.9rem',
+      fontWeight: 'bold',
+      letterSpacing: '2px',
+      textTransform: 'uppercase' as const,
+      cursor: partidaEncontrada ? 'default' : 'pointer',
+      opacity: partidaEncontrada ? 0 : 1, // Some suavemente quando acha partida
+      transition: 'all 0.2s ease',
+      borderRadius: '4px',
+    }
   };
 
   return (
@@ -197,52 +193,54 @@ const ProcurarPartida = () => {
       <style>
         {`
           @keyframes spin {
+            0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-          }
-          @keyframes pulseOrbe {
-            0% { transform: scale(0.95); opacity: 0.8; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.8; }
-          }
-          @keyframes pulseText {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
           }
         `}
       </style>
 
-      <div style={styles.backgroundGlow1} />
-      <div style={styles.backgroundGlow2} />
+      {/* Cabeçalho minimalista estilo FPS Tático */}
+      <div style={styles.header}>
+        <span style={styles.headerText}>PONG AR // COMPETITIVO</span>
+      </div>
 
-      <div style={styles.content}>
-        <div>
-          <h1 style={styles.mainTitle}>PONG AR</h1>
-          <h2 style={styles.statusTitle}>RANKING ONLINE</h2>
+      {/* Área central com o Matchmaking */}
+      <div style={styles.centerArea}>
+        <div style={styles.spinnerWrapper}>
+          <div style={styles.spinnerRing}></div>
+          <div style={styles.spinnerCore}></div>
         </div>
 
-        <div style={styles.loaderWrapper}>
-          <div style={styles.radarCircle}></div>
-          <div style={styles.radarCore}></div>
-        </div>
+        <h2 style={styles.statusText}>{statusMensagem}</h2>
+        
+        {/* Mostra o cronômetro da fila apenas enquanto procura */}
+        {!partidaEncontrada && (
+          <div style={styles.timerText}>
+            TEMPO DECORRIDO: {formatarTempo(tempoFila)}
+          </div>
+        )}
+      </div>
 
-        <p style={styles.infoText}>{statusMensagem}</p>
-
+      {/* Rodapé com botão limpo */}
+      <div style={styles.footer}>
         <button
-          style={styles.cancelButton}
+          style={styles.cancelBtn}
           onClick={handleCancelar}
           onMouseOver={(e) => {
-            e.currentTarget.style.backgroundColor = '#ef4444';
-            e.currentTarget.style.color = '#ffffff';
-            e.currentTarget.style.boxShadow = '0 0 20px rgba(248, 113, 113, 0.6)';
+            if (!partidaEncontrada) {
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+              e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.8)';
+            }
           }}
           onMouseOut={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent';
-            e.currentTarget.style.color = '#f87171';
-            e.currentTarget.style.boxShadow = '0 0 10px rgba(248, 113, 113, 0.1)';
+            if (!partidaEncontrada) {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            }
           }}
+          disabled={partidaEncontrada}
         >
-          Cancelar Busca
+          Cancelar
         </button>
       </div>
     </div>

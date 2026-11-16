@@ -112,6 +112,9 @@ const GameLocal = () => {
   const isPausedRef = useRef(false);
   const tempoRestanteRef = useRef(300);
   const partidaRegistradaRef = useRef(false);
+  
+  // NOVA TRAVA DE SEGURANÇA PARA GOLOS
+  const isScoringRef = useRef(false);
 
   const countersP1Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
   const countersP2Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
@@ -203,6 +206,8 @@ const GameLocal = () => {
       dx: direcaoX * velInicial * Math.cos(angulo),
       dy: velInicial * Math.sin(angulo)
     };
+    // Desbloqueia o sistema de pontuação para o próximo golo
+    isScoringRef.current = false;
   };
 
   const reiniciarPartida = () => {
@@ -213,6 +218,7 @@ const GameLocal = () => {
     gameOverRef.current = false;
     isPausedRef.current = false;
     partidaRegistradaRef.current = false;
+    isScoringRef.current = false; // Garante que a trava está limpa
     setIsPaused(false);
     setVencedor(null);
     game.current.p1Y = 175;
@@ -362,7 +368,11 @@ const GameLocal = () => {
                     game.current.ball.x = 724;
                   }
 
-                if (game.current.ball.x < 0) {
+                  // =====================================
+                  // VERIFICAÇÃO DE GOLO PROTEGIDA POR FLAG
+                  // =====================================
+                  if (game.current.ball.x < 0 && !isScoringRef.current) {
+                    isScoringRef.current = true; // Impede detecções duplicadas
                     placarRef.current.p2 += 1;
                     dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
                     setPlacar({ ...placarRef.current });
@@ -379,7 +389,8 @@ const GameLocal = () => {
                       // Espera 1 segundo com a bola parada antes do novo saque
                       setTimeout(() => lancarBola(1), 1000); 
                     }
-                  } else if (game.current.ball.x > 800) {
+                  } else if (game.current.ball.x > 800 && !isScoringRef.current) {
+                    isScoringRef.current = true; // Impede detecções duplicadas
                     placarRef.current.p1 += 1;
                     dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
                     setPlacar({ ...placarRef.current });
