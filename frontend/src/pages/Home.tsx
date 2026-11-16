@@ -327,7 +327,7 @@ const Home = () => {
           </div>
         </div>
 
-        <h1 style={styles.title}>PONG <span style={{ color: theme.text }}>COM AR</span></h1>
+        <h1 style={styles.title}>PONG <span style={{ color: theme.text }}>AR</span></h1>
       </header>
 
       <main style={styles.grid}>
