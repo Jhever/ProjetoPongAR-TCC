@@ -362,25 +362,39 @@ const GameLocal = () => {
                     game.current.ball.x = 724;
                   }
 
-                  if (game.current.ball.x < 0) {
+                if (game.current.ball.x < 0) {
                     placarRef.current.p2 += 1;
                     dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
                     setPlacar({ ...placarRef.current });
 
+                    // TRAVA DE SEGURANÇA: Congela a bola no centro instantaneamente
+                    game.current.ball.x = 400;
+                    game.current.ball.y = 225;
+                    game.current.ball.dx = 0;
+                    game.current.ball.dy = 0;
+
                     if (placarRef.current.p2 >= 10) {
                       finalizarPartidaLocal("PLAYER 2 (ALCANÇOU 10 PONTOS)");
                     } else {
-                      lancarBola(1);
+                      // Espera 1 segundo com a bola parada antes do novo saque
+                      setTimeout(() => lancarBola(1), 1000); 
                     }
                   } else if (game.current.ball.x > 800) {
                     placarRef.current.p1 += 1;
                     dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
                     setPlacar({ ...placarRef.current });
 
+                    // TRAVA DE SEGURANÇA: Congela a bola no centro instantaneamente
+                    game.current.ball.x = 400;
+                    game.current.ball.y = 225;
+                    game.current.ball.dx = 0;
+                    game.current.ball.dy = 0;
+
                     if (placarRef.current.p1 >= 10) {
                       finalizarPartidaLocal("PLAYER 1 (ALCANÇOU 10 PONTOS)");
                     } else {
-                      lancarBola(-1);
+                      // Espera 1 segundo com a bola parada antes do novo saque
+                      setTimeout(() => lancarBola(-1), 1000); 
                     }
                   }
                 }
