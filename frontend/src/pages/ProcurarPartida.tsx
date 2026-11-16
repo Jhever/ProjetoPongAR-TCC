@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../services/socket';
 
@@ -10,30 +10,10 @@ interface UsuarioStorage {
 
 const ProcurarPartida = () => {
   const navigate = useNavigate();
-  const [statusMensagem, setStatusMensagem] = useState('ENTRANDO NA FILA...');
-  const [tempoFila, setTempoFila] = useState(0);
-  const [partidaEncontrada, setPartidaEncontrada] = useState(false);
-  const timerRef = useRef<number | null>(null);
-  // Inicia e controla o cronômetro visual da fila
-  useEffect(() => {
-    if (!partidaEncontrada) {
-      timerRef.current = setInterval(() => {
-        setTempoFila((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [partidaEncontrada]);
-
-  // Formata os segundos para MM:SS
-  const formatarTempo = (segundos: number) => {
-    const m = Math.floor(segundos / 60).toString().padStart(2, '0');
-    const s = (segundos % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
+  const [statusMensagem, setStatusMensagem] = useState('PROCURANDO PARTIDA');
 
   useEffect(() => {
+    // 1. Valida se o usuário tem conta real para jogar partidas ranqueadas
     const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
 
     if (!usuarioSalvo.id || usuarioSalvo.is_anonimo) {
@@ -42,6 +22,7 @@ const ProcurarPartida = () => {
       return;
     }
 
+    // 2. Conecta o socket caso não esteja conectado
     if (!socket.connected) {
       socket.connect();
     }
@@ -49,32 +30,30 @@ const ProcurarPartida = () => {
     const jogadorId = usuarioSalvo.id;
     const nome = usuarioSalvo.usuario || 'Jogador';
 
+    // 3. Entra na fila competitiva no backend
     socket.emit('entrarFila', { jogadorId, nome, tipoPartida: 'ONLINE' });
 
+    // 4. Aguardando adversário
     socket.on('aguardandoAdversario', () => {
-      setStatusMensagem('PROCURANDO ADVERSÁRIO');
+      setStatusMensagem('AGUARDANDO OPONENTE');
     });
 
+    // 5. Partida encontrada: envia para a tela de jogo marcando explicitamente como ONLINE
     socket.on('partidaEncontrada', (dados: {
       salaId: string;
       lado: 'esquerda' | 'direita';
       adversario: string;
       adversarioId: number | string;
     }) => {
-      setPartidaEncontrada(true);
-      setStatusMensagem('PARTIDA ENCONTRADA');
-      
-      // Delay de transição dramática
-      setTimeout(() => {
-        navigate('/game', {
-          state: {
-            ...dados,
-            tipoPartida: 'ONLINE',
-            jogadorId,
-            jogadorNome: nome
-          }
-        });
-      }, 1500);
+      setStatusMensagem('PARTIDA ENCONTRADA!');
+      navigate('/game', {
+        state: {
+          ...dados,
+          tipoPartida: 'ONLINE',
+          jogadorId,
+          jogadorNome: nome
+        }
+      });
     });
 
     return () => {
@@ -84,8 +63,6 @@ const ProcurarPartida = () => {
   }, [navigate]);
 
   const handleCancelar = () => {
-    if (partidaEncontrada) return; // Trava o botão se a partida já foi achada
-    
     const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
     if (socket.connected) {
       socket.emit('cancelarFila', { jogadorId: usuarioSalvo.id });
@@ -97,95 +74,88 @@ const ProcurarPartida = () => {
   const styles = {
     screen: {
       width: '100vw',
-      minHeight: '100vh',
-      backgroundColor: '#0f172a', // Fundo slate bem escuro e liso
+      height: '100vh',
+      backgroundColor: '#000',
       display: 'flex',
       flexDirection: 'column' as const,
-      justifyContent: 'space-between',
-      fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-      color: '#f8fafc',
-      padding: '40px',
-      boxSizing: 'border-box' as const,
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: '"Segoe UI", sans-serif',
+      position: 'relative' as const,
       overflow: 'hidden',
     },
-    header: {
-      display: 'flex',
-      justifyContent: 'flex-start',
-      alignItems: 'center',
-    },
-    headerText: {
-      fontSize: '0.85rem',
-      fontWeight: 'bold',
-      letterSpacing: '4px',
-      color: '#64748b', // Slate cinza
-      textTransform: 'uppercase' as const,
-    },
-    centerArea: {
+    content: {
       display: 'flex',
       flexDirection: 'column' as const,
       alignItems: 'center',
-      justifyContent: 'center',
-      flex: 1,
-    },
-    spinnerWrapper: {
-      width: '60px',
-      height: '60px',
-      marginBottom: '30px',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      position: 'relative' as const,
-    },
-    spinnerRing: {
-      position: 'absolute' as const,
       width: '100%',
-      height: '100%',
-      border: '3px solid rgba(255, 255, 255, 0.05)',
-      borderTopColor: partidaEncontrada ? '#4ade80' : '#38bdf8', // Muda de azul pra verde
-      borderRadius: '50%',
-      animation: partidaEncontrada ? 'none' : 'spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite',
+      zIndex: 2,
     },
-    spinnerCore: {
-      width: '24px',
-      height: '24px',
-      backgroundColor: partidaEncontrada ? '#4ade80' : 'transparent',
-      borderRadius: '50%',
-      transition: 'all 0.3s ease',
-    },
-    statusText: {
-      fontSize: '1.8rem',
-      fontWeight: '900',
-      letterSpacing: '3px',
-      margin: '0 0 15px 0',
+    mainTitle: {
+      color: '#87CEEB',
+      fontSize: '4.5rem',
+      fontFamily: '"Arial Black", sans-serif',
+      fontStyle: 'italic',
       textTransform: 'uppercase' as const,
-      color: partidaEncontrada ? '#4ade80' : '#ffffff',
+      margin: 0,
     },
-    timerText: {
-      fontSize: '1rem',
-      fontFamily: "'Courier New', monospace",
-      color: '#94a3b8',
-      letterSpacing: '2px',
+    statusTitle: {
+      color: '#9333ea',
+      fontSize: '5.5rem',
+      fontFamily: '"Arial Black", sans-serif',
+      fontStyle: 'italic',
+      textTransform: 'uppercase' as const,
+      WebkitTextStroke: '2px #fff',
+      margin: '10px 0 40px 0',
+      textAlign: 'center' as const,
     },
-    footer: {
+    infoWrapper: {
+      alignSelf: 'flex-end',
+      marginRight: '12%',
+      textAlign: 'right' as const,
+      color: '#fff',
+      marginBottom: '40px',
+    },
+    infoText: {
+      fontSize: '1.8rem',
+      fontWeight: 'bold' as const,
+      margin: '5px 0',
+    },
+    actionContainer: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      alignItems: 'center',
+      gap: '20px',
+      alignSelf: 'flex-end',
+      marginRight: '15%',
+    },
+    loaderWrapper: {
+      width: '80px',
+      height: '80px',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      paddingBottom: '20px',
     },
-    cancelBtn: {
-      backgroundColor: 'transparent',
-      color: '#ef4444',
-      border: '1px solid rgba(239, 68, 68, 0.3)',
-      padding: '12px 40px',
-      fontSize: '0.9rem',
-      fontWeight: 'bold',
-      letterSpacing: '2px',
+    bolinhaLoading: {
+      width: '50px',
+      height: '50px',
+      border: '6px solid rgba(147, 51, 234, 0.2)', // Roxo opaco para o fundo
+      borderTop: '6px solid #9333ea', // Roxo neon para a parte que gira
+      borderRadius: '50%',
+      animation: 'spin 1s linear infinite',
+    },
+    cancelButton: {
+      backgroundColor: '#f87171',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '40px',
+      padding: '15px 40px',
+      fontSize: '1.4rem',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
       textTransform: 'uppercase' as const,
-      cursor: partidaEncontrada ? 'default' : 'pointer',
-      opacity: partidaEncontrada ? 0 : 1, // Some suavemente quando acha partida
-      transition: 'all 0.2s ease',
-      borderRadius: '4px',
-    }
+      transition: '0.2s',
+    },
   };
 
   return (
@@ -199,49 +169,29 @@ const ProcurarPartida = () => {
         `}
       </style>
 
-      {/* Cabeçalho minimalista estilo FPS Tático */}
-      <div style={styles.header}>
-        <span style={styles.headerText}>PONG AR // COMPETITIVO</span>
-      </div>
+      <div style={styles.content}>
+        <h1 style={styles.mainTitle}>PONG COM AR</h1>
+        <h2 style={styles.statusTitle}>INICIANDO PARTIDA</h2>
 
-      {/* Área central com o Matchmaking */}
-      <div style={styles.centerArea}>
-        <div style={styles.spinnerWrapper}>
-          <div style={styles.spinnerRing}></div>
-          <div style={styles.spinnerCore}></div>
+        <div style={styles.infoWrapper}>
+          <p style={styles.infoText}>{statusMensagem}</p>
+          <p style={styles.infoText}>POR FAVOR AGUARDE</p>
         </div>
 
-        <h2 style={styles.statusText}>{statusMensagem}</h2>
-        
-        {/* Mostra o cronômetro da fila apenas enquanto procura */}
-        {!partidaEncontrada && (
-          <div style={styles.timerText}>
-            TEMPO DECORRIDO: {formatarTempo(tempoFila)}
+        <div style={styles.actionContainer}>
+          <div style={styles.loaderWrapper}>
+            <div style={styles.bolinhaLoading}></div>
           </div>
-        )}
-      </div>
 
-      {/* Rodapé com botão limpo */}
-      <div style={styles.footer}>
-        <button
-          style={styles.cancelBtn}
-          onClick={handleCancelar}
-          onMouseOver={(e) => {
-            if (!partidaEncontrada) {
-              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-              e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.8)';
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!partidaEncontrada) {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-            }
-          }}
-          disabled={partidaEncontrada}
-        >
-          Cancelar
-        </button>
+          <button
+            style={styles.cancelButton}
+            onClick={handleCancelar}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f87171')}
+          >
+            CANCELAR BUSCA
+          </button>
+        </div>
       </div>
     </div>
   );
