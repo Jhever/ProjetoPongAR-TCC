@@ -17,7 +17,7 @@ const ProcurarPartida = () => {
     const usuarioSalvo: UsuarioStorage = JSON.parse(localStorage.getItem('usuario') || '{}');
 
     if (!usuarioSalvo.id || usuarioSalvo.is_anonimo) {
-      alert('É necessário estar conectado com uma conta para disputar o Ranking Online.');
+      alert('É necessário estar conectado com uma conta para disputar o Online.');
       navigate('/home');
       return;
     }
@@ -199,7 +199,7 @@ const ProcurarPartida = () => {
       {/* Todo o conteúdo flutuando de forma centralizada */}
       <div style={styles.content}>
         <h1 style={styles.mainTitle}>PONG AR</h1>
-        <h2 style={styles.statusTitle}>RANKING ONLINE</h2>
+        <h2 style={styles.statusTitle}>PARTIDA ONLINE</h2>
 
         <div style={styles.spinnerWrapper}>
           <div style={styles.bolinhaLoading}></div>
