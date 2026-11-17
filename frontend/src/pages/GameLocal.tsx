@@ -1,704 +1,704 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import * as Vision from "@mediapipe/tasks-vision";
+  import React, { useRef, useEffect, useState } from 'react';
+  import { useNavigate } from 'react-router-dom';
+  import * as Vision from "@mediapipe/tasks-vision";
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+  const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
-// ==========================================
-// TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO
-// ==========================================
-type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
-type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
-type FingerInfo = { name: FingerName; mcp: number; pip: number; dip: number; tip: number; hide: number[]; isThumb?: boolean; };
+  // ==========================================
+  // TIPAGENS E CONSTANTES PARA O FILTRO DA MÃO
+  // ==========================================
+  type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number; };
+  type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
+  type FingerInfo = { name: FingerName; mcp: number; pip: number; dip: number; tip: number; hide: number[]; isThumb?: boolean; };
 
-const FINGERS: FingerInfo[] = [
-  { name: 'thumb', mcp: 1, pip: 2, dip: 3, tip: 4, hide: [2, 3, 4], isThumb: true },
-  { name: 'index', mcp: 5, pip: 6, dip: 7, tip: 8, hide: [6, 7, 8] },
-  { name: 'middle', mcp: 9, pip: 10, dip: 11, tip: 12, hide: [10, 11, 12] },
-  { name: 'ring', mcp: 13, pip: 14, dip: 15, tip: 16, hide: [14, 15, 16] },
-  { name: 'pinky', mcp: 17, pip: 18, dip: 19, tip: 20, hide: [18, 19, 20] },
-];
+  const FINGERS: FingerInfo[] = [
+    { name: 'thumb', mcp: 1, pip: 2, dip: 3, tip: 4, hide: [2, 3, 4], isThumb: true },
+    { name: 'index', mcp: 5, pip: 6, dip: 7, tip: 8, hide: [6, 7, 8] },
+    { name: 'middle', mcp: 9, pip: 10, dip: 11, tip: 12, hide: [10, 11, 12] },
+    { name: 'ring', mcp: 13, pip: 14, dip: 15, tip: 16, hide: [14, 15, 16] },
+    { name: 'pinky', mcp: 17, pip: 18, dip: 19, tip: 20, hide: [18, 19, 20] },
+  ];
 
-const INITIAL_HIDDEN_COUNTERS: Record<FingerName, number> = {
-  thumb: 0, index: 0, middle: 0, ring: 0, pinky: 0,
-};
-
-// ==========================================
-// FUNÇÕES MATEMÁTICAS (DEDOS OCULTOS)
-// ==========================================
-function dist2D(a: Landmark, b: Landmark): number { return Math.hypot(a.x - b.x, a.y - b.y); }
-
-function angleDeg(a: Landmark, b: Landmark, c: Landmark): number {
-  const abx = a.x - b.x, aby = a.y - b.y;
-  const cbx = c.x - b.x, cby = c.y - b.y;
-  const dot = abx * cbx + aby * cby;
-  const abLen = Math.hypot(abx, aby), cbLen = Math.hypot(cbx, cby);
-  if (abLen === 0 || cbLen === 0) return 180;
-  const cos = dot / (abLen * cbLen);
-  return (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
-}
-
-function pointInPolygon(point: Landmark, polygon: Landmark[]): boolean {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y;
-    const xj = polygon[j].x, yj = polygon[j].y;
-    const intersects = yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi;
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
-function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean> {
-  const result: Record<FingerName, boolean> = { thumb: false, index: false, middle: false, ring: false, pinky: false };
-  const palmPolygon = [landmarks[0], landmarks[5], landmarks[9], landmarks[13], landmarks[17]];
-  const palmSize = Math.max(dist2D(landmarks[0], landmarks[9]), dist2D(landmarks[5], landmarks[17]), 0.0001);
-
-  for (const finger of FINGERS) {
-    const mcp = landmarks[finger.mcp], pip = landmarks[finger.pip], dip = landmarks[finger.dip], tip = landmarks[finger.tip];
-    const fingerLength = dist2D(mcp, pip) + dist2D(pip, dip) + dist2D(dip, tip);
-    const curlRatio = dist2D(mcp, tip) / Math.max(fingerLength, 0.0001);
-    const pipAngle = angleDeg(mcp, pip, dip), dipAngle = angleDeg(pip, dip, tip);
-    const isBent = pipAngle < 145 || dipAngle < 145;
-    const tipInsidePalm = pointInPolygon(tip, palmPolygon);
-    const dipInsidePalm = pointInPolygon(dip, palmPolygon);
-    const closeToPalmCenter = dist2D(tip, landmarks[9]) < palmSize * 0.9;
-
-    if (finger.isThumb) {
-      result[finger.name] = tipInsidePalm || dipInsidePalm || (curlRatio < 0.55 && closeToPalmCenter);
-    } else {
-      result[finger.name] = (tipInsidePalm && curlRatio < 0.85) || (dipInsidePalm && curlRatio < 0.85) || curlRatio < 0.52 || (isBent && closeToPalmCenter);
-    }
-  }
-  return result;
-}
-
-function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, number>): boolean[] {
-  const rawHidden = detectHiddenFingers(landmarks);
-  const hiddenMask = new Array<boolean>(21).fill(false);
-
-  for (const finger of FINGERS) {
-    if (rawHidden[finger.name]) counters[finger.name] = Math.min(counters[finger.name] + 1, 4);
-    else counters[finger.name] = Math.max(counters[finger.name] - 1, 0);
-
-    if (counters[finger.name] >= 2) {
-      for (const index of finger.hide) hiddenMask[index] = true;
-    }
-  }
-  return hiddenMask;
-}
-
-// ==========================================
-// COMPONENTE DO JOGO LOCAL (ARENA PRESENCIAL)
-// ==========================================
-const GameLocal = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const navigate = useNavigate();
-
-  const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
-  const [fps, setFps] = useState(60);
-  const [showLandmarks, setShowLandmarks] = useState(true);
-  const [tempoRestante, setTempoRestante] = useState(300);
-  const [vencedor, setVencedor] = useState<string | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
-
-  // Efeito Visual de GOOOLLLL
-  const [mensagemGol, setMensagemGol] = useState<string | null>(null);
-
-  const placarRef = useRef({ p1: 0, p2: 0 });
-  const showLandmarksRef = useRef(showLandmarks);
-  const gameOverRef = useRef(false);
-  const isPausedRef = useRef(false);
-  const tempoRestanteRef = useRef(300);
-  const partidaRegistradaRef = useRef(false);
-  
-  // NOVA TRAVA DE SEGURANÇA PARA GOLOS
-  const isScoringRef = useRef(false);
-
-  const countersP1Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
-  const countersP2Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
-
-  useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
-
-  const game = useRef({
-    ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
-    p1Y: 175,
-    p2Y: 175,
-    targetP1Y: 175,
-    targetP2Y: 175
-  });
-
-  const dispararEfeitoGol = (texto: string) => {
-    setMensagemGol(texto);
-    setTimeout(() => {
-      setMensagemGol(null);
-    }, 1500);
+  const INITIAL_HIDDEN_COUNTERS: Record<FingerName, number> = {
+    thumb: 0, index: 0, middle: 0, ring: 0, pinky: 0,
   };
 
-  const finalizarPartidaLocal = (resultadoTexto: string) => {
-    if (partidaRegistradaRef.current) return;
-    partidaRegistradaRef.current = true;
-    gameOverRef.current = true;
-    setVencedor(resultadoTexto);
+  // ==========================================
+  // FUNÇÕES MATEMÁTICAS (DEDOS OCULTOS)
+  // ==========================================
+  function dist2D(a: Landmark, b: Landmark): number { return Math.hypot(a.x - b.x, a.y - b.y); }
 
-    const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
-    const p1Score = placarRef.current.p1;
-    const p2Score = placarRef.current.p2;
+  function angleDeg(a: Landmark, b: Landmark, c: Landmark): number {
+    const abx = a.x - b.x, aby = a.y - b.y;
+    const cbx = c.x - b.x, cby = c.y - b.y;
+    const dot = abx * cbx + aby * cby;
+    const abLen = Math.hypot(abx, aby), cbLen = Math.hypot(cbx, cby);
+    if (abLen === 0 || cbLen === 0) return 180;
+    const cos = dot / (abLen * cbLen);
+    return (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
+  }
 
-    const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
-    const novaEntrada = {
-      data: new Date().toLocaleDateString('pt-BR'),
-      resultado: p1Score > p2Score ? 'VITÓRIA P1' : p2Score > p1Score ? 'VITÓRIA P2' : 'EMPATE',
-      placar: `${p1Score} x ${p2Score} (Presencial)`
+  function pointInPolygon(point: Landmark, polygon: Landmark[]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x, yi = polygon[i].y;
+      const xj = polygon[j].x, yj = polygon[j].y;
+      const intersects = yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi;
+      if (intersects) inside = !inside;
+    }
+    return inside;
+  }
+
+  function detectHiddenFingers(landmarks: Landmark[]): Record<FingerName, boolean> {
+    const result: Record<FingerName, boolean> = { thumb: false, index: false, middle: false, ring: false, pinky: false };
+    const palmPolygon = [landmarks[0], landmarks[5], landmarks[9], landmarks[13], landmarks[17]];
+    const palmSize = Math.max(dist2D(landmarks[0], landmarks[9]), dist2D(landmarks[5], landmarks[17]), 0.0001);
+
+    for (const finger of FINGERS) {
+      const mcp = landmarks[finger.mcp], pip = landmarks[finger.pip], dip = landmarks[finger.dip], tip = landmarks[finger.tip];
+      const fingerLength = dist2D(mcp, pip) + dist2D(pip, dip) + dist2D(dip, tip);
+      const curlRatio = dist2D(mcp, tip) / Math.max(fingerLength, 0.0001);
+      const pipAngle = angleDeg(mcp, pip, dip), dipAngle = angleDeg(pip, dip, tip);
+      const isBent = pipAngle < 145 || dipAngle < 145;
+      const tipInsidePalm = pointInPolygon(tip, palmPolygon);
+      const dipInsidePalm = pointInPolygon(dip, palmPolygon);
+      const closeToPalmCenter = dist2D(tip, landmarks[9]) < palmSize * 0.9;
+
+      if (finger.isThumb) {
+        result[finger.name] = tipInsidePalm || dipInsidePalm || (curlRatio < 0.55 && closeToPalmCenter);
+      } else {
+        result[finger.name] = (tipInsidePalm && curlRatio < 0.85) || (dipInsidePalm && curlRatio < 0.85) || curlRatio < 0.52 || (isBent && closeToPalmCenter);
+      }
+    }
+    return result;
+  }
+
+  function buildHiddenMask(landmarks: Landmark[], counters: Record<FingerName, number>): boolean[] {
+    const rawHidden = detectHiddenFingers(landmarks);
+    const hiddenMask = new Array<boolean>(21).fill(false);
+
+    for (const finger of FINGERS) {
+      if (rawHidden[finger.name]) counters[finger.name] = Math.min(counters[finger.name] + 1, 4);
+      else counters[finger.name] = Math.max(counters[finger.name] - 1, 0);
+
+      if (counters[finger.name] >= 2) {
+        for (const index of finger.hide) hiddenMask[index] = true;
+      }
+    }
+    return hiddenMask;
+  }
+
+  // ==========================================
+  // COMPONENTE DO JOGO LOCAL (ARENA PRESENCIAL)
+  // ==========================================
+  const GameLocal = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const navigate = useNavigate();
+
+    const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
+    const [fps, setFps] = useState(60);
+    const [showLandmarks, setShowLandmarks] = useState(true);
+    const [tempoRestante, setTempoRestante] = useState(300);
+    const [vencedor, setVencedor] = useState<string | null>(null);
+    const [isPaused, setIsPaused] = useState(false);
+
+    // Efeito Visual de GOOOLLLL
+    const [mensagemGol, setMensagemGol] = useState<string | null>(null);
+
+    const placarRef = useRef({ p1: 0, p2: 0 });
+    const showLandmarksRef = useRef(showLandmarks);
+    const gameOverRef = useRef(false);
+    const isPausedRef = useRef(false);
+    const tempoRestanteRef = useRef(300);
+    const partidaRegistradaRef = useRef(false);
+    
+    // NOVA TRAVA DE SEGURANÇA PARA GOLOS
+    const isScoringRef = useRef(false);
+
+    const countersP1Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
+    const countersP2Ref = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
+
+    useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
+
+    const game = useRef({
+      ball: { x: 400, y: 225, dx: 6, dy: (Math.random() > 0.5 ? 4 : -4) },
+      p1Y: 175,
+      p2Y: 175,
+      targetP1Y: 175,
+      targetP2Y: 175
+    });
+
+    const dispararEfeitoGol = (texto: string) => {
+      setMensagemGol(texto);
+      setTimeout(() => {
+        setMensagemGol(null);
+      }, 1500);
     };
-    localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
-    if (usuarioSalvo?.id) {
-      fetch(`${API_URL}/api/ranking/registrar-partida`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jogador_id: usuarioSalvo.id,
-          adversario_nome: 'Player 2 (Presencial)',
-          pontuacao_jogador: p1Score,
-          pontuacao_adversario: p2Score,
-          resultado: p1Score > p2Score ? 'VITORIA' : p2Score > p1Score ? 'DERROTA' : 'EMPATE',
-          tipo_partida: 'LOCAL'
-        })
-      }).catch((err) => console.error("Erro ao registrar histórico local:", err));
-    }
-  };
+    const finalizarPartidaLocal = (resultadoTexto: string) => {
+      if (partidaRegistradaRef.current) return;
+      partidaRegistradaRef.current = true;
+      gameOverRef.current = true;
+      setVencedor(resultadoTexto);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (gameOverRef.current || isPausedRef.current) return;
+      const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
+      const p1Score = placarRef.current.p1;
+      const p2Score = placarRef.current.p2;
 
-      setTempoRestante(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          const p1 = placarRef.current.p1;
-          const p2 = placarRef.current.p2;
-          const msg = p1 > p2 ? "PLAYER 1 (TEMPO ESGOTADO)" : p2 > p1 ? "PLAYER 2 (TEMPO ESGOTADO)" : "EMPATE!";
-          finalizarPartidaLocal(msg);
-          return 0;
-        }
-        tempoRestanteRef.current = prev - 1;
-        return prev - 1;
-      });
-    }, 1000);
+      const historicoAtual = JSON.parse(localStorage.getItem('pong_historico') || '[]');
+      const novaEntrada = {
+        data: new Date().toLocaleDateString('pt-BR'),
+        resultado: p1Score > p2Score ? 'VITÓRIA P1' : p2Score > p1Score ? 'VITÓRIA P2' : 'EMPATE',
+        placar: `${p1Score} x ${p2Score} (Presencial)`
+      };
+      localStorage.setItem('pong_historico', JSON.stringify([novaEntrada, ...historicoAtual].slice(0, 15)));
 
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatarTempo = (segundos: number) => {
-    const min = Math.floor(segundos / 60);
-    const seg = segundos % 60;
-    return `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
-  };
-
-  const lancarBola = (direcaoX: number) => {
-    const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
-    const velInicial = 9;
-    game.current.ball = {
-      x: 400,
-      y: 225,
-      dx: direcaoX * velInicial * Math.cos(angulo),
-      dy: velInicial * Math.sin(angulo)
-    };
-    // Desbloqueia o sistema de pontuação para o próximo golo
-    isScoringRef.current = false;
-  };
-
-  const reiniciarPartida = () => {
-    placarRef.current = { p1: 0, p2: 0 };
-    setPlacar({ p1: 0, p2: 0 });
-    setTempoRestante(300);
-    tempoRestanteRef.current = 300;
-    gameOverRef.current = false;
-    isPausedRef.current = false;
-    partidaRegistradaRef.current = false;
-    isScoringRef.current = false; // Garante que a trava está limpa
-    setIsPaused(false);
-    setVencedor(null);
-    game.current.p1Y = 175;
-    game.current.p2Y = 175;
-    game.current.targetP1Y = 175;
-    game.current.targetP2Y = 175;
-    lancarBola(Math.random() > 0.5 ? 1 : -1);
-  };
-
-  const alternarPausa = () => {
-    if (gameOverRef.current) return;
-    const novoStatus = !isPausedRef.current;
-    isPausedRef.current = novoStatus;
-    setIsPaused(novoStatus);
-  };
-
-  useEffect(() => {
-    let landmarker: Vision.HandLandmarker | null = null;
-    let animationFrameId: number;
-    let lastTime = performance.now();
-    let frameCount = 0;
-    let lastVideoTime = -1;
-
-    const initVision = async () => {
-      try {
-        const vision = await Vision.FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-        );
-
-        landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-            delegate: "GPU"
-          },
-          runningMode: "VIDEO",
-          numHands: 2
-        });
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 60 }
-          }
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current!.play();
-            const canvas = canvasRef.current!;
-            const ctx = canvas.getContext('2d')!;
-            const drawingUtils = new Vision.DrawingUtils(ctx);
-
-            const renderLoop = () => {
-              const now = performance.now();
-              frameCount++;
-
-              if (now - lastTime >= 1000) {
-                setFps(frameCount);
-                frameCount = 0;
-                lastTime = now;
-              }
-
-              if (
-                videoRef.current &&
-                videoRef.current.readyState >= 2 &&
-                landmarker &&
-                videoRef.current.currentTime !== lastVideoTime
-              ) {
-                lastVideoTime = videoRef.current.currentTime;
-                const results = landmarker.detectForVideo(videoRef.current, now);
-
-                let handP1Detected = false;
-                let handP2Detected = false;
-
-                if (results.landmarks && results.landmarks.length > 0) {
-                  for (const hand of results.landmarks) {
-                    const mirroredX = 1 - hand[0].x;
-                    const palmY = hand[9] ? hand[9].y : hand[0].y;
-                    const sensibilidade = 1.4;
-                    let adjustedY = (palmY - 0.45) * sensibilidade + 0.5;
-                    adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
-                    const paddleY = adjustedY * 450 - 50;
-
-                    if (mirroredX < 0.5) {
-                      game.current.targetP1Y = paddleY;
-                      handP1Detected = true;
-                    } else {
-                      game.current.targetP2Y = paddleY;
-                      handP2Detected = true;
-                    }
-                  }
-                }
-
-                if (!handP1Detected) countersP1Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
-                if (!handP2Detected) countersP2Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
-
-                if (!gameOverRef.current && !isPausedRef.current) {
-                  game.current.p1Y += (game.current.targetP1Y - game.current.p1Y) * 0.4;
-                  game.current.p2Y += (game.current.targetP2Y - game.current.p2Y) * 0.4;
-
-                  game.current.ball.x += game.current.ball.dx;
-                  game.current.ball.y += game.current.ball.dy;
-
-                  if (game.current.ball.y <= 10) {
-                    game.current.ball.y = 10;
-                    game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
-                    game.current.ball.dx += (Math.random() - 0.5) * 0.3;
-                  } else if (game.current.ball.y >= 440) {
-                    game.current.ball.y = 440;
-                    game.current.ball.dy = -Math.abs(game.current.ball.dy) * 1.02;
-                    game.current.ball.dx += (Math.random() - 0.5) * 0.3;
-                  }
-
-                  const hitP1 = game.current.ball.x <= 75 &&
-                                game.current.ball.x >= 45 &&
-                                game.current.ball.y >= game.current.p1Y &&
-                                game.current.ball.y <= game.current.p1Y + 100;
-
-                  const hitP2 = game.current.ball.x >= 725 &&
-                                game.current.ball.x <= 755 &&
-                                game.current.ball.y >= game.current.p2Y &&
-                                game.current.ball.y <= game.current.p2Y + 100;
-
-                  if (hitP1) {
-                    const impactOffset = (game.current.ball.y - (game.current.p1Y + 50)) / 50;
-                    const randomVariance = (Math.random() - 0.5) * 0.25;
-                    const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
-
-                    const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                    const newSpeed = Math.min(currentSpeed * 1.14, 28);
-
-                    game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
-                    game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
-                    game.current.ball.x = 76;
-                  } else if (hitP2) {
-                    const impactOffset = (game.current.ball.y - (game.current.p2Y + 50)) / 50;
-                    const randomVariance = (Math.random() - 0.5) * 0.25;
-                    const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
-
-                    const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
-                    const newSpeed = Math.min(currentSpeed * 1.14, 28);
-
-                    game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
-                    game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
-                    game.current.ball.x = 724;
-                  }
-
-                  // =====================================
-                  // VERIFICAÇÃO DE GOLO PROTEGIDA POR FLAG
-                  // =====================================
-                  if (game.current.ball.x < 0 && !isScoringRef.current) {
-                    isScoringRef.current = true; // Impede detecções duplicadas
-                    placarRef.current.p2 += 1;
-                    dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
-                    setPlacar({ ...placarRef.current });
-
-                    // TRAVA DE SEGURANÇA: Congela a bola no centro instantaneamente
-                    game.current.ball.x = 400;
-                    game.current.ball.y = 225;
-                    game.current.ball.dx = 0;
-                    game.current.ball.dy = 0;
-
-                    if (placarRef.current.p2 >= 10) {
-                      finalizarPartidaLocal("PLAYER 2 (ALCANÇOU 10 PONTOS)");
-                    } else {
-                      // Espera 1 segundo com a bola parada antes do novo saque
-                      setTimeout(() => lancarBola(1), 1000); 
-                    }
-                  } else if (game.current.ball.x > 800 && !isScoringRef.current) {
-                    isScoringRef.current = true; // Impede detecções duplicadas
-                    placarRef.current.p1 += 1;
-                    dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
-                    setPlacar({ ...placarRef.current });
-
-                    // TRAVA DE SEGURANÇA: Congela a bola no centro instantaneamente
-                    game.current.ball.x = 400;
-                    game.current.ball.y = 225;
-                    game.current.ball.dx = 0;
-                    game.current.ball.dy = 0;
-
-                    if (placarRef.current.p1 >= 10) {
-                      finalizarPartidaLocal("PLAYER 1 (ALCANÇOU 10 PONTOS)");
-                    } else {
-                      // Espera 1 segundo com a bola parada antes do novo saque
-                      setTimeout(() => lancarBola(-1), 1000); 
-                    }
-                  }
-                }
-
-                ctx.clearRect(0, 0, 800, 450);
-
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(10, 10, 780, 430);
-
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-                ctx.lineWidth = 2;
-                ctx.setLineDash([6, 6]);
-                ctx.beginPath();
-                ctx.moveTo(400, 10);
-                ctx.lineTo(400, 440);
-                ctx.stroke();
-
-                ctx.setLineDash([]);
-                ctx.beginPath();
-                ctx.arc(400, 225, 60, 0, Math.PI * 2);
-                ctx.stroke();
-
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(400, 225, 4, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "rgba(0, 212, 255, 0.08)";
-                ctx.fillRect(10, 125, 45, 200);
-                ctx.strokeStyle = "#00d4ff";
-                ctx.strokeRect(10, 125, 45, 200);
-
-                ctx.fillStyle = "rgba(46, 204, 113, 0.08)";
-                ctx.fillRect(745, 125, 45, 200);
-                ctx.strokeStyle = "#2ecc71";
-                ctx.strokeRect(745, 125, 45, 200);
-
-                ctx.fillStyle = "#00d4ff";
-                ctx.font = "bold 18px 'Courier New', monospace";
-                ctx.fillText(`P1: ${placarRef.current.p1}`, 220, 40);
-
-                ctx.fillStyle = "#fbbf24";
-                ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 370, 40);
-
-                ctx.fillStyle = "#2ecc71";
-                ctx.fillText(`P2: ${placarRef.current.p2}`, 480, 40);
-
-                ctx.strokeStyle = "#00d4ff";
-                ctx.fillStyle = "rgba(0, 212, 255, 0.35)";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(55, game.current.p1Y, 20, 100);
-                ctx.fillRect(55, game.current.p1Y, 20, 100);
-
-                ctx.strokeStyle = "#2ecc71";
-                ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(725, game.current.p2Y, 20, 100);
-                ctx.fillRect(725, game.current.p2Y, 20, 100);
-
-                if (!gameOverRef.current) {
-                  ctx.shadowColor = "#ffffff";
-                  ctx.shadowBlur = 14;
-                  ctx.fillStyle = "#ffffff";
-                  ctx.beginPath();
-                  ctx.arc(game.current.ball.x, game.current.ball.y, 9, 0, Math.PI * 2);
-                  ctx.fill();
-                  ctx.shadowBlur = 0;
-                }
-
-                // ANIMAÇÃO DE GOOOLLLL NO CANVAS LOCAL
-                if (mensagemGol) {
-                  ctx.save();
-                  ctx.font = "bold 42px 'Courier New', monospace";
-                  ctx.textAlign = "center";
-                  ctx.textBaseline = "middle";
-                  ctx.shadowColor = "#fbbf24";
-                  ctx.shadowBlur = 20;
-                  ctx.fillStyle = "#fde047";
-                  ctx.fillText(mensagemGol, 400, 200);
-                  ctx.restore();
-                }
-
-                if (showLandmarksRef.current && results.landmarks) {
-                  for (const landmarksOriginal of results.landmarks) {
-                    const isLeft = (1 - landmarksOriginal[0].x) < 0.5;
-                    const counters = isLeft ? countersP1Ref.current : countersP2Ref.current;
-
-                    const landmarks = landmarksOriginal as Landmark[];
-                    const hiddenMask = buildHiddenMask(landmarks, counters);
-
-                    const mirroredLandmarks = landmarksOriginal.map(pt => ({
-                      ...pt,
-                      x: 1 - pt.x
-                    }));
-
-                    const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
-                      const { start, end } = connection as { start: number; end: number };
-                      return !hiddenMask[start] && !hiddenMask[end];
-                    });
-
-                    const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
-
-                    drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
-                      color: isLeft ? '#00d4ff' : '#2ecc71',
-                      lineWidth: 3
-                    });
-                    drawingUtils.drawLandmarks(pontosVisiveis as any, {
-                      color: '#ffffff',
-                      lineWidth: 1,
-                      radius: 5
-                    });
-                  }
-                }
-              }
-              animationFrameId = requestAnimationFrame(renderLoop);
-            };
-
-            renderLoop();
-          };
-        }
-      } catch (error) {
-        console.error("Erro na inicialização AR Presencial:", error);
+      if (usuarioSalvo?.id) {
+        fetch(`${API_URL}/api/ranking/registrar-partida`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jogador_id: usuarioSalvo.id,
+            adversario_nome: 'Player 2 (Presencial)',
+            pontuacao_jogador: p1Score,
+            pontuacao_adversario: p2Score,
+            resultado: p1Score > p2Score ? 'VITORIA' : p2Score > p1Score ? 'DERROTA' : 'EMPATE',
+            tipo_partida: 'LOCAL'
+          })
+        }).catch((err) => console.error("Erro ao registrar histórico local:", err));
       }
     };
 
-    initVision();
+    useEffect(() => {
+      const timer = setInterval(() => {
+        if (gameOverRef.current || isPausedRef.current) return;
 
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      if (landmarker) landmarker.close();
+        setTempoRestante(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            const p1 = placarRef.current.p1;
+            const p2 = placarRef.current.p2;
+            const msg = p1 > p2 ? "PLAYER 1 (TEMPO ESGOTADO)" : p2 > p1 ? "PLAYER 2 (TEMPO ESGOTADO)" : "EMPATE!";
+            finalizarPartidaLocal(msg);
+            return 0;
+          }
+          tempoRestanteRef.current = prev - 1;
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }, []);
+
+    const formatarTempo = (segundos: number) => {
+      const min = Math.floor(segundos / 60);
+      const seg = segundos % 60;
+      return `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
     };
-  }, [mensagemGol]);
 
-  return (
-    <div style={{
-      background: '#0a0d14',
-      minHeight: '100vh',
-      color: '#e2e8f0',
-      fontFamily: "'Courier New', monospace, sans-serif",
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      boxSizing: 'border-box'
-    }}>
-      <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '10px' }}>
-        MODO PRESENCIAL (1 DISPOSITIVO / 2 MÃOS) | META: 10 PONTOS OU 5 MINUTOS
-      </div>
+    const lancarBola = (direcaoX: number) => {
+      const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
+      const velInicial = 9;
+      game.current.ball = {
+        x: 400,
+        y: 225,
+        dx: direcaoX * velInicial * Math.cos(angulo),
+        dy: velInicial * Math.sin(angulo)
+      };
+      // Desbloqueia o sistema de pontuação para o próximo golo
+      isScoringRef.current = false;
+    };
 
+    const reiniciarPartida = () => {
+      placarRef.current = { p1: 0, p2: 0 };
+      setPlacar({ p1: 0, p2: 0 });
+      setTempoRestante(300);
+      tempoRestanteRef.current = 300;
+      gameOverRef.current = false;
+      isPausedRef.current = false;
+      partidaRegistradaRef.current = false;
+      isScoringRef.current = false; // Garante que a trava está limpa
+      setIsPaused(false);
+      setVencedor(null);
+      game.current.p1Y = 175;
+      game.current.p2Y = 175;
+      game.current.targetP1Y = 175;
+      game.current.targetP2Y = 175;
+      lancarBola(Math.random() > 0.5 ? 1 : -1);
+    };
+
+    const alternarPausa = () => {
+      if (gameOverRef.current) return;
+      const novoStatus = !isPausedRef.current;
+      isPausedRef.current = novoStatus;
+      setIsPaused(novoStatus);
+    };
+
+    useEffect(() => {
+      let landmarker: Vision.HandLandmarker | null = null;
+      let animationFrameId: number;
+      let lastTime = performance.now();
+      let frameCount = 0;
+      let lastVideoTime = -1;
+
+      const initVision = async () => {
+        try {
+          const vision = await Vision.FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+          );
+
+          landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+              delegate: "GPU"
+            },
+            runningMode: "VIDEO",
+            numHands: 2
+          });
+
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 60 }
+            }
+          });
+
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current!.play();
+              const canvas = canvasRef.current!;
+              const ctx = canvas.getContext('2d')!;
+              const drawingUtils = new Vision.DrawingUtils(ctx);
+
+              const renderLoop = () => {
+                const now = performance.now();
+                frameCount++;
+
+                if (now - lastTime >= 1000) {
+                  setFps(frameCount);
+                  frameCount = 0;
+                  lastTime = now;
+                }
+
+                if (
+                  videoRef.current &&
+                  videoRef.current.readyState >= 2 &&
+                  landmarker &&
+                  videoRef.current.currentTime !== lastVideoTime
+                ) {
+                  lastVideoTime = videoRef.current.currentTime;
+                  const results = landmarker.detectForVideo(videoRef.current, now);
+
+                  let handP1Detected = false;
+                  let handP2Detected = false;
+
+                  if (results.landmarks && results.landmarks.length > 0) {
+                    for (const hand of results.landmarks) {
+                      const mirroredX = 1 - hand[0].x;
+                      const palmY = hand[9] ? hand[9].y : hand[0].y;
+                      const sensibilidade = 1.4;
+                      let adjustedY = (palmY - 0.45) * sensibilidade + 0.5;
+                      adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
+                      const paddleY = adjustedY * 450 - 50;
+
+                      if (mirroredX < 0.5) {
+                        game.current.targetP1Y = paddleY;
+                        handP1Detected = true;
+                      } else {
+                        game.current.targetP2Y = paddleY;
+                        handP2Detected = true;
+                      }
+                    }
+                  }
+
+                  if (!handP1Detected) countersP1Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
+                  if (!handP2Detected) countersP2Ref.current = { ...INITIAL_HIDDEN_COUNTERS };
+
+                  if (!gameOverRef.current && !isPausedRef.current) {
+                    game.current.p1Y += (game.current.targetP1Y - game.current.p1Y) * 0.4;
+                    game.current.p2Y += (game.current.targetP2Y - game.current.p2Y) * 0.4;
+
+                    game.current.ball.x += game.current.ball.dx;
+                    game.current.ball.y += game.current.ball.dy;
+
+                    if (game.current.ball.y <= 10) {
+                      game.current.ball.y = 10;
+                      game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
+                      game.current.ball.dx += (Math.random() - 0.5) * 0.3;
+                    } else if (game.current.ball.y >= 440) {
+                      game.current.ball.y = 440;
+                      game.current.ball.dy = -Math.abs(game.current.ball.dy) * 1.02;
+                      game.current.ball.dx += (Math.random() - 0.5) * 0.3;
+                    }
+
+                    const hitP1 = game.current.ball.x <= 75 &&
+                                  game.current.ball.x >= 45 &&
+                                  game.current.ball.y >= game.current.p1Y &&
+                                  game.current.ball.y <= game.current.p1Y + 100;
+
+                    const hitP2 = game.current.ball.x >= 725 &&
+                                  game.current.ball.x <= 755 &&
+                                  game.current.ball.y >= game.current.p2Y &&
+                                  game.current.ball.y <= game.current.p2Y + 100;
+
+                    if (hitP1) {
+                      const impactOffset = (game.current.ball.y - (game.current.p1Y + 50)) / 50;
+                      const randomVariance = (Math.random() - 0.5) * 0.25;
+                      const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
+
+                      const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
+                      const newSpeed = Math.min(currentSpeed * 1.14, 28);
+
+                      game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * newSpeed);
+                      game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
+                      game.current.ball.x = 76;
+                    } else if (hitP2) {
+                      const impactOffset = (game.current.ball.y - (game.current.p2Y + 50)) / 50;
+                      const randomVariance = (Math.random() - 0.5) * 0.25;
+                      const bounceAngle = (impactOffset * (Math.PI / 3)) + randomVariance;
+
+                      const currentSpeed = Math.hypot(game.current.ball.dx, game.current.ball.dy);
+                      const newSpeed = Math.min(currentSpeed * 1.14, 28);
+
+                      game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * newSpeed);
+                      game.current.ball.dy = Math.sin(bounceAngle) * newSpeed;
+                      game.current.ball.x = 724;
+                    }
+
+                    // =====================================
+                    // VERIFICAÇÃO DE GOLO PROTEGIDA POR FLAG
+                    // =====================================
+                    if (game.current.ball.x < 0 && !isScoringRef.current) {
+                      isScoringRef.current = true; // Impede detecções duplicadas
+                      placarRef.current.p2 += 1;
+                      dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
+                      setPlacar({ ...placarRef.current });
+
+                      // TRAVA DE SEGURANÇA: Congela a bola no centro instantaneamente
+                      game.current.ball.x = 400;
+                      game.current.ball.y = 225;
+                      game.current.ball.dx = 0;
+                      game.current.ball.dy = 0;
+
+                      if (placarRef.current.p2 >= 10) {
+                        finalizarPartidaLocal("PLAYER 2 (ALCANÇOU 10 PONTOS)");
+                      } else {
+                        // Espera 1 segundo com a bola parada antes do novo saque
+                        setTimeout(() => lancarBola(1), 1000); 
+                      }
+                    } else if (game.current.ball.x > 800 && !isScoringRef.current) {
+                      isScoringRef.current = true; // Impede detecções duplicadas
+                      placarRef.current.p1 += 1;
+                      dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
+                      setPlacar({ ...placarRef.current });
+
+                      // TRAVA DE SEGURANÇA: Congela a bola no centro instantaneamente
+                      game.current.ball.x = 400;
+                      game.current.ball.y = 225;
+                      game.current.ball.dx = 0;
+                      game.current.ball.dy = 0;
+
+                      if (placarRef.current.p1 >= 10) {
+                        finalizarPartidaLocal("PLAYER 1 (ALCANÇOU 10 PONTOS)");
+                      } else {
+                        // Espera 1 segundo com a bola parada antes do novo saque
+                        setTimeout(() => lancarBola(-1), 1000); 
+                      }
+                    }
+                  }
+
+                  ctx.clearRect(0, 0, 800, 450);
+
+                  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                  ctx.lineWidth = 3;
+                  ctx.strokeRect(10, 10, 780, 430);
+
+                  ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+                  ctx.lineWidth = 2;
+                  ctx.setLineDash([6, 6]);
+                  ctx.beginPath();
+                  ctx.moveTo(400, 10);
+                  ctx.lineTo(400, 440);
+                  ctx.stroke();
+
+                  ctx.setLineDash([]);
+                  ctx.beginPath();
+                  ctx.arc(400, 225, 60, 0, Math.PI * 2);
+                  ctx.stroke();
+
+                  ctx.fillStyle = "#ffffff";
+                  ctx.beginPath();
+                  ctx.arc(400, 225, 4, 0, Math.PI * 2);
+                  ctx.fill();
+
+                  ctx.fillStyle = "rgba(0, 212, 255, 0.08)";
+                  ctx.fillRect(10, 125, 45, 200);
+                  ctx.strokeStyle = "#00d4ff";
+                  ctx.strokeRect(10, 125, 45, 200);
+
+                  ctx.fillStyle = "rgba(46, 204, 113, 0.08)";
+                  ctx.fillRect(745, 125, 45, 200);
+                  ctx.strokeStyle = "#2ecc71";
+                  ctx.strokeRect(745, 125, 45, 200);
+
+                  ctx.fillStyle = "#00d4ff";
+                  ctx.font = "bold 18px 'Courier New', monospace";
+                  ctx.fillText(`P1: ${placarRef.current.p1}`, 220, 40);
+
+                  ctx.fillStyle = "#fbbf24";
+                  ctx.fillText(`${formatarTempo(tempoRestanteRef.current)}`, 370, 40);
+
+                  ctx.fillStyle = "#2ecc71";
+                  ctx.fillText(`P2: ${placarRef.current.p2}`, 480, 40);
+
+                  ctx.strokeStyle = "#00d4ff";
+                  ctx.fillStyle = "rgba(0, 212, 255, 0.35)";
+                  ctx.lineWidth = 3;
+                  ctx.strokeRect(55, game.current.p1Y, 20, 100);
+                  ctx.fillRect(55, game.current.p1Y, 20, 100);
+
+                  ctx.strokeStyle = "#2ecc71";
+                  ctx.fillStyle = "rgba(46, 204, 113, 0.35)";
+                  ctx.lineWidth = 3;
+                  ctx.strokeRect(725, game.current.p2Y, 20, 100);
+                  ctx.fillRect(725, game.current.p2Y, 20, 100);
+
+                  if (!gameOverRef.current) {
+                    ctx.shadowColor = "#ffffff";
+                    ctx.shadowBlur = 14;
+                    ctx.fillStyle = "#ffffff";
+                    ctx.beginPath();
+                    ctx.arc(game.current.ball.x, game.current.ball.y, 9, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                  }
+
+                  // ANIMAÇÃO DE GOOOLLLL NO CANVAS LOCAL
+                  if (mensagemGol) {
+                    ctx.save();
+                    ctx.font = "bold 42px 'Courier New', monospace";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.shadowColor = "#fbbf24";
+                    ctx.shadowBlur = 20;
+                    ctx.fillStyle = "#fde047";
+                    ctx.fillText(mensagemGol, 400, 200);
+                    ctx.restore();
+                  }
+
+                  if (showLandmarksRef.current && results.landmarks) {
+                    for (const landmarksOriginal of results.landmarks) {
+                      const isLeft = (1 - landmarksOriginal[0].x) < 0.5;
+                      const counters = isLeft ? countersP1Ref.current : countersP2Ref.current;
+
+                      const landmarks = landmarksOriginal as Landmark[];
+                      const hiddenMask = buildHiddenMask(landmarks, counters);
+
+                      const mirroredLandmarks = landmarksOriginal.map(pt => ({
+                        ...pt,
+                        x: 1 - pt.x
+                      }));
+
+                      const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
+                        const { start, end } = connection as { start: number; end: number };
+                        return !hiddenMask[start] && !hiddenMask[end];
+                      });
+
+                      const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
+
+                      drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
+                        color: isLeft ? '#00d4ff' : '#2ecc71',
+                        lineWidth: 3
+                      });
+                      drawingUtils.drawLandmarks(pontosVisiveis as any, {
+                        color: '#ffffff',
+                        lineWidth: 1,
+                        radius: 5
+                      });
+                    }
+                  }
+                }
+                animationFrameId = requestAnimationFrame(renderLoop);
+              };
+
+              renderLoop();
+            };
+          }
+        } catch (error) {
+          console.error("Erro na inicialização AR Presencial:", error);
+        }
+      };
+
+      initVision();
+
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+        if (landmarker) landmarker.close();
+      };
+    }, [mensagemGol]);
+
+    return (
       <div style={{
-        position: 'relative',
-        width: '100%',
-        maxWidth: '960px',
-        aspectRatio: '16/9',
-        border: '2px solid #22c55e',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        backgroundColor: '#000',
-        boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)'
+        background: '#0a0d14',
+        minHeight: '100vh',
+        color: '#e2e8f0',
+        fontFamily: "'Courier New', monospace, sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        boxSizing: 'border-box'
       }}>
-        <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#00d4ff', fontWeight: 'bold' }}>
-          PLAYER 1 (LOCAL ESQUERDA)
-        </div>
-        <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#2ecc71', fontWeight: 'bold' }}>
-          PLAYER 2 (LOCAL DIREITA)
+        <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '10px' }}>
+          MODO PRESENCIAL (1 DISPOSITIVO / 2 MÃOS) | META: 10 PONTOS OU 5 MINUTOS
         </div>
 
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ position: 'absolute', width: '100%', height: '100%', transform: 'scaleX(-1)', objectFit: 'cover' }}
-        />
-
-        <canvas
-          ref={canvasRef}
-          width={800}
-          height={450}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-        />
-
-        {isPaused && !vencedor && (
-          <div style={{
-            position: 'absolute',
-            top: 0, left: 0, width: '100%', height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 25
-          }}>
-            <h2 style={{ fontSize: '2.2rem', color: '#facc15', marginBottom: '15px', letterSpacing: '2px' }}>PARTIDA PAUSADA</h2>
-            <button
-              onClick={alternarPausa}
-              style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
-            >
-              CONTINUAR JOGO
-            </button>
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '960px',
+          aspectRatio: '16/9',
+          border: '2px solid #22c55e',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          backgroundColor: '#000',
+          boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)'
+        }}>
+          <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#00d4ff', fontWeight: 'bold' }}>
+            PLAYER 1 (LOCAL ESQUERDA)
           </div>
-        )}
+          <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#2ecc71', fontWeight: 'bold' }}>
+            PLAYER 2 (LOCAL DIREITA)
+          </div>
 
-        {vencedor && (
-          <div style={{
-            position: 'absolute',
-            top: 0, left: 0, width: '100%', height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 30
-          }}>
-            <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE JOGO!</h2>
-            <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '30px' }}>
-              VENCEDOR: {vencedor}
-            </p>
-            <div style={{ display: 'flex', gap: '20px' }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ position: 'absolute', width: '100%', height: '100%', transform: 'scaleX(-1)', objectFit: 'cover' }}
+          />
+
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={450}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+          />
+
+          {isPaused && !vencedor && (
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0, width: '100%', height: '100%',
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 25
+            }}>
+              <h2 style={{ fontSize: '2.2rem', color: '#facc15', marginBottom: '15px', letterSpacing: '2px' }}>PARTIDA PAUSADA</h2>
               <button
-                onClick={reiniciarPartida}
-                style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
+                onClick={alternarPausa}
+                style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
               >
-                JOGAR NOVAMENTE
-              </button>
-              <button
-                onClick={() => navigate('/modo-jogo')}
-                style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
-              >
-                VOLTAR AO MENU
+                CONTINUAR JOGO
               </button>
             </div>
+          )}
+
+          {vencedor && (
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0, width: '100%', height: '100%',
+              backgroundColor: 'rgba(0, 0, 0, 0.85)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 30
+            }}>
+              <h2 style={{ fontSize: '2rem', color: '#38bdf8', marginBottom: '10px' }}>FIM DE JOGO!</h2>
+              <p style={{ fontSize: '1.4rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '30px' }}>
+                VENCEDOR: {vencedor}
+              </p>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                <button
+                  onClick={reiniciarPartida}
+                  style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
+                >
+                  JOGAR NOVAMENTE
+                </button>
+                <button
+                  onClick={() => navigate('/modo-jogo')}
+                  style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
+                >
+                  VOLTAR AO MENU
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '960px', marginTop: '15px' }}>
+          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+            DESEMPENHO LOCAL: <span style={{ color: '#4ade80' }}>{fps} FPS</span> | 0ms LATÊNCIA (NATIVO)
           </div>
-        )}
-      </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '960px', marginTop: '15px' }}>
-        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-          DESEMPENHO LOCAL: <span style={{ color: '#4ade80' }}>{fps} FPS</span> | 0ms LATÊNCIA (NATIVO)
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              onClick={alternarPausa}
+              style={{
+                background: isPaused ? '#16a34a' : '#d97706',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontWeight: 'bold',
+                fontSize: '17px'
+              }}
+            >
+              {isPaused ? 'CONTINUAR' : 'PAUSAR'}
+            </button>
+
+            <button
+              onClick={reiniciarPartida}
+              style={{
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontWeight: 'bold',
+                fontSize: '17px'
+              }}
+            >
+              RESETAR
+            </button>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', marginLeft: '5px' }}>
+              <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />
+              <span>EXIBIR PONTOS NAS MÃOS</span>
+            </label>
+          </div>
         </div>
-
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={alternarPausa}
-            style={{
-              background: isPaused ? '#16a34a' : '#d97706',
-              color: '#fff',
-              border: 'none',
-              padding: '6px 14px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              fontWeight: 'bold',
-              fontSize: '17px'
-            }}
-          >
-            {isPaused ? 'CONTINUAR' : 'PAUSAR'}
-          </button>
-
-          <button
-            onClick={reiniciarPartida}
-            style={{
-              background: '#2563eb',
-              color: '#fff',
-              border: 'none',
-              padding: '6px 14px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              fontWeight: 'bold',
-              fontSize: '17px'
-            }}
-          >
-            RESETAR
-          </button>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', marginLeft: '5px' }}>
-            <input type="checkbox" checked={showLandmarks} onChange={(e) => setShowLandmarks(e.target.checked)} />
-            <span>EXIBIR PONTOS NAS MÃOS</span>
-          </label>
-        </div>
+        <br />
+        <button
+          onClick={() => navigate('/home')}
+          style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
+        >
+          Sair da Partida
+        </button>
       </div>
-      <br />
-      <button
-        onClick={() => navigate('/home')}
-        style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '20px' }}
-      >
-        Sair da Partida
-      </button>
-    </div>
-  );
-};
+    );
+  };
 
-export default GameLocal;
+  export default GameLocal;
