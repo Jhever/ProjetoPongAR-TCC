@@ -942,10 +942,27 @@ const Game = () => {
       : '1 vs 1 ONLINE';
 
   const renderCameraOculta = () => (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#94a3b8', borderRight: isHost ? '2px solid rgba(59, 130, 246, 0.5)' : 'none' }}>
-      <span style={{ fontSize: '24px', marginBottom: '10px' }}>🕵️</span>
-      <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Câmera Oculta</div>
-      <div style={{ fontSize: '11px', marginTop: '4px' }}>(Modo Anônimo Ativo)</div>
+    <div style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#111827',
+      borderRight: isHost ? '2px solid rgba(59, 130, 246, 0.5)' : 'none',
+      overflow: 'hidden'
+    }}>
+      <svg
+        viewBox="0 0 200 200"
+        style={{ width: '65%', height: '65%', maxWidth: '240px', maxHeight: '240px' }}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M100 28C84 28 73 38 72 54C71 61 72 68 73 74C69 75 67 80 68 87C69 94 73 98 77 98C80 107 85 113 88 116V127C88 131 85 134 80 136L48 147C39 150 33 157 31 167L28 180C50 189 74 193 100 193C126 193 150 189 172 180L169 167C167 157 161 150 152 147L120 136C115 134 112 131 112 127V116C115 113 120 107 123 98C127 98 131 94 132 87C133 80 131 75 127 74C128 68 129 61 128 54C127 38 116 28 100 28Z"
+          fill="#334155"
+        />
+      </svg>
     </div>
   );
 
@@ -964,6 +981,26 @@ const Game = () => {
       <div style={{ fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '8px' }}>
         {isHost ? 'PLAYER 1 (LOCAL)' : 'PLAYER 2 (LOCAL)'} | PARTIDA: {tipoPartida}
       </div>
+
+      {ocultarCameraAdversario && !isPartidaLocalMesmoPC && (
+        <div style={{
+          width: '900px',
+          marginBottom: '10px',
+          padding: '8px 14px',
+          borderRadius: '6px',
+          background: 'rgba(30, 41, 59, 0.85)',
+          border: '1px solid rgba(148, 163, 184, 0.35)',
+          color: '#cbd5e1',
+          fontSize: '12px',
+          textAlign: 'center',
+          letterSpacing: '0.5px',
+          boxSizing: 'border-box'
+        }}>
+          {isLocalAnonimo
+            ? 'Você está em anonimato: sua tela não aparece para o adversário, mas a tela do adversário não aparece para você.'
+            : 'O jogador está em anonimato: sua tela não irá aparecer para o adversário, e a dele não aparecerá para você.'}
+        </div>
+      )}
 
       <div style={{
         position: 'relative',
