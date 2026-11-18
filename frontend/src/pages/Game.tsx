@@ -128,7 +128,7 @@ const Game = () => {
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
-  const [remoteConnected, setRemoteConnected] = useState(false); // Flag de sucesso WebRTC
+  const [remoteConnected, setRemoteConnected] = useState(false); 
 
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,8 +208,7 @@ const Game = () => {
 
   const [gameLogs, setGameLogs] = useState<string[]>([
     '[Socket] Connected to server',
-    `[Room] Joined ${salaId}`,
-    `[Match] Player 1 (${isHost ? nomeLocal : adversarioNome}) vs Player 2 (${!isHost ? nomeLocal : adversarioNome})`
+    `[Room] Joined ${salaId}`
   ]);
 
   const game = useRef({
@@ -217,6 +216,10 @@ const Game = () => {
     p1Y: 175,
     p2Y: 175
   });
+
+  const addLog = (msg: string) => {
+    setGameLogs(prev => [...prev.slice(-4), msg]);
+  };
 
   useEffect(() => {
     if (isPartidaLocalMesmoPC) return;
@@ -229,8 +232,7 @@ const Game = () => {
         const meuReg = lista.find(
           (u: any) =>
             (usuarioSalvo?.id && Number(u.id_usuario ?? u.id) === Number(usuarioSalvo.id)) ||
-            (u.nome && u.nome.toLowerCase() === nomeLocal.toLowerCase()) ||
-            (u.usuario && u.usuario.toLowerCase() === nomeLocal.toLowerCase())
+            (u.nome && u.nome.toLowerCase() === nomeLocal.toLowerCase())
         );
 
         if (meuReg) {
@@ -251,8 +253,7 @@ const Game = () => {
         const advReg = lista.find(
           (u: any) =>
             (adversarioId && Number(u.id_usuario ?? u.id) === Number(adversarioId)) ||
-            (u.nome && u.nome.toLowerCase() === adversarioNome.toLowerCase()) ||
-            (u.usuario && u.usuario.toLowerCase() === adversarioNome.toLowerCase())
+            (u.nome && u.nome.toLowerCase() === adversarioNome.toLowerCase())
         );
 
         if (advReg) {
@@ -285,9 +286,6 @@ const Game = () => {
     };
   }, [showVersus]);
 
-  const addLog = (msg: string) => {
-    setGameLogs(prev => [...prev.slice(-4), msg]);
-  };
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
@@ -462,7 +460,7 @@ const Game = () => {
       }
     });
 
-    socket.on('vitoriaPorDesistencia', (data: { mensagem: string }) => {
+    socket.on('vitoriaPorDesistencia', () => {
       addLog('[Socket] Opponent surrendered');
       if (!partidaFinalizadaRef.current) {
         finalizarPartidaOnline('VITÓRIA POR DESISTÊNCIA (W.O)', isHost ? 10 : 0, isHost ? 0 : 10);
@@ -508,34 +506,6 @@ const Game = () => {
     let frameCount = 0;
     let activeStream: MediaStream | null = null;
 
-    const handleCustomSignals = (raw_data: any) => {
-      // Blindagem: Aceita o formato `{salaId, signal}` OU direto o `signal`
-      const data = raw_data.signal || raw_data;
-      if (data?.type === 'player_stats' && data.stats) {
-        const vitAdv = Number(data.stats.vitoria ?? data.stats.vitorias ?? 0);
-        setDadosAdversario(prev => ({
-          nome: adversarioNome || data.stats.nome || prev.nome,
-          avatar: data.stats.avatar || prev.avatar,
-          pontos: Number(data.stats.pontos ?? prev.pontos),
-          vitorias: vitAdv,
-        }));
-      }
-      if (data?.type === 'game_ready') {
-        if (data.stats) {
-          const vitAdv = Number(data.stats.vitoria ?? data.stats.vitorias ?? 0);
-          setDadosAdversario(prev => ({
-            nome: adversarioNome || data.stats.nome || prev.nome,
-            avatar: data.stats.avatar || prev.avatar,
-            pontos: Number(data.stats.pontos ?? prev.pontos),
-            vitorias: vitAdv,
-          }));
-        }
-        setIsAdversarioReady(true);
-      }
-    };
-
-    socket.on('webrtc_signal', handleCustomSignals);
-
     const initVisionAndWebRTC = async () => {
       const vision = await Vision.FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
@@ -559,9 +529,6 @@ const Game = () => {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
 
-        // ==========================================
-        // CÓDIGO WEBRTC BLINDADO CONTRA RACE CONDITIONS
-        // ==========================================
         if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
           const pc = new RTCPeerConnection({
             iceServers: [
@@ -582,9 +549,16 @@ const Game = () => {
             sender.setParameters(params).catch(e => console.error("Erro nos parâmetros WebRTC:", e));
           });
 
-          // RECEBE A CÂMARA REMOTA (Com Fallback para event.track isolado)
+          // MONITOR DE REDE / FIREWALL
+          pc.oniceconnectionstatechange = () => {
+            console.log(`🎾 [WEBRTC] ICE Connection State mudou para: ${pc.iceConnectionState}`);
+            if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+              console.error("🎾 [WEBRTC] ERRO GRAVE: O Firewall ou o roteador bloqueou a conexão das câmeras (Sem servidor TURN configurado).");
+            }
+          };
+
           pc.ontrack = (event) => {
-            console.log("🎾 [WEBRTC] Câmera recebida do adversário!", event.track.kind);
+            console.log("🎾 [WEBRTC] Câmera recebida do adversário!");
             if (remoteVideoRef.current) {
               if (event.streams && event.streams[0]) {
                 remoteVideoRef.current.srcObject = event.streams[0];
@@ -594,9 +568,7 @@ const Game = () => {
               setRemoteConnected(true);
               const playPromise = remoteVideoRef.current.play();
               if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                  console.warn("Reprodução remota adiada de forma segura:", error);
-                });
+                playPromise.catch(e => console.warn("AutoPlay remoto bloqueado:", e));
               }
             }
           };
@@ -607,48 +579,66 @@ const Game = () => {
             }
           };
 
-          // Fila ICE para não perder pacotes de rede enquanto a oferta não chega
           let iceQueue: RTCIceCandidateInit[] = [];
 
-          // ESCUTA DE SINAIS CORRIGIDA (data.signal || data)
+          // ÚNICO LISTENER DO SOCKET.IO AQUI: Evita processamentos em dobro!
           socket.on('webrtc_signal', async (raw_data) => {
             const data = raw_data.signal || raw_data;
             
-            // Ignora sinais de stats/ready neste bloco
-            if (data.type === 'player_stats' || data.type === 'game_ready') return;
+            // 1. Processamento de status de jogo
+            if (data.type === 'player_stats' && data.stats) {
+              setDadosAdversario(prev => ({
+                nome: adversarioNome || data.stats.nome || prev.nome,
+                avatar: data.stats.avatar || prev.avatar,
+                pontos: Number(data.stats.pontos ?? prev.pontos),
+                vitorias: Number(data.stats.vitoria ?? data.stats.vitorias ?? 0),
+              }));
+              return;
+            }
+            if (data.type === 'game_ready') {
+              setIsAdversarioReady(true);
+              return;
+            }
 
+            // 2. Processamento do WebRTC (Câmeras)
             try {
               if (data.type === 'request_offer' && isHost) {
-                console.log("🎾 [WEBRTC] Recebido request_offer. A criar offer...");
+                console.log("🎾 [WEBRTC] Host recebeu request_offer. Criando oferta...");
                 if (pc.signalingState !== 'stable') return; 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
               } 
               else if (data.type === 'offer' && !isHost) {
-                console.log("🎾 [WEBRTC] Recebido offer. A criar answer...");
+                console.log("🎾 [WEBRTC] Convidado recebeu oferta. Criando resposta...");
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
                 
-                // Processa a fila de ICEs
                 iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
                 iceQueue = [];
+                
+                if (isReadyRef.current) {
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
+                }
               } 
               else if (data.type === 'answer' && isHost) {
-                console.log("🎾 [WEBRTC] Recebido answer da oferta.");
+                console.log("🎾 [WEBRTC] Host recebeu a resposta!");
                 await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 
-                // Processa a fila de ICEs
                 iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
                 iceQueue = [];
+                
+                if (isReadyRef.current) {
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
+                }
               } 
               else if (data.type === 'ice') {
-                if (pc.remoteDescription) {
+                if (pc.remoteDescription && pc.remoteDescription.type) {
                   await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 } else {
-                  iceQueue.push(data.candidate);
+                  iceQueue.push(data.candidate); // Salva para processar depois
                 }
               }
             } catch (err) {
@@ -656,16 +646,15 @@ const Game = () => {
             }
           });
 
-          // O Player 2 pede ativamente a câmara ao Host a cada 2 segundos até ele acordar
           if (!isHost) {
-            console.log("🎾 [WEBRTC] P2 à espera do Host...");
+            console.log("🎾 [WEBRTC] Convidado pedindo conexão ao Host...");
             const askOffer = setInterval(() => {
               if (pc.signalingState === 'stable' && !pc.currentRemoteDescription) {
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
               } else {
                 clearInterval(askOffer);
               }
-            }, 2000);
+            }, 2500);
           }
         }
 
@@ -949,6 +938,82 @@ const Game = () => {
     </div>
   );
 
+  const player1StatsComponent = (
+    <div style={{
+      flex: 1,
+      maxWidth: '245px',
+      background: 'rgba(69, 10, 10, 0.8)',
+      border: '2px solid rgba(248, 113, 113, 0.6)',
+      borderRadius: '18px',
+      padding: '16px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      backdropFilter: 'blur(10px)',
+      boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
+    }}>
+      <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
+        JOGADOR 1 {isHost ? '(VOCÊ)' : ''}
+      </span>
+      <div style={{
+        width: '92px',
+        height: '92px',
+        borderRadius: '18px',
+        overflow: 'hidden',
+        border: '3px solid #f87171',
+        boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
+        marginBottom: '10px',
+        backgroundColor: '#1f2937'
+      }}>
+        <img src={player1Stats.avatar} alt={player1Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+      <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+        {player1Stats.nome}
+      </h3>
+      <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong></div>
+      </div>
+    </div>
+  );
+
+  const player2StatsComponent = (
+    <div style={{
+      flex: 1,
+      maxWidth: '245px',
+      background: 'rgba(15, 23, 42, 0.82)',
+      border: '2px solid rgba(96, 165, 250, 0.6)',
+      borderRadius: '18px',
+      padding: '16px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      backdropFilter: 'blur(10px)',
+      boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
+    }}>
+      <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
+        JOGADOR 2 {!isHost ? '(VOCÊ)' : ''}
+      </span>
+      <div style={{
+        width: '92px',
+        height: '92px',
+        borderRadius: '18px',
+        overflow: 'hidden',
+        border: '3px solid #60a5fa',
+        boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
+        marginBottom: '10px',
+        backgroundColor: '#0f172a'
+      }}>
+        <img src={player2Stats.avatar} alt={player2Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+      <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>{player2Stats.nome}</h3>
+      <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong></div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{
       background: '#0a0d14',
@@ -1059,81 +1124,13 @@ const Game = () => {
               maxWidth: '800px',
               gap: '16px'
             }}>
-              <div style={{
-                flex: 1,
-                maxWidth: '245px',
-                background: 'rgba(69, 10, 10, 0.8)',
-                border: '2px solid rgba(248, 113, 113, 0.6)',
-                borderRadius: '18px',
-                padding: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
-              }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
-                  JOGADOR 1 {isHost ? '(VOCÊ)' : ''}
-                </span>
-                <div style={{
-                  width: '92px',
-                  height: '92px',
-                  borderRadius: '18px',
-                  overflow: 'hidden',
-                  border: '3px solid #f87171',
-                  boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
-                  marginBottom: '10px',
-                  backgroundColor: '#1f2937'
-                }}>
-                  <img src={player1Stats.avatar} alt={player1Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
-                  {player1Stats.nome}
-                </h3>
-                <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong></div>
-                </div>
-              </div>
+              {player1StatsComponent}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontSize: '4.2rem', fontWeight: 900, fontStyle: 'italic', color: '#fff', textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)', lineHeight: 1 }}>VS</div>
                 <div style={{ marginTop: '10px', background: 'rgba(0,0,0,0.85)', padding: '5px 18px', borderRadius: '8px', fontSize: '1.3rem', fontWeight: 900, letterSpacing: '3px', border: '1px solid rgba(255,255,255,0.2)' }}>0 - 0</div>
                 <div style={{ marginTop: '12px', fontSize: '0.8rem', fontWeight: 700, color: '#fde047', background: 'rgba(0,0,0,0.65)', padding: '4px 12px', borderRadius: '999px' }}>Arena em {versusCountdown}s...</div>
               </div>
-              <div style={{
-                flex: 1,
-                maxWidth: '245px',
-                background: 'rgba(15, 23, 42, 0.82)',
-                border: '2px solid rgba(96, 165, 250, 0.6)',
-                borderRadius: '18px',
-                padding: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
-              }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
-                  JOGADOR 2 {!isHost ? '(VOCÊ)' : ''}
-                </span>
-                <div style={{
-                  width: '92px',
-                  height: '92px',
-                  borderRadius: '18px',
-                  overflow: 'hidden',
-                  border: '3px solid #60a5fa',
-                  boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
-                  marginBottom: '10px',
-                  backgroundColor: '#0f172a'
-                }}>
-                  <img src={player2Stats.avatar} alt={player2Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>{player2Stats.nome}</h3>
-                <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong></div>
-                </div>
-              </div>
+              {player2StatsComponent}
             </div>
           </div>
         )}
