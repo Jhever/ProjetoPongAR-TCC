@@ -61,7 +61,6 @@ function angleDeg(a: Landmark, b: Landmark, c: Landmark): number {
 
 function pointInPolygon(point: Landmark, polygon: Landmark[]): boolean {
   let inside = false;
-
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i].x;
     const yi = polygon[i].y;
@@ -74,7 +73,6 @@ function pointInPolygon(point: Landmark, polygon: Landmark[]): boolean {
 
     if (intersects) inside = !inside;
   }
-
   return inside;
 }
 
@@ -181,6 +179,7 @@ const TestarCamera = () => {
   const [landmarker, setLandmarker] = useState<Vision.HandLandmarker | null>(null);
   const [status, setStatus] = useState('CARREGANDO MODELO...');
   const [pontos, setPontos] = useState(0);
+  const [isCameraActive, setIsCameraActive] = useState(false);
 
   const updateStatus = useCallback((value: string) => {
     if (statusRef.current !== value) {
@@ -197,6 +196,7 @@ const TestarCamera = () => {
   }, []);
 
   const stopCamera = useCallback(() => {
+    setIsCameraActive(false);
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
@@ -228,29 +228,6 @@ const TestarCamera = () => {
         console.error("Erro ao tentar sair de tela cheia:", err);
       });
     }
-  };
-
-  const theme = {
-    bg: isDark ? '#07080b' : '#f8fafc',
-    cardBg: isDark ? '#111318' : '#ffffff',
-    text: isDark ? '#f1f5f9' : '#0f172a',
-    muted: '#94a3b8',
-    border: isDark ? '#1f242d' : '#e2e8f0',
-    accent: '#38bdf8',
-  };
-
-  const btnGreen = {
-    background: 'linear-gradient(135deg, #059669, #22c55e)',
-    border: 'none',
-    color: 'white',
-    padding: '14px 25px',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontWeight: 'bold' as const,
-    fontSize: '15px',
-    boxShadow: '0 4px 15px rgba(5, 150, 105, 0.3)',
-    transition: 'transform 0.2s',
-    width: '100%',
   };
 
   useEffect(() => {
@@ -342,8 +319,19 @@ const TestarCamera = () => {
       const canvas = canvasRef.current;
 
       video.srcObject = stream;
-      await video.play();
+      
+      // ==========================================
+      // CORREÇÃO DO ABORT ERROR AO INICIAR A CÂMERA
+      // ==========================================
+      try {
+        await video.play();
+      } catch (playError: any) {
+        if (playError.name !== 'AbortError') {
+          throw playError;
+        }
+      }
 
+      setIsCameraActive(true);
       canvas.width = 640;
       canvas.height = 480;
 
@@ -376,10 +364,10 @@ const TestarCamera = () => {
           ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
 
           if (results.landmarks && results.landmarks.length > 0) {
-            updateStatus('MÃO DETECTADA!');
+            updateStatus('MÃO DETECTADA / RASTREANDO');
 
             ctx.shadowBlur = 10;
-            ctx.shadowColor = '#ff0055';
+            ctx.shadowColor = '#00d4ff';
 
             let totalPontosVisiveis = 0;
 
@@ -407,26 +395,28 @@ const TestarCamera = () => {
 
               totalPontosVisiveis += pontosVisiveis.length;
 
+              // Cor neon da linha
               drawingUtils.drawConnectors(
                 landmarksOriginal as any,
                 conexoesValidas as any,
                 {
-                  color: '#ff0055',
-                  lineWidth: 4,
+                  color: '#00d4ff', 
+                  lineWidth: 3,
                 },
               );
 
+              // Cor neon dos pontos
               drawingUtils.drawLandmarks(pontosVisiveis as any, {
                 color: '#ffffff',
                 lineWidth: 1,
-                radius: 6,
+                radius: 4,
               });
             }
 
             updatePontos(totalPontosVisiveis);
             ctx.shadowBlur = 0;
           } else {
-            updateStatus('PROCESSANDO...');
+            updateStatus('PROCURANDO MÃO...');
             updatePontos(0);
 
             hiddenFingerCountersRef.current = {
@@ -441,7 +431,7 @@ const TestarCamera = () => {
       predict();
     } catch (err) {
       console.error('Erro ao acessar câmera:', err);
-      alert(`Erro ao acessar câmera: ${err}`);
+      alert(`Erro ao acessar câmera. Verifique as permissões do navegador.`);
     }
   };
 
@@ -453,27 +443,47 @@ const TestarCamera = () => {
   return (
     <div
       style={{
-        background: theme.bg,
-        color: theme.text,
+        backgroundColor: '#050505',
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        fontFamily: '"Courier New", Courier, monospace',
-        boxSizing: 'border-box',
+        fontFamily: "'Courier New', Courier, monospace",
+        color: '#e2e8f0',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* Luzes difusas no fundo da tela */}
+      <div style={{
+        position: 'absolute', top: '10%', left: '10%', width: '400px', height: '400px',
+        background: 'radial-gradient(circle, rgba(0, 212, 255, 0.08) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none'
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '10%', right: '10%', width: '400px', height: '400px',
+        background: 'radial-gradient(circle, rgba(74, 222, 128, 0.08) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none'
+      }} />
+
+      {/* Título Principal */}
+      <div style={{ zIndex: 1, textAlign: 'center', marginBottom: '30px' }}>
+        <h1 style={{ color: '#00d4ff', margin: 0, fontSize: '2.5rem', fontStyle: 'italic', letterSpacing: '4px', textShadow: '0 0 15px rgba(0, 212, 255, 0.4)' }}>
+          AR VISION TEST
+        </h1>
+        <h2 style={{ margin: 0, fontSize: '1rem', color: '#94a3b8', letterSpacing: '6px' }}>DIAGNÓSTICO DE CÂMERA</h2>
+      </div>
+
       <div
         style={{
           display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
+          flexWrap: 'wrap',
+          alignItems: 'stretch',
           justifyContent: 'center',
-          gap: '40px',
+          gap: '30px',
           width: '100%',
-          maxWidth: '1500px',
+          maxWidth: '1200px',
+          zIndex: 1,
         }}
       >
         {/* PAINEL ESQUERDO: TÍTULO E STATUS */}
@@ -481,33 +491,46 @@ const TestarCamera = () => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
+            justifyContent: 'space-between',
             width: '280px',
-            textAlign: 'center',
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(0, 212, 255, 0.2)',
+            borderRadius: '16px',
+            padding: '25px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
           }}
         >
-          <h2 style={{ marginBottom: '20px', fontSize: '2rem', fontWeight: '900', lineHeight: '1.2' }}>
-            TESTE DE<br />CÂMERA
-          </h2>
+          <div>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: '#38bdf8', letterSpacing: '2px', borderBottom: '1px solid rgba(56, 189, 248, 0.3)', paddingBottom: '10px' }}>
+              SYS_STATUS
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: '#94a3b8' }}>IA SENSOR:</p>
+              <p style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold', color: status.includes('ERRO') ? '#ef4444' : (status.includes('DETECTADA') ? '#4ade80' : '#facc15') }}>
+                {status}
+              </p>
+            </div>
 
-          <div
-            style={{
-              background: theme.cardBg,
-              border: `1px solid ${theme.border}`,
-              padding: '20px',
-              borderRadius: '12px',
-              width: '100%',
-              boxSizing: 'border-box',
-              boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.02)',
-            }}
-          >
-            <p style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '1rem', margin: '0 0 10px 0' }}>
-              {status}
-            </p>
-            <p style={{ fontWeight: 'bold', fontSize: '1.1rem', margin: 0 }}>
-              Pontos: <span style={{ color: '#a3e635' }}>{pontos}</span> / 21
-            </p>
+            <div>
+              <p style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: '#94a3b8' }}>PONTOS RASTREADOS:</p>
+              <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#00d4ff', textShadow: '0 0 10px rgba(0, 212, 255, 0.4)' }}>
+                {pontos} <span style={{ fontSize: '1rem', color: '#64748b' }}>/ 21</span>
+              </p>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '20px' }}>
+            <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ 
+                height: '100%', 
+                width: `${(pontos / 21) * 100}%`, 
+                backgroundColor: '#4ade80',
+                transition: 'width 0.2s ease-out',
+                boxShadow: '0 0 10px #4ade80'
+              }} />
+            </div>
           </div>
         </div>
 
@@ -517,16 +540,25 @@ const TestarCamera = () => {
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: '900px',
+            maxWidth: '640px',
             aspectRatio: '4/3',
-            border: `1px solid ${theme.border}`,
+            border: `2px solid ${isCameraActive ? '#00d4ff' : '#333'}`,
             borderRadius: '16px',
             overflow: 'hidden',
-            boxShadow: isDark ? '0 10px 40px rgba(0,0,0,0.6)' : '0 4px 20px rgba(0,0,0,0.08)',
-            flexShrink: 1,
-            backgroundColor: '#000',
+            boxShadow: isCameraActive ? '0 0 30px rgba(0, 212, 255, 0.15)' : '0 10px 40px rgba(0,0,0,0.6)',
+            backgroundColor: '#09090b',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
         >
+          {!isCameraActive && (
+             <div style={{ color: '#64748b', fontSize: '1.2rem', letterSpacing: '2px', textAlign: 'center' }}>
+               [ FEED OFFLINE ]<br/>
+               <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>Aguardando inicialização da câmera</span>
+             </div>
+          )}
+
           <video
             ref={videoRef}
             style={{
@@ -537,6 +569,7 @@ const TestarCamera = () => {
               height: '100%',
               transform: 'scaleX(-1)',
               objectFit: 'cover',
+              opacity: isCameraActive ? 1 : 0
             }}
             autoPlay
             playsInline
@@ -555,22 +588,36 @@ const TestarCamera = () => {
             }}
           />
 
+          {/* Marcadores visuais HUD de câmera */}
+          {isCameraActive && (
+            <>
+              <div style={{ position: 'absolute', top: 15, left: 15, width: 20, height: 20, borderTop: '2px solid rgba(255,255,255,0.5)', borderLeft: '2px solid rgba(255,255,255,0.5)' }} />
+              <div style={{ position: 'absolute', top: 15, right: 15, width: 20, height: 20, borderTop: '2px solid rgba(255,255,255,0.5)', borderRight: '2px solid rgba(255,255,255,0.5)' }} />
+              <div style={{ position: 'absolute', bottom: 15, left: 15, width: 20, height: 20, borderBottom: '2px solid rgba(255,255,255,0.5)', borderLeft: '2px solid rgba(255,255,255,0.5)' }} />
+              <div style={{ position: 'absolute', bottom: 15, right: 15, width: 20, height: 20, borderBottom: '2px solid rgba(255,255,255,0.5)', borderRight: '2px solid rgba(255,255,255,0.5)' }} />
+              
+              <div style={{ position: 'absolute', top: 15, left: '50%', transform: 'translateX(-50%)', color: 'red', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+                <span style={{ width: 8, height: 8, backgroundColor: 'red', borderRadius: '50%', animation: 'pulseText 2s infinite' }}></span> REC
+              </div>
+            </>
+          )}
+
           {/* Botão de Tela Cheia Flutuante */}
           <button
             onClick={toggleFullscreen}
             style={{
               position: 'absolute',
               bottom: '15px',
-              right: '15px',
+              right: '35px',
               background: 'rgba(0, 0, 0, 0.6)',
               backdropFilter: 'blur(8px)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               color: '#fff',
-              padding: '8px 14px',
-              borderRadius: '8px',
+              padding: '6px 12px',
+              borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: 'bold',
-              fontSize: '0.8rem',
+              fontSize: '0.75rem',
               letterSpacing: '1px',
               zIndex: 10,
               transition: 'background 0.2s',
@@ -578,7 +625,7 @@ const TestarCamera = () => {
             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)')}
           >
-            ⛶ TELA CHEIA
+            [  ] TELA CHEIA
           </button>
         </div>
 
@@ -587,43 +634,68 @@ const TestarCamera = () => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '20px',
+            justifyContent: 'center',
+            gap: '15px',
             width: '280px',
           }}
         >
           <button
             onClick={iniciarTeste}
             disabled={!landmarker}
-            style={
-              landmarker
-                ? btnGreen
-                : {
-                    ...btnGreen,
-                    opacity: 0.5,
-                    cursor: 'not-allowed',
-                  }
-            }
+            style={{
+              background: isCameraActive ? 'transparent' : 'rgba(0, 212, 255, 0.1)',
+              border: `2px solid ${isCameraActive ? '#333' : '#00d4ff'}`,
+              color: isCameraActive ? '#94a3b8' : '#00d4ff',
+              padding: '16px 25px',
+              borderRadius: '12px',
+              cursor: landmarker ? 'pointer' : 'not-allowed',
+              fontWeight: 'bold',
+              fontSize: '1rem',
+              letterSpacing: '1px',
+              boxShadow: (isCameraActive || !landmarker) ? 'none' : '0 0 15px rgba(0, 212, 255, 0.3)',
+              transition: 'all 0.2s',
+              opacity: landmarker ? 1 : 0.5,
+              textTransform: 'uppercase'
+            }}
+            onMouseEnter={(e) => {
+              if (landmarker && !isCameraActive) {
+                e.currentTarget.style.background = 'rgba(0, 212, 255, 0.2)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (landmarker && !isCameraActive) {
+                e.currentTarget.style.background = 'rgba(0, 212, 255, 0.1)';
+              }
+            }}
           >
-            HABILITAR CÂMERA
+            {isCameraActive ? 'CÂMERA ATIVA' : 'INICIAR SENSOR'}
           </button>
 
           <button
             onClick={voltarParaInicio}
             style={{
-              background: theme.cardBg,
-              color: theme.text,
-              border: `1px solid ${theme.border}`,
-              padding: '12px 25px',
-              borderRadius: '10px',
+              background: 'transparent',
+              color: '#ef4444',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              padding: '16px 25px',
+              borderRadius: '12px',
               cursor: 'pointer',
               fontWeight: 'bold',
-              width: '100%',
+              fontSize: '1rem',
+              letterSpacing: '1px',
               transition: 'all 0.2s',
+              textTransform: 'uppercase'
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.border)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#ef4444';
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
-            VOLTAR PARA O INICIO
+            ABORTAR / VOLTAR
           </button>
         </div>
       </div>
