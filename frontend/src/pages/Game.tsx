@@ -128,15 +128,15 @@ const Game = () => {
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
-  const [remoteConnected, setRemoteConnected] = useState(false); 
+  const [remoteConnected, setRemoteConnected] = useState(false);
 
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const vitoriasIniciais = Number(
-    usuarioSalvo.vitoria ?? 
-    usuarioSalvo.vitorias ?? 
-    usuarioSalvo.total_vitorias ?? 
+    usuarioSalvo.vitoria ??
+    usuarioSalvo.vitorias ??
+    usuarioSalvo.total_vitorias ??
     0
   );
 
@@ -159,10 +159,15 @@ const Game = () => {
     meusDadosRef.current = meusDados;
   }, [meusDados]);
 
+  const dadosAdversarioRef = useRef(dadosAdversario);
+  useEffect(() => {
+    dadosAdversarioRef.current = dadosAdversario;
+  }, [dadosAdversario]);
+
   const hiddenFingerCountersRef = useRef<Record<FingerName, number>>({ ...INITIAL_HIDDEN_COUNTERS });
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [showLandmarks, setShowLandmarks] = useState(true);
-  
+
   const showLandmarksRef = useRef(showLandmarks);
   useEffect(() => {
     showLandmarksRef.current = showLandmarks;
@@ -200,7 +205,7 @@ const Game = () => {
       }
     }
   });
-  
+
   const resetTimerRef = useRef(resetTimer);
   useEffect(() => {
     resetTimerRef.current = resetTimer;
@@ -208,7 +213,8 @@ const Game = () => {
 
   const [gameLogs, setGameLogs] = useState<string[]>([
     '[Socket] Connected to server',
-    `[Room] Joined ${salaId}`
+    `[Room] Joined ${salaId}`,
+    `[Match] Player 1 (${isHost ? nomeLocal : adversarioNome}) vs Player 2 (${!isHost ? nomeLocal : adversarioNome})`
   ]);
 
   const game = useRef({
@@ -216,10 +222,6 @@ const Game = () => {
     p1Y: 175,
     p2Y: 175
   });
-
-  const addLog = (msg: string) => {
-    setGameLogs(prev => [...prev.slice(-4), msg]);
-  };
 
   useEffect(() => {
     if (isPartidaLocalMesmoPC) return;
@@ -232,7 +234,8 @@ const Game = () => {
         const meuReg = lista.find(
           (u: any) =>
             (usuarioSalvo?.id && Number(u.id_usuario ?? u.id) === Number(usuarioSalvo.id)) ||
-            (u.nome && u.nome.toLowerCase() === nomeLocal.toLowerCase())
+            (u.nome && u.nome.toLowerCase() === nomeLocal.toLowerCase()) ||
+            (u.usuario && u.usuario.toLowerCase() === nomeLocal.toLowerCase())
         );
 
         if (meuReg) {
@@ -253,7 +256,8 @@ const Game = () => {
         const advReg = lista.find(
           (u: any) =>
             (adversarioId && Number(u.id_usuario ?? u.id) === Number(adversarioId)) ||
-            (u.nome && u.nome.toLowerCase() === adversarioNome.toLowerCase())
+            (u.nome && u.nome.toLowerCase() === adversarioNome.toLowerCase()) ||
+            (u.usuario && u.usuario.toLowerCase() === adversarioNome.toLowerCase())
         );
 
         if (advReg) {
@@ -286,6 +290,9 @@ const Game = () => {
     };
   }, [showVersus]);
 
+  const addLog = (msg: string) => {
+    setGameLogs(prev => [...prev.slice(-4), msg]);
+  };
 
   const lancarBola = (direcaoX: number) => {
     const angulo = (Math.random() * 0.8 - 0.4) * Math.PI;
@@ -433,16 +440,13 @@ const Game = () => {
     });
 
     socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
+      const nomeP1 = (isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
+      const nomeP2 = (!isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
+
       if (novoPlacar.esquerda > placarRef.current.p1) {
-        const nomeP1 = (player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') 
-          ? player1Stats.nome.toUpperCase() 
-          : 'JOGADOR';
-        dispararEfeitoGol(`GOOOLLLL DE ${nomeP1}!`);
+        dispararEfeitoGol(`GOOOLLLL DO ${nomeP1}!`);
       } else if (novoPlacar.direita > placarRef.current.p2) {
-        const nomeP2 = (player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') 
-          ? player2Stats.nome.toUpperCase() 
-          : 'JOGADOR';
-        dispararEfeitoGol(`GOOOLLLL DE ${nomeP2}!`);
+        dispararEfeitoGol(`GOOOLLLL DO ${nomeP2}!`);
       }
 
       placarRef.current = { p1: novoPlacar.esquerda, p2: novoPlacar.direita };
@@ -451,10 +455,7 @@ const Game = () => {
 
       if (novoPlacar.esquerda >= 10 || novoPlacar.direita >= 10) {
         const venceuP1 = novoPlacar.esquerda >= 10;
-        const nomeVencedor = venceuP1 
-          ? ((player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') ? player1Stats.nome.toUpperCase() : 'JOGADOR 1')
-          : ((player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') ? player2Stats.nome.toUpperCase() : 'JOGADOR 2');
-
+        const nomeVencedor = venceuP1 ? nomeP1 : nomeP2;
         const msg = `${nomeVencedor} VENCEU A PARTIDA!`;
         finalizarPartidaOnline(msg, novoPlacar.esquerda, novoPlacar.direita);
       }
@@ -500,423 +501,433 @@ const Game = () => {
   }, [isHost, navigate, salaId, adversarioNome, tipoPartida, isPartidaLocalMesmoPC]);
 
   useEffect(() => {
-    let landmarker: Vision.HandLandmarker;
+    let isCancelled = false;
+    let landmarker: Vision.HandLandmarker | null = null;
     let animationFrameId: number;
     let lastTime = performance.now();
     let frameCount = 0;
     let activeStream: MediaStream | null = null;
+    let askOfferInterval: ReturnType<typeof setInterval> | null = null;
+    let iceQueue: RTCIceCandidateInit[] = [];
 
-    const initVisionAndWebRTC = async () => {
-      const vision = await Vision.FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      );
+    const handleWebRTCSignal = async (raw_data: any) => {
+      const data = raw_data?.signal || raw_data;
+      if (!data?.type) return;
 
-      landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        numHands: 1
-      });
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 480, max: 480 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 30, max: 30 } },
-        audio: false
-      });
-      activeStream = stream;
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-
-        if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
-          const pc = new RTCPeerConnection({
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun2.l.google.com:19302' },
-              { urls: 'stun:stun.stunprotocol.org:3478' }
-            ]
+      if (data.type === 'player_stats' && data.stats) {
+        setDadosAdversario(prev => ({
+          nome: adversarioNome || data.stats.nome || prev.nome,
+          avatar: data.stats.avatar || prev.avatar,
+          pontos: Number(data.stats.pontos ?? prev.pontos),
+          vitorias: Number(data.stats.vitoria ?? data.stats.vitorias ?? 0),
+        }));
+        if (isReadyRef.current) {
+          socket.emit('webrtc_signal', {
+            salaId,
+            signal: { type: 'game_ready', stats: meusDadosRef.current }
           });
-          peerConnectionRef.current = pc;
+        }
+        return;
+      }
 
-          stream.getTracks().forEach(track => {
-            const sender = pc.addTrack(track, stream);
-            const params = sender.getParameters();
-            if (!params.encodings) params.encodings = [{}];
-            params.encodings[0].maxBitrate = 400000;
-            params.degradationPreference = 'maintain-framerate';
-            sender.setParameters(params).catch(e => console.error("Erro nos parâmetros WebRTC:", e));
-          });
+      if (data.type === 'game_ready') {
+        if (data.stats) {
+          setDadosAdversario(prev => ({
+            nome: adversarioNome || data.stats.nome || prev.nome,
+            avatar: data.stats.avatar || prev.avatar,
+            pontos: Number(data.stats.pontos ?? prev.pontos),
+            vitorias: Number(data.stats.vitoria ?? data.stats.vitorias ?? 0),
+          }));
+        }
+        setIsAdversarioReady(true);
+        return;
+      }
 
-          // MONITOR DE REDE / FIREWALL
-          pc.oniceconnectionstatechange = () => {
-            console.log(`🎾 [WEBRTC] ICE Connection State mudou para: ${pc.iceConnectionState}`);
-            if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-              console.error("🎾 [WEBRTC] ERRO GRAVE: O Firewall ou o roteador bloqueou a conexão das câmeras (Sem servidor TURN configurado).");
-            }
-          };
+      const pc = peerConnectionRef.current;
+      if (!pc) return;
 
-          pc.ontrack = (event) => {
-            console.log("🎾 [WEBRTC] Câmera recebida do adversário!");
-            if (remoteVideoRef.current) {
-              if (event.streams && event.streams[0]) {
-                remoteVideoRef.current.srcObject = event.streams[0];
-              } else {
-                remoteVideoRef.current.srcObject = new MediaStream([event.track]);
-              }
-              setRemoteConnected(true);
-              const playPromise = remoteVideoRef.current.play();
-              if (playPromise !== undefined) {
-                playPromise.catch(e => console.warn("AutoPlay remoto bloqueado:", e));
-              }
-            }
-          };
+      try {
+        if (data.type === 'request_offer' && isHost) {
+          if (pc.signalingState !== 'stable') return;
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
+        } else if (data.type === 'offer' && !isHost) {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
 
-          pc.onicecandidate = (event) => {
-            if (event.candidate) {
-              socket.emit('webrtc_signal', { salaId, signal: { type: 'ice', candidate: event.candidate } });
-            }
-          };
+          iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}));
+          iceQueue = [];
+        } else if (data.type === 'answer' && isHost) {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
 
-          let iceQueue: RTCIceCandidateInit[] = [];
-
-          // ÚNICO LISTENER DO SOCKET.IO AQUI: Evita processamentos em dobro!
-          socket.on('webrtc_signal', async (raw_data) => {
-            const data = raw_data.signal || raw_data;
-            
-            // 1. Processamento de status de jogo
-            if (data.type === 'player_stats' && data.stats) {
-              setDadosAdversario(prev => ({
-                nome: adversarioNome || data.stats.nome || prev.nome,
-                avatar: data.stats.avatar || prev.avatar,
-                pontos: Number(data.stats.pontos ?? prev.pontos),
-                vitorias: Number(data.stats.vitoria ?? data.stats.vitorias ?? 0),
-              }));
-              return;
-            }
-            if (data.type === 'game_ready') {
-              setIsAdversarioReady(true);
-              return;
-            }
-
-            // 2. Processamento do WebRTC (Câmeras)
-            try {
-              if (data.type === 'request_offer' && isHost) {
-                console.log("🎾 [WEBRTC] Host recebeu request_offer. Criando oferta...");
-                if (pc.signalingState !== 'stable') return; 
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
-              } 
-              else if (data.type === 'offer' && !isHost) {
-                console.log("🎾 [WEBRTC] Convidado recebeu oferta. Criando resposta...");
-                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
-                
-                iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
-                iceQueue = [];
-                
-                if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
-                }
-              } 
-              else if (data.type === 'answer' && isHost) {
-                console.log("🎾 [WEBRTC] Host recebeu a resposta!");
-                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                
-                iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
-                iceQueue = [];
-                
-                if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
-                }
-              } 
-              else if (data.type === 'ice') {
-                if (pc.remoteDescription && pc.remoteDescription.type) {
-                  await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } else {
-                  iceQueue.push(data.candidate); // Salva para processar depois
-                }
-              }
-            } catch (err) {
-              console.error("🎾 [WEBRTC] Falha na negociação:", err);
-            }
-          });
-
-          if (!isHost) {
-            console.log("🎾 [WEBRTC] Convidado pedindo conexão ao Host...");
-            const askOffer = setInterval(() => {
-              if (pc.signalingState === 'stable' && !pc.currentRemoteDescription) {
-                socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
-              } else {
-                clearInterval(askOffer);
-              }
-            }, 2500);
+          iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}));
+          iceQueue = [];
+        } else if (data.type === 'ice') {
+          if (pc.remoteDescription?.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          } else {
+            iceQueue.push(data.candidate);
           }
         }
+      } catch (err) {
+        console.error("Erro no WebRTC:", err);
+      }
+    };
 
-        localVideoRef.current.onloadedmetadata = () => {
-          localVideoRef.current!.play();
-          const canvas = canvasRef.current!;
-          const ctx = canvas.getContext('2d')!;
-          const drawingUtils = new Vision.DrawingUtils(ctx);
+    socket.on('webrtc_signal', handleWebRTCSignal);
 
-          const renderLoop = () => {
-            const now = performance.now();
-            frameCount++;
-            if (now - lastTime >= 1000) {
-              setFps(frameCount);
-              frameCount = 0;
-              lastTime = now;
+    const initVisionAndWebRTC = async () => {
+      try {
+        const vision = await Vision.FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+        );
+        if (isCancelled) return;
+
+        landmarker = await Vision.HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate: "GPU"
+          },
+          runningMode: "VIDEO",
+          numHands: 1
+        });
+        if (isCancelled) {
+          landmarker.close();
+          return;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 480, max: 480 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 30, max: 30 } },
+          audio: false
+        });
+        if (isCancelled) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        activeStream = stream;
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+
+          if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
+            const pc = new RTCPeerConnection({
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun.stunprotocol.org:3478' }
+              ]
+            });
+            peerConnectionRef.current = pc;
+
+            stream.getTracks().forEach(track => {
+              const sender = pc.addTrack(track, stream);
+              const params = sender.getParameters();
+              if (!params.encodings) params.encodings = [{}];
+              params.encodings[0].maxBitrate = 400000;
+              params.degradationPreference = 'maintain-framerate';
+              sender.setParameters(params).catch(() => {});
+            });
+
+            pc.oniceconnectionstatechange = () => {
+              console.log(`🎾 [WEBRTC] ICE State: ${pc.iceConnectionState}`);
+            };
+
+            pc.ontrack = (event) => {
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = event.streams?.[0] || new MediaStream([event.track]);
+                setRemoteConnected(true);
+                remoteVideoRef.current.play().catch(() => {});
+              }
+            };
+
+            pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                socket.emit('webrtc_signal', { salaId, signal: { type: 'ice', candidate: event.candidate } });
+              }
+            };
+
+            if (!isHost) {
+              askOfferInterval = setInterval(() => {
+                if (pc.signalingState === 'stable' && !pc.currentRemoteDescription) {
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
+                } else if (askOfferInterval) {
+                  clearInterval(askOfferInterval);
+                  askOfferInterval = null;
+                }
+              }, 2000);
             }
+          }
 
-            if (localVideoRef.current && localVideoRef.current.readyState >= 2) {
-              const results = landmarker.detectForVideo(localVideoRef.current, now);
+          localVideoRef.current.onloadedmetadata = () => {
+            localVideoRef.current?.play().catch(() => {});
+            const canvas = canvasRef.current!;
+            const ctx = canvas.getContext('2d')!;
+            const drawingUtils = new Vision.DrawingUtils(ctx);
 
-              let handDetected = false;
-              if (results.landmarks && results.landmarks.length > 0) {
-                const hand = results.landmarks[0] as Landmark[];
-                auditoriaGlobal.registrarFrame(hand);
+            const renderLoop = () => {
+              if (isCancelled) return;
+              const now = performance.now();
+              frameCount++;
+              if (now - lastTime >= 1000) {
+                setFps(frameCount);
+                frameCount = 0;
+                lastTime = now;
+              }
 
-                const dedosOcultos = detectHiddenFingers(hand);
-                const isGestoObsceno = 
-                  !dedosOcultos.middle && 
-                  dedosOcultos.index && 
-                  dedosOcultos.ring && 
-                  dedosOcultos.pinky;
+              if (localVideoRef.current && localVideoRef.current.readyState >= 2 && landmarker) {
+                const results = landmarker.detectForVideo(localVideoRef.current, now);
 
-                if (isGestoObsceno) {
-                  console.warn("⚠️ ALERTA DA IA: Gesto obsceno flagrado no frame!");
-                  if (typeof (auditoriaGlobal as any).registrarInfracao === 'function') {
-                    (auditoriaGlobal as any).registrarInfracao('GESTO_OBSCENO', {
-                      timestamp: Date.now(),
-                      pontos: hand
+                let handDetected = false;
+                if (results.landmarks && results.landmarks.length > 0) {
+                  const hand = results.landmarks[0] as Landmark[];
+                  auditoriaGlobal.registrarFrame(hand);
+
+                  const dedosOcultos = detectHiddenFingers(hand);
+                  const isGestoObsceno =
+                    !dedosOcultos.middle &&
+                    dedosOcultos.index &&
+                    dedosOcultos.ring &&
+                    dedosOcultos.pinky;
+
+                  if (isGestoObsceno) {
+                    console.warn("⚠️ ALERTA DA IA: Gesto obsceno flagrado no frame!");
+                    if (typeof (auditoriaGlobal as any).registrarInfracao === 'function') {
+                      (auditoriaGlobal as any).registrarInfracao('GESTO_OBSCENO', {
+                        timestamp: Date.now(),
+                        pontos: hand
+                      });
+                    }
+                  }
+
+                  const palmY = hand[9] ? hand[9].y : hand[0].y;
+                  const sensibilidade = 1.6;
+                  let adjustedY = (palmY - 0.5) * sensibilidade + 0.5;
+                  adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
+
+                  const paddleY = adjustedY * 450 - 50;
+                  if (isHost) {
+                    game.current.p1Y = paddleY;
+                  } else {
+                    game.current.p2Y = paddleY;
+                  }
+
+                  handDetected = true;
+
+                  if (gameStartedRef.current && !partidaFinalizadaRef.current) {
+                    resetTimerRef.current();
+                  }
+
+                  socket.emit('moverRaquete', { salaId, y: paddleY });
+                }
+
+                if (tipoPartida === 'OFFLINE' && !partidaFinalizadaRef.current && gameStartedRef.current) {
+                  if (mensagemGolRef.current) {
+                    game.current.ball.x = 400;
+                    game.current.ball.y = 225;
+                    game.current.ball.dx = 0;
+                    game.current.ball.dy = 0;
+                  } else {
+                    game.current.ball.x += game.current.ball.dx;
+                    game.current.ball.y += game.current.ball.dy;
+                  }
+
+                  if (game.current.ball.y <= 10) {
+                    game.current.ball.y = 10;
+                    game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
+                    game.current.ball.dx += (Math.random() - 0.5) * 0.3;
+                  } else if (game.current.ball.y >= 440) {
+                    game.current.ball.y = 440;
+                    game.current.ball.dy = -Math.abs(game.current.ball.dy) * 1.02;
+                    game.current.ball.dx += (Math.random() - 0.5) * 0.3;
+                  }
+
+                  const hitP1 = game.current.ball.x <= 75 && game.current.ball.x >= 45 && game.current.ball.y > game.current.p1Y && game.current.ball.y < game.current.p1Y + 100;
+                  const hitP2 = game.current.ball.x >= 725 && game.current.ball.x <= 755 && game.current.ball.y > game.current.p2Y && game.current.ball.y < game.current.p2Y + 100;
+
+                  if (hitP1) {
+                    const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
+                    const currentSpeed = Math.min(Math.hypot(game.current.ball.dx, game.current.ball.dy) * 1.05, 30);
+                    game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * currentSpeed);
+                    game.current.ball.dy = Math.sin(bounceAngle) * currentSpeed;
+                    game.current.ball.x = 76;
+                  } else if (hitP2) {
+                    const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
+                    const currentSpeed = Math.min(Math.hypot(game.current.ball.dx, game.current.ball.dy) * 1.05, 30);
+                    game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * currentSpeed);
+                    game.current.ball.dy = Math.sin(bounceAngle) * currentSpeed;
+                    game.current.ball.x = 724;
+                  }
+
+                  if (game.current.ball.x < 0 && !mensagemGolRef.current) {
+                    const nomeP2 = (!isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
+                    const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
+                    dispararEfeitoGol(`GOOOLLLL DO ${nomeP2}!`);
+                    placarRef.current = novoPlacar;
+                    setPlacar(novoPlacar);
+
+                    if (novoPlacar.p2 >= 10) {
+                      finalizarPartidaOnline(`${nomeP2} VENCEU!`, novoPlacar.p1, novoPlacar.p2);
+                    } else {
+                      setTimeout(() => {
+                        if (!partidaFinalizadaRef.current) {
+                          game.current.ball = lancarBola(1);
+                        }
+                      }, 1500);
+                    }
+                  } else if (game.current.ball.x > 800 && !mensagemGolRef.current) {
+                    const nomeP1 = (isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
+                    const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
+                    dispararEfeitoGol(`GOOOLLLL DO ${nomeP1}!`);
+                    placarRef.current = novoPlacar;
+                    setPlacar(novoPlacar);
+
+                    if (novoPlacar.p1 >= 10) {
+                      finalizarPartidaOnline(`${nomeP1} VENCEU!`, novoPlacar.p1, novoPlacar.p2);
+                    } else {
+                      setTimeout(() => {
+                        if (!partidaFinalizadaRef.current) {
+                          game.current.ball = lancarBola(-1);
+                        }
+                      }, 1500);
+                    }
+                  }
+                }
+
+                ctx.clearRect(0, 0, 800, 450);
+
+                ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 8]);
+                ctx.beginPath();
+                ctx.moveTo(400, 0);
+                ctx.lineTo(400, 450);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(400, 225, 55, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = "rgba(70, 130, 180, 0.6)";
+                ctx.beginPath();
+                ctx.arc(400, 225, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = "rgba(0, 180, 255, 0.9)";
+                ctx.font = "bold 16px 'Courier New', monospace";
+                ctx.fillText(`PLAYER 1: ${placarRef.current.p1}`, 260, 40);
+                ctx.fillStyle = "#fff";
+                ctx.fillText("|", 395, 40);
+                ctx.fillStyle = "rgba(46, 204, 113, 0.9)";
+                ctx.fillText(`PLAYER 2: ${placarRef.current.p2}`, 420, 40);
+
+                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.font = "11px 'Courier New', monospace";
+                ctx.fillText("GOAL (P1)", 50, 405);
+                ctx.fillText("GOAL (P2)", 690, 405);
+                ctx.fillText("FIELD", 430, 370);
+
+                ctx.strokeStyle = "#00d4ff";
+                ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(55, game.current.p1Y, 20, 100);
+                ctx.fillRect(55, game.current.p1Y, 20, 100);
+
+                ctx.strokeStyle = "#2ecc71";
+                ctx.fillStyle = "rgba(46, 204, 113, 0.25)";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(725, game.current.p2Y, 20, 100);
+                ctx.fillRect(725, game.current.p2Y, 20, 100);
+
+                if (!partidaFinalizadaRef.current) {
+                  ctx.shadowColor = "#ffffff";
+                  ctx.shadowBlur = 15;
+                  ctx.fillStyle = "#ffffff";
+                  ctx.beginPath();
+                  ctx.arc(game.current.ball.x, game.current.ball.y, 10, 0, Math.PI * 2);
+                  ctx.fill();
+                  ctx.shadowBlur = 0;
+                }
+
+                if (mensagemGolRef.current) {
+                  ctx.save();
+                  ctx.font = "bold 42px 'Courier New', monospace";
+                  ctx.textAlign = "center";
+                  ctx.textBaseline = "middle";
+                  ctx.shadowColor = "#fbbf24";
+                  ctx.shadowBlur = 20;
+                  ctx.fillStyle = "#fde047";
+                  ctx.fillText(mensagemGolRef.current, 400, 200);
+                  ctx.restore();
+                }
+
+                if (showLandmarksRef.current && handDetected && results.landmarks) {
+                  for (const landmarksOriginal of results.landmarks) {
+                    const landmarks = landmarksOriginal as Landmark[];
+                    const hiddenMask = buildHiddenMask(landmarks, hiddenFingerCountersRef.current);
+
+                    const mirroredLandmarks = landmarksOriginal.map(pt => {
+                      const xEspelhado = 1 - pt.x;
+                      const posX = isHost ? (xEspelhado * 0.5) : (0.5 + xEspelhado * 0.5);
+                      return { ...pt, x: posX };
+                    });
+
+                    const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
+                      const { start, end } = connection as { start: number; end: number };
+                      return !hiddenMask[start] && !hiddenMask[end];
+                    });
+
+                    const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
+
+                    drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
+                      color: isHost ? '#00d4ff' : '#2ecc71',
+                      lineWidth: 4
+                    });
+                    drawingUtils.drawLandmarks(pontosVisiveis as any, {
+                      color: '#ffffff',
+                      lineWidth: 1,
+                      radius: 6
                     });
                   }
                 }
-
-                const palmY = hand[9] ? hand[9].y : hand[0].y;
-                const sensibilidade = 1.6;
-                let adjustedY = (palmY - 0.5) * sensibilidade + 0.5;
-                adjustedY = Math.max(0.1, Math.min(0.9, adjustedY));
-
-                const paddleY = adjustedY * 450 - 50;
-                if (isHost) {
-                  game.current.p1Y = paddleY;
-                } else {
-                  game.current.p2Y = paddleY;
-                }
-                
-                handDetected = true;
-                
-                if (gameStartedRef.current && !partidaFinalizadaRef.current) {
-                  resetTimerRef.current(); 
-                }
-                
-                socket.emit('moverRaquete', { salaId, y: paddleY });
               }
-
-              if (tipoPartida === 'OFFLINE' && !partidaFinalizadaRef.current && gameStartedRef.current) {
-                if (mensagemGolRef.current) {
-                  game.current.ball.x = 400;
-                  game.current.ball.y = 225;
-                  game.current.ball.dx = 0;
-                  game.current.ball.dy = 0;
-                } else {
-                  game.current.ball.x += game.current.ball.dx;
-                  game.current.ball.y += game.current.ball.dy;
-                }
-
-                if (game.current.ball.y <= 10) {
-                  game.current.ball.y = 10;
-                  game.current.ball.dy = Math.abs(game.current.ball.dy) * 1.02;
-                  game.current.ball.dx += (Math.random() - 0.5) * 0.3;
-                } else if (game.current.ball.y >= 440) {
-                  game.current.ball.y = 440;
-                  game.current.ball.dy = -Math.abs(game.current.ball.dy) * 1.02;
-                  game.current.ball.dx += (Math.random() - 0.5) * 0.3;
-                }
-
-                const hitP1 = game.current.ball.x <= 75 && game.current.ball.x >= 45 && game.current.ball.y > game.current.p1Y && game.current.ball.y < game.current.p1Y + 100;
-                const hitP2 = game.current.ball.x >= 725 && game.current.ball.x <= 755 && game.current.ball.y > game.current.p2Y && game.current.ball.y < game.current.p2Y + 100;
-
-                if (hitP1) {
-                  const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
-                  const currentSpeed = Math.min(Math.hypot(game.current.ball.dx, game.current.ball.dy) * 1.05, 30);
-                  game.current.ball.dx = Math.abs(Math.cos(bounceAngle) * currentSpeed);
-                  game.current.ball.dy = Math.sin(bounceAngle) * currentSpeed;
-                  game.current.ball.x = 76;
-                } else if (hitP2) {
-                  const bounceAngle = (Math.random() - 0.5) * (Math.PI / 2);
-                  const currentSpeed = Math.min(Math.hypot(game.current.ball.dx, game.current.ball.dy) * 1.05, 30);
-                  game.current.ball.dx = -Math.abs(Math.cos(bounceAngle) * currentSpeed);
-                  game.current.ball.dy = Math.sin(bounceAngle) * currentSpeed;
-                  game.current.ball.x = 724;
-                }
-
-                if (game.current.ball.x < 0 && !mensagemGolRef.current) {
-                  const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
-                  dispararEfeitoGol('GOOOLLLL DO PLAYER 2!');
-                  placarRef.current = novoPlacar;
-                  setPlacar(novoPlacar);
-
-                  if (novoPlacar.p2 >= 10) {
-                    finalizarPartidaOnline('PLAYER 2 VENCEU!', novoPlacar.p1, novoPlacar.p2);
-                  } else {
-                    setTimeout(() => {
-                      if (!partidaFinalizadaRef.current) {
-                        game.current.ball = lancarBola(1);
-                      }
-                    }, 1500);
-                  }
-                } else if (game.current.ball.x > 800 && !mensagemGolRef.current) {
-                  const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
-                  dispararEfeitoGol('GOOOLLLL DO PLAYER 1!');
-                  placarRef.current = novoPlacar;
-                  setPlacar(novoPlacar);
-
-                  if (novoPlacar.p1 >= 10) {
-                    finalizarPartidaOnline('PLAYER 1 VENCEU!', novoPlacar.p1, novoPlacar.p2);
-                  } else {
-                    setTimeout(() => {
-                      if (!partidaFinalizadaRef.current) {
-                        game.current.ball = lancarBola(-1);
-                      }
-                    }, 1500);
-                  }
-                }
-              }
-
-              ctx.clearRect(0, 0, 800, 450);
-
-              ctx.strokeStyle = "rgba(70, 130, 180, 0.45)";
-              ctx.lineWidth = 2;
-              ctx.setLineDash([8, 8]);
-              ctx.beginPath();
-              ctx.moveTo(400, 0);
-              ctx.lineTo(400, 450);
-              ctx.stroke();
-
-              ctx.beginPath();
-              ctx.arc(400, 225, 55, 0, Math.PI * 2);
-              ctx.stroke();
-
-              ctx.fillStyle = "rgba(70, 130, 180, 0.6)";
-              ctx.beginPath();
-              ctx.arc(400, 225, 4, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.setLineDash([]);
-
-              ctx.fillStyle = "rgba(0, 180, 255, 0.9)";
-              ctx.font = "bold 16px 'Courier New', monospace";
-              ctx.fillText(`PLAYER 1: ${placarRef.current.p1}`, 260, 40);
-              ctx.fillStyle = "#fff";
-              ctx.fillText("|", 395, 40);
-              ctx.fillStyle = "rgba(46, 204, 113, 0.9)";
-              ctx.fillText(`PLAYER 2: ${placarRef.current.p2}`, 420, 40);
-
-              ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-              ctx.font = "11px 'Courier New', monospace";
-              ctx.fillText("GOAL (P1)", 50, 405);
-              ctx.fillText("GOAL (P2)", 690, 405);
-              ctx.fillText("FIELD", 430, 370);
-
-              ctx.strokeStyle = "#00d4ff";
-              ctx.fillStyle = "rgba(0, 212, 255, 0.25)";
-              ctx.lineWidth = 3;
-              ctx.strokeRect(55, game.current.p1Y, 20, 100);
-              ctx.fillRect(55, game.current.p1Y, 20, 100);
-
-              ctx.strokeStyle = "#2ecc71";
-              ctx.fillStyle = "rgba(46, 204, 113, 0.25)";
-              ctx.lineWidth = 3;
-              ctx.strokeRect(725, game.current.p2Y, 20, 100);
-              ctx.fillRect(725, game.current.p2Y, 20, 100);
-
-              if (!partidaFinalizadaRef.current) {
-                ctx.shadowColor = "#ffffff";
-                ctx.shadowBlur = 15;
-                ctx.fillStyle = "#ffffff";
-                ctx.beginPath();
-                ctx.arc(game.current.ball.x, game.current.ball.y, 10, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-              }
-
-              if (mensagemGolRef.current) {
-                ctx.save();
-                ctx.font = "bold 42px 'Courier New', monospace";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.shadowColor = "#fbbf24";
-                ctx.shadowBlur = 20;
-                ctx.fillStyle = "#fde047";
-                ctx.fillText(mensagemGolRef.current, 400, 200);
-                ctx.restore();
-              }
-
-              if (showLandmarksRef.current && handDetected && results.landmarks) {
-                for (const landmarksOriginal of results.landmarks) {
-                  const landmarks = landmarksOriginal as Landmark[];
-                  const hiddenMask = buildHiddenMask(landmarks, hiddenFingerCountersRef.current);
-
-                  const mirroredLandmarks = landmarksOriginal.map(pt => {
-                    const xEspelhado = 1 - pt.x;
-                    const posX = isHost ? (xEspelhado * 0.5) : (0.5 + xEspelhado * 0.5);
-                    return { ...pt, x: posX };
-                  });
-
-                  const conexoesValidas = Vision.HandLandmarker.HAND_CONNECTIONS.filter((connection) => {
-                    const { start, end } = connection as { start: number; end: number };
-                    return !hiddenMask[start] && !hiddenMask[end];
-                  });
-
-                  const pontosVisiveis = mirroredLandmarks.filter((_, index) => !hiddenMask[index]);
-
-                  drawingUtils.drawConnectors(mirroredLandmarks as any, conexoesValidas as any, {
-                    color: isHost ? '#00d4ff' : '#2ecc71',
-                    lineWidth: 4
-                  });
-                  drawingUtils.drawLandmarks(pontosVisiveis as any, {
-                    color: '#ffffff',
-                    lineWidth: 1,
-                    radius: 6
-                  });
-                }
-              }
-            }
-            animationFrameId = requestAnimationFrame(renderLoop);
+              animationFrameId = requestAnimationFrame(renderLoop);
+            };
+            renderLoop();
           };
-          renderLoop();
-        };
+        }
+      } catch (err) {
+        console.error("Erro ao iniciar visão/WebRTC:", err);
       }
     };
 
     initVisionAndWebRTC();
 
     return () => {
+      isCancelled = true;
       cancelAnimationFrame(animationFrameId);
+      if (askOfferInterval) clearInterval(askOfferInterval);
       landmarker?.close();
 
-      socket.off('webrtc_signal');
+      socket.off('webrtc_signal', handleWebRTCSignal);
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
       }
 
       if (activeStream) {
         activeStream.getTracks().forEach(track => track.stop());
       }
       if (localVideoRef.current && localVideoRef.current.srcObject) {
-        const currentStream = localVideoRef.current.srcObject as MediaStream;
-        currentStream.getTracks().forEach(track => track.stop());
+        (localVideoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
         localVideoRef.current.srcObject = null;
       }
       if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-        const remoteStream = remoteVideoRef.current.srcObject as MediaStream;
-        remoteStream.getTracks().forEach(track => track.stop());
+        (remoteVideoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
         remoteVideoRef.current.srcObject = null;
       }
     };
@@ -935,82 +946,6 @@ const Game = () => {
       <span style={{ fontSize: '24px', marginBottom: '10px' }}>🕵️</span>
       <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Câmera Oculta</div>
       <div style={{ fontSize: '11px', marginTop: '4px' }}>(Modo Anônimo Ativo)</div>
-    </div>
-  );
-
-  const player1StatsComponent = (
-    <div style={{
-      flex: 1,
-      maxWidth: '245px',
-      background: 'rgba(69, 10, 10, 0.8)',
-      border: '2px solid rgba(248, 113, 113, 0.6)',
-      borderRadius: '18px',
-      padding: '16px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      backdropFilter: 'blur(10px)',
-      boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
-    }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
-        JOGADOR 1 {isHost ? '(VOCÊ)' : ''}
-      </span>
-      <div style={{
-        width: '92px',
-        height: '92px',
-        borderRadius: '18px',
-        overflow: 'hidden',
-        border: '3px solid #f87171',
-        boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
-        marginBottom: '10px',
-        backgroundColor: '#1f2937'
-      }}>
-        <img src={player1Stats.avatar} alt={player1Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      </div>
-      <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
-        {player1Stats.nome}
-      </h3>
-      <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong></div>
-      </div>
-    </div>
-  );
-
-  const player2StatsComponent = (
-    <div style={{
-      flex: 1,
-      maxWidth: '245px',
-      background: 'rgba(15, 23, 42, 0.82)',
-      border: '2px solid rgba(96, 165, 250, 0.6)',
-      borderRadius: '18px',
-      padding: '16px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      backdropFilter: 'blur(10px)',
-      boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
-    }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
-        JOGADOR 2 {!isHost ? '(VOCÊ)' : ''}
-      </span>
-      <div style={{
-        width: '92px',
-        height: '92px',
-        borderRadius: '18px',
-        overflow: 'hidden',
-        border: '3px solid #60a5fa',
-        boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
-        marginBottom: '10px',
-        backgroundColor: '#0f172a'
-      }}>
-        <img src={player2Stats.avatar} alt={player2Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      </div>
-      <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>{player2Stats.nome}</h3>
-      <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong></div>
-      </div>
     </div>
   );
 
@@ -1124,13 +1059,81 @@ const Game = () => {
               maxWidth: '800px',
               gap: '16px'
             }}>
-              {player1StatsComponent}
+              <div style={{
+                flex: 1,
+                maxWidth: '245px',
+                background: 'rgba(69, 10, 10, 0.8)',
+                border: '2px solid rgba(248, 113, 113, 0.6)',
+                borderRadius: '18px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#fca5a5', marginBottom: '8px' }}>
+                  JOGADOR 1 {isHost ? '(VOCÊ)' : ''}
+                </span>
+                <div style={{
+                  width: '92px',
+                  height: '92px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #f87171',
+                  boxShadow: '0 0 18px rgba(239, 68, 68, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#1f2937'
+                }}>
+                  <img src={player1Stats.avatar} alt={player1Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
+                  {player1Stats.nome}
+                </h3>
+                <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player1Stats.pontos}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player1Stats.vitorias}</strong></div>
+                </div>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontSize: '4.2rem', fontWeight: 900, fontStyle: 'italic', color: '#fff', textShadow: '0 0 20px #ef4444, 0 0 40px #3b82f6, 0 5px 10px rgba(0,0,0,0.9)', lineHeight: 1 }}>VS</div>
                 <div style={{ marginTop: '10px', background: 'rgba(0,0,0,0.85)', padding: '5px 18px', borderRadius: '8px', fontSize: '1.3rem', fontWeight: 900, letterSpacing: '3px', border: '1px solid rgba(255,255,255,0.2)' }}>0 - 0</div>
                 <div style={{ marginTop: '12px', fontSize: '0.8rem', fontWeight: 700, color: '#fde047', background: 'rgba(0,0,0,0.65)', padding: '4px 12px', borderRadius: '999px' }}>Arena em {versusCountdown}s...</div>
               </div>
-              {player2StatsComponent}
+              <div style={{
+                flex: 1,
+                maxWidth: '245px',
+                background: 'rgba(15, 23, 42, 0.82)',
+                border: '2px solid rgba(96, 165, 250, 0.6)',
+                borderRadius: '18px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 15px 40px rgba(0,0,0,0.65)'
+              }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1.5px', color: '#93c5fd', marginBottom: '8px' }}>
+                  JOGADOR 2 {!isHost ? '(VOCÊ)' : ''}
+                </span>
+                <div style={{
+                  width: '92px',
+                  height: '92px',
+                  borderRadius: '18px',
+                  overflow: 'hidden',
+                  border: '3px solid #60a5fa',
+                  boxShadow: '0 0 18px rgba(59, 130, 246, 0.6)',
+                  marginBottom: '10px',
+                  backgroundColor: '#0f172a'
+                }}>
+                  <img src={player2Stats.avatar} alt={player2Stats.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>{player2Stats.nome}</h3>
+                <div style={{ width: '100%', background: 'rgba(0,0,0,0.45)', borderRadius: '10px', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>🏆 Pontos:</span><strong style={{ color: '#fbbf24' }}>{player2Stats.pontos}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#cbd5e1' }}>⚔️ Vitórias:</span><strong style={{ color: '#4ade80' }}>{player2Stats.vitorias}</strong></div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1175,7 +1178,7 @@ const Game = () => {
         </div>
 
         <canvas ref={canvasRef} width={800} height={450} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }} />
-        
+
         {!gameStarted && !vencedor && !showVersus && (
           <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
             {countdown !== null ? (
@@ -1204,19 +1207,19 @@ const Game = () => {
               )}
               <button onClick={() => navigate('/home')} style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MENU PRINCIPAL</button>
             </div>
-              <button onClick={() => navigate('/modo-Jogo')} style={{ marginTop: '15px', background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
+            <button onClick={() => navigate('/modo-Jogo')} style={{ marginTop: '15px', background: '#1dd055', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>MODO JOGO</button>
           </div>
         )}
       </div>
 
-    {showDenunciaModal && (
-        <Denuncia 
-          partidaId={salaId} 
-          denunciadoNome={adversarioNome} 
-          denunciadoId={adversarioId} 
+      {showDenunciaModal && (
+        <Denuncia
+          partidaId={salaId}
+          denunciadoNome={adversarioNome}
+          denunciadoId={adversarioId}
           placarDenunciante={isHost ? placar.p1 : placar.p2}
           placarDenunciado={isHost ? placar.p2 : placar.p1}
-          onClose={() => setShowDenunciaModal(false)} 
+          onClose={() => setShowDenunciaModal(false)}
         />
       )}
 
