@@ -128,6 +128,7 @@ const Game = () => {
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
+  const [remoteConnected, setRemoteConnected] = useState(false); // NOVO: Controla a exibição do Aguardando...
 
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,7 +163,6 @@ const Game = () => {
   const [placar, setPlacar] = useState({ p1: 0, p2: 0 });
   const [showLandmarks, setShowLandmarks] = useState(true);
   
-  // REFERÊNCIA DO LANDMARK PARA EVITAR TRAVAMENTO DE TELA
   const showLandmarksRef = useRef(showLandmarks);
   useEffect(() => {
     showLandmarksRef.current = showLandmarks;
@@ -400,9 +400,7 @@ const Game = () => {
       navigate('/home');
       return;
     }
-
     const confirmacao = window.confirm("ATENÇÃO: Deseja realmente sair? Você perderá a partida e sofrerá penalidade de 50 pontos no ranking.");
-
     if (confirmacao) {
       socket.emit('player_surrender', { salaId });
       finalizarPartidaOnline('VOCÊ DESISTIU (DERROTA)', isHost ? 0 : 10, isHost ? 10 : 0, true);
@@ -455,7 +453,6 @@ const Game = () => {
 
       if (novoPlacar.esquerda >= 10 || novoPlacar.direita >= 10) {
         const venceuP1 = novoPlacar.esquerda >= 10;
-        
         const nomeVencedor = venceuP1 
           ? ((player1Stats.nome && player1Stats.nome.toUpperCase() !== 'JOGADOR 1') ? player1Stats.nome.toUpperCase() : 'JOGADOR 1')
           : ((player2Stats.nome && player2Stats.nome.toUpperCase() !== 'JOGADOR 2') ? player2Stats.nome.toUpperCase() : 'JOGADOR 2');
@@ -475,7 +472,6 @@ const Game = () => {
     socket.on('vitoriaPorInatividade', (data: { mensagem: string }) => {
       addLog('[Socket] Inatividade detectada');
       if (!partidaFinalizadaRef.current) {
-        // ALERT REMOVIDO: O W.O fecha a partida limpo!
         finalizarPartidaOnline(data.mensagem || 'PARTIDA ENCERRADA POR INATIVIDADE', placarRef.current.p1, placarRef.current.p2);
       }
     });
@@ -561,6 +557,9 @@ const Game = () => {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
 
+        // ==========================================
+        // CÓDIGO WEBRTC TOTALMENTE REESCRITO CONTRA CORRIDAS (RACE CONDITIONS) E PERDAS
+        // ==========================================
         if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
           const pc = new RTCPeerConnection({
             iceServers: [
@@ -585,6 +584,7 @@ const Game = () => {
           pc.ontrack = (event) => {
             if (remoteVideoRef.current && event.streams[0]) {
               remoteVideoRef.current.srcObject = event.streams[0];
+              setRemoteConnected(true); // Atualiza UI assim que a câmera chega!
               const playPromise = remoteVideoRef.current.play();
               if (playPromise !== undefined) {
                 playPromise.catch(error => {
@@ -600,9 +600,14 @@ const Game = () => {
             }
           };
 
+          // Fila de segurança para evitar perda de ICE Candidates adiantados
+          let iceQueue: RTCIceCandidateInit[] = [];
+
           socket.on('webrtc_signal', async (data) => {
             try {
               if (data.type === 'request_offer' && isHost) {
+                // Impede que o host crie 10 offers seguidas se der lag
+                if (pc.signalingState !== 'stable') return; 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
@@ -615,23 +620,29 @@ const Game = () => {
                 await pc.setLocalDescription(answer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
 
+                // Processa a fila de segurança de ICEs
+                iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
+                iceQueue = [];
+
                 if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', {
-                    salaId,
-                    signal: { type: 'game_ready', stats: meusDadosRef.current }
-                  });
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
                 }
               } else if (data.type === 'answer') {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                
+                // Processa a fila de segurança de ICEs
+                iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
+                iceQueue = [];
+
                 if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', {
-                    salaId,
-                    signal: { type: 'game_ready', stats: meusDadosRef.current }
-                  });
+                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
                 }
               } else if (data.type === 'ice') {
                 if (pc.remoteDescription) {
                   await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } else {
+                  // Se o pc ainda não estiver pronto para receber ICEs, joga pra fila!
+                  iceQueue.push(data.candidate); 
                 }
               }
             } catch (err) {
@@ -639,10 +650,18 @@ const Game = () => {
             }
           });
 
+          // ==========================================
+          // Retry Inteligente para o Player 2
+          // ==========================================
           if (!isHost) {
-            setTimeout(() => {
-              socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
-            }, 1000);
+            // Em vez de pedir uma vez só, pede a cada 2 segundos até conseguir!
+            const askOffer = setInterval(() => {
+              if (pc.signalingState === 'stable' && !pc.currentRemoteDescription) {
+                socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
+              } else {
+                clearInterval(askOffer); // Para de pedir assim que começar a conectar
+              }
+            }, 2000);
           }
         }
 
@@ -669,11 +688,7 @@ const Game = () => {
                 const hand = results.landmarks[0] as Landmark[];
                 auditoriaGlobal.registrarFrame(hand);
 
-                // --- 🚨 IA DE MODERAÇÃO EM TEMPO REAL 🚨 ---
-                // Verifica matematicamente a posição dos dedos para denúncia
                 const dedosOcultos = detectHiddenFingers(hand);
-                
-                // Regra do Gesto Obsceno: Dedo do meio esticado (false) + os outros 3 dobrados (true)
                 const isGestoObsceno = 
                   !dedosOcultos.middle && 
                   dedosOcultos.index && 
@@ -689,7 +704,6 @@ const Game = () => {
                     });
                   }
                 }
-                // ------------------------------------------
 
                 const palmY = hand[9] ? hand[9].y : hand[0].y;
                 const sensibilidade = 1.6;
@@ -851,7 +865,6 @@ const Game = () => {
                 ctx.restore();
               }
 
-              // LER DIRETO DA REFERÊNCIA (Impede lag ao ocultar landmarks)
               if (showLandmarksRef.current && handDetected && results.landmarks) {
                 for (const landmarksOriginal of results.landmarks) {
                   const landmarks = landmarksOriginal as Landmark[];
@@ -1139,8 +1152,8 @@ const Game = () => {
             ) : (
               ocultarCameraAdversario ? renderCameraOculta() : (
                 <>
-                  <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-                  {!remoteVideoRef.current?.srcObject && <div style={{ position: 'absolute', top: '45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px' }}>Aguardando P1...</div>}
+                  <video ref={remoteVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                  {!remoteConnected && <div style={{ position: 'absolute', top: '45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px' }}>Aguardando P1...</div>}
                 </>
               )
             )}
@@ -1152,8 +1165,8 @@ const Game = () => {
             ) : (
               ocultarCameraAdversario ? renderCameraOculta() : (
                 <>
-                  <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-                  {!remoteVideoRef.current?.srcObject && <div style={{ position: 'absolute', top: '45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px' }}>Aguardando P2...</div>}
+                  <video ref={remoteVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+                  {!remoteConnected && <div style={{ position: 'absolute', top: '45%', width: '100%', textAlign: 'center', color: '#666', fontSize: '12px' }}>Aguardando P2...</div>}
                 </>
               )
             )}
