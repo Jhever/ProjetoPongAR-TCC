@@ -128,7 +128,7 @@ const Game = () => {
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
-  const [remoteConnected, setRemoteConnected] = useState(false); // NOVO: Controla a exibição do Aguardando...
+  const [remoteConnected, setRemoteConnected] = useState(false); // Flag de sucesso WebRTC
 
   const mensagemGolRef = useRef<string | null>(null);
   const golTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -508,7 +508,9 @@ const Game = () => {
     let frameCount = 0;
     let activeStream: MediaStream | null = null;
 
-    const handleCustomSignals = (data: any) => {
+    const handleCustomSignals = (raw_data: any) => {
+      // Blindagem: Aceita o formato `{salaId, signal}` OU direto o `signal`
+      const data = raw_data.signal || raw_data;
       if (data?.type === 'player_stats' && data.stats) {
         const vitAdv = Number(data.stats.vitoria ?? data.stats.vitorias ?? 0);
         setDadosAdversario(prev => ({
@@ -558,7 +560,7 @@ const Game = () => {
         localVideoRef.current.srcObject = stream;
 
         // ==========================================
-        // CÓDIGO WEBRTC TOTALMENTE REESCRITO CONTRA CORRIDAS (RACE CONDITIONS) E PERDAS
+        // CÓDIGO WEBRTC BLINDADO CONTRA RACE CONDITIONS
         // ==========================================
         if (tipoPartida !== 'OFFLINE' && !ocultarCameraAdversario) {
           const pc = new RTCPeerConnection({
@@ -566,8 +568,7 @@ const Game = () => {
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
-              { urls: 'stun:stun.stunprotocol.org:3478' },
-              { urls: 'stun:s1.taraba.net' }
+              { urls: 'stun:stun.stunprotocol.org:3478' }
             ]
           });
           peerConnectionRef.current = pc;
@@ -581,14 +582,20 @@ const Game = () => {
             sender.setParameters(params).catch(e => console.error("Erro nos parâmetros WebRTC:", e));
           });
 
+          // RECEBE A CÂMARA REMOTA (Com Fallback para event.track isolado)
           pc.ontrack = (event) => {
-            if (remoteVideoRef.current && event.streams[0]) {
-              remoteVideoRef.current.srcObject = event.streams[0];
-              setRemoteConnected(true); // Atualiza UI assim que a câmera chega!
+            console.log("🎾 [WEBRTC] Câmera recebida do adversário!", event.track.kind);
+            if (remoteVideoRef.current) {
+              if (event.streams && event.streams[0]) {
+                remoteVideoRef.current.srcObject = event.streams[0];
+              } else {
+                remoteVideoRef.current.srcObject = new MediaStream([event.track]);
+              }
+              setRemoteConnected(true);
               const playPromise = remoteVideoRef.current.play();
               if (playPromise !== undefined) {
                 playPromise.catch(error => {
-                  console.warn("Reprodução remota adiada ou interrompida com segurança:", error);
+                  console.warn("Reprodução remota adiada de forma segura:", error);
                 });
               }
             }
@@ -600,66 +607,63 @@ const Game = () => {
             }
           };
 
-          // Fila de segurança para evitar perda de ICE Candidates adiantados
+          // Fila ICE para não perder pacotes de rede enquanto a oferta não chega
           let iceQueue: RTCIceCandidateInit[] = [];
 
-          socket.on('webrtc_signal', async (data) => {
+          // ESCUTA DE SINAIS CORRIGIDA (data.signal || data)
+          socket.on('webrtc_signal', async (raw_data) => {
+            const data = raw_data.signal || raw_data;
+            
+            // Ignora sinais de stats/ready neste bloco
+            if (data.type === 'player_stats' || data.type === 'game_ready') return;
+
             try {
               if (data.type === 'request_offer' && isHost) {
-                // Impede que o host crie 10 offers seguidas se der lag
+                console.log("🎾 [WEBRTC] Recebido request_offer. A criar offer...");
                 if (pc.signalingState !== 'stable') return; 
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'offer', offer } });
-                return;
-              }
-
-              if (data.type === 'offer') {
+              } 
+              else if (data.type === 'offer' && !isHost) {
+                console.log("🎾 [WEBRTC] Recebido offer. A criar answer...");
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'answer', answer } });
-
-                // Processa a fila de segurança de ICEs
+                
+                // Processa a fila de ICEs
                 iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
                 iceQueue = [];
-
-                if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
-                }
-              } else if (data.type === 'answer') {
+              } 
+              else if (data.type === 'answer' && isHost) {
+                console.log("🎾 [WEBRTC] Recebido answer da oferta.");
                 await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 
-                // Processa a fila de segurança de ICEs
+                // Processa a fila de ICEs
                 iceQueue.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{}));
                 iceQueue = [];
-
-                if (isReadyRef.current) {
-                  socket.emit('webrtc_signal', { salaId, signal: { type: 'game_ready', stats: meusDadosRef.current } });
-                }
-              } else if (data.type === 'ice') {
+              } 
+              else if (data.type === 'ice') {
                 if (pc.remoteDescription) {
                   await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 } else {
-                  // Se o pc ainda não estiver pronto para receber ICEs, joga pra fila!
-                  iceQueue.push(data.candidate); 
+                  iceQueue.push(data.candidate);
                 }
               }
             } catch (err) {
-              console.error("Erro no WebRTC:", err);
+              console.error("🎾 [WEBRTC] Falha na negociação:", err);
             }
           });
 
-          // ==========================================
-          // Retry Inteligente para o Player 2
-          // ==========================================
+          // O Player 2 pede ativamente a câmara ao Host a cada 2 segundos até ele acordar
           if (!isHost) {
-            // Em vez de pedir uma vez só, pede a cada 2 segundos até conseguir!
+            console.log("🎾 [WEBRTC] P2 à espera do Host...");
             const askOffer = setInterval(() => {
               if (pc.signalingState === 'stable' && !pc.currentRemoteDescription) {
                 socket.emit('webrtc_signal', { salaId, signal: { type: 'request_offer' } });
               } else {
-                clearInterval(askOffer); // Para de pedir assim que começar a conectar
+                clearInterval(askOffer);
               }
             }, 2000);
           }

@@ -327,7 +327,7 @@ const Home = () => {
           </div>
         </div>
 
-        <h1 style={styles.title}>PONG <span style={{ color: theme.text }}>AR (Realidade Aumentada)</span></h1>
+        <h1 style={styles.title}>PONG teste<span style={{ color: theme.text }}>AR (Realidade Aumentada)</span></h1>
       </header>
 
       <main style={styles.grid}>
