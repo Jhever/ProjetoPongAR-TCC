@@ -8,7 +8,7 @@ const STEPS = [
   {
     id: 0,
     titulo: 'Como funciona',
-    subtitulo: 'Rebata a bola e marque 10 gols antes do adversário.',
+    subtitulo: 'Vence quem marcar 10 gols primeiro ou tiver mais gols ao fim dos 5 minutos.',
   },
   {
     id: 1,
@@ -23,7 +23,7 @@ const STEPS = [
   {
     id: 3,
     titulo: 'Sistema de pontos',
-    subtitulo: 'Vitória: +30 pts | Derrota: +15 pts | Sair da partida: -50 pts.',
+    subtitulo: 'Vitória: +30 | Empate: +15 | Derrota: +5 | Sair da partida: -50 pts.',
   },
 ];
 
@@ -104,13 +104,13 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         ball.x += ball.dx;
         ball.y += ball.dy;
 
-        if (ball.y <= 22 || ball.y >= H - 22) {
+        if (ball.y <= 34 || ball.y >= H - 22) {
           ball.dy *= -1;
         }
 
         // Raquetes acompanham suavemente
-        p1Y += (Math.max(24, Math.min(H - 104, ball.y - 40)) - p1Y) * 0.1;
-        p2Y += (Math.max(24, Math.min(H - 104, ball.y - 40)) - p2Y) * 0.085;
+        p1Y += (Math.max(36, Math.min(H - 104, ball.y - 40)) - p1Y) * 0.1;
+        p2Y += (Math.max(36, Math.min(H - 104, ball.y - 40)) - p2Y) * 0.085;
 
         if (ball.x <= 72 && ball.dx < 0) {
           ball.x = 72;
@@ -132,7 +132,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         ctx.lineWidth = 1.5;
         ctx.setLineDash([5, 7]);
         ctx.beginPath();
-        ctx.moveTo(W / 2, 24);
+        ctx.moveTo(W / 2, 36);
         ctx.lineTo(W / 2, H - 24);
         ctx.stroke();
         ctx.setLineDash([]);
@@ -172,11 +172,11 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         ctx.fill();
         ctx.restore();
 
-        // Placar minimalista no topo
-        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        // Meta no topo (10 gols ou 5 minutos)
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.font = "600 12px 'Segoe UI', sans-serif";
         ctx.textAlign = 'center';
-        ctx.fillText('META: 10 GOLS PARA VENCER', W / 2, 24);
+        ctx.fillText('META: 10 GOLS OU MAIS GOLS EM 5 MINUTOS', W / 2, 22);
       } else if (step === 1) {
         // ======================================================
         // CENA 2: CONTROLE SOMENTE COM A MÃO
@@ -234,7 +234,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
           ctx.fill();
         }
 
-        // Indicador circular laranja no pulso/palma (estilo Unity da referência)
+        // Indicador circular laranja na palma
         ctx.strokeStyle = '#f97316';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -317,36 +317,44 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         ctx.fillText('registra infrações.', 395, 236);
       } else {
         // ======================================================
-        // CENA 4: PONTUAÇÃO (+30, +15, -50)
+        // CENA 4: PONTUAÇÃO (+30, +15, +5, -50)
         // ======================================================
         const cards = [
           {
             label: 'VITÓRIA',
-            pts: '+30 PTS',
-            desc: 'Venceu a partida',
+            pts: '+30',
+            desc: 'Venceu o jogo',
             color: '#4ade80',
             border: 'rgba(74, 222, 128, 0.5)',
-            x: 24,
+            x: 16,
+          },
+          {
+            label: 'EMPATE',
+            pts: '+15',
+            desc: 'Placar igual',
+            color: '#facc15',
+            border: 'rgba(250, 204, 21, 0.5)',
+            x: 146,
           },
           {
             label: 'DERROTA',
-            pts: '+15 PTS',
+            pts: '+5',
             desc: 'Jogou até o fim',
             color: '#60a5fa',
             border: 'rgba(96, 165, 250, 0.5)',
-            x: 192,
+            x: 276,
           },
           {
             label: 'SAIR / W.O.',
-            pts: '-50 PTS',
-            desc: 'Abandonou o jogo',
+            pts: '-50',
+            desc: 'Abandonou',
             color: '#f87171',
             border: 'rgba(248, 113, 113, 0.55)',
-            x: 360,
+            x: 406,
           },
         ];
 
-        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
         ctx.font = "600 12px 'Segoe UI', sans-serif";
         ctx.textAlign = 'center';
         ctx.fillText('PONTUAÇÃO NO RANKING ONLINE', W / 2, 36);
@@ -354,25 +362,31 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         cards.forEach((c, idx) => {
           const floatY = Math.sin(time * 0.003 + idx * 1.1) * 4;
           const y = 76 + floatY;
+          const cardW = 118;
+          const centerX = c.x + cardW / 2;
 
           ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
           ctx.strokeStyle = c.border;
           ctx.lineWidth = 1.5;
-          drawRoundedRect(c.x, y, 156, 170, 14);
+          drawRoundedRect(c.x, y, cardW, 170, 14);
           ctx.fill();
           ctx.stroke();
 
           ctx.fillStyle = '#cbd5e1';
-          ctx.font = "700 12px 'Segoe UI', sans-serif";
-          ctx.fillText(c.label, c.x + 78, y + 38);
+          ctx.font = "700 11px 'Segoe UI', sans-serif";
+          ctx.fillText(c.label, centerX, y + 38);
 
           ctx.fillStyle = c.color;
           ctx.font = "800 26px 'Segoe UI', sans-serif";
-          ctx.fillText(c.pts, c.x + 78, y + 96);
+          ctx.fillText(c.pts, centerX, y + 92);
+
+          ctx.fillStyle = c.color;
+          ctx.font = "600 10px 'Segoe UI', sans-serif";
+          ctx.fillText('PONTOS', centerX, y + 110);
 
           ctx.fillStyle = '#94a3b8';
-          ctx.font = "400 11px 'Segoe UI', sans-serif";
-          ctx.fillText(c.desc, c.x + 78, y + 136);
+          ctx.font = "400 10px 'Segoe UI', sans-serif";
+          ctx.fillText(c.desc, centerX, y + 142);
         });
       }
 
@@ -398,7 +412,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
         fontFamily: "'Segoe UI', Roboto, sans-serif",
       }}
     >
-      {/* Container principal com degradê laranja/azul estilo referência */}
+      {/* Container principal com degradê laranja/azul */}
       <div
         style={{
           position: 'relative',
@@ -488,7 +502,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({ onClose }) => {
             />
           </div>
 
-          {/* Card escuro flutuante das etapas (estilo do print) */}
+          {/* Card escuro flutuante das etapas */}
           <div
             style={{
               flex: '0 0 215px',
