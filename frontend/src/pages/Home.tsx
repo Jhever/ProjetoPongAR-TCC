@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserCircle } from 'lucide-react';
-import { useConfig } from '../context/ConfigContext'; 
+import { useConfig } from '../context/ConfigContext';
+import TutorialModal from '../components/TutorialModal';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -9,7 +10,9 @@ const Home = () => {
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
-  
+  const [showTutorial, setShowTutorial] = useState(
+    () => localStorage.getItem('pong_tutorial_visto') !== 'true'
+  );
   // Estado para puxar as infrações e os pontos do banco
   const [dadosAtualizados, setDadosAtualizados] = useState({ pontos: 0, infracoes: 0 });
 
@@ -24,9 +27,9 @@ const Home = () => {
         .then(res => res.json())
         .then(data => {
           if (!data.error) {
-            setDadosAtualizados({ 
-              pontos: data.pontos_totais || 0, 
-              infracoes: data.total_infracoes || 0 
+            setDadosAtualizados({
+              pontos: data.pontos_totais || 0,
+              infracoes: data.total_infracoes || 0
             });
           }
         })
@@ -143,6 +146,20 @@ const Home = () => {
       textAlign: 'center' as const,
       flex: 1,
     },
+    tutorialBtn: {
+      backgroundColor: theme.card,
+      color: theme.accent,
+      border: `1px solid ${theme.accent}`,
+      padding: '10px 16px',
+      borderRadius: '8px',
+      fontSize: '0.85rem',
+      fontWeight: 'bold' as const,
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+      letterSpacing: '1px',
+      whiteSpace: 'nowrap' as const,
+      transition: 'all 0.2s ease',
+    },
     grid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
@@ -177,7 +194,7 @@ const Home = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 9999, 
+      zIndex: 9999,
     },
     modalCard: {
       backgroundColor: theme.card,
@@ -202,7 +219,7 @@ const Home = () => {
     },
     modalBtnYes: {
       padding: '12px 30px',
-      backgroundColor: '#ef4444', 
+      backgroundColor: '#ef4444',
       color: '#fff',
       border: 'none',
       borderRadius: '8px',
@@ -213,7 +230,7 @@ const Home = () => {
     },
     modalBtnNo: {
       padding: '12px 30px',
-      backgroundColor: theme.accent, 
+      backgroundColor: theme.accent,
       color: '#000',
       border: 'none',
       borderRadius: '8px',
@@ -249,15 +266,14 @@ const Home = () => {
     <div style={styles.screen}>
       <header style={styles.header}>
         <div style={styles.profileContainer} onClick={() => setShowProfile(!showProfile)}>
-          
           {dadosAtualizados.infracoes > 0 && !showProfile && (
             <div style={{
-              position: 'absolute', top: 2, right: 2, width: 12, height: 12, 
+              position: 'absolute', top: 2, right: 2, width: 12, height: 12,
               backgroundColor: '#ef4444', borderRadius: '50%', zIndex: 10,
               boxShadow: '0 0 8px #ef4444', animation: 'pulse 2s infinite'
             }} />
           )}
-          
+
           {/* Ícone ou Foto customizada no Header */}
           {avatarFoto ? (
             <div style={{
@@ -275,10 +291,9 @@ const Home = () => {
           ) : (
             <UserCircle size={55} color={theme.text} strokeWidth={1.5} />
           )}
-          
+
           {/* Menu Flutuante do Perfil */}
           <div style={styles.profileMenu} onClick={(e) => e.stopPropagation()}>
-            
             {/* Cabeçalho do menu flutuante com a foto e nome resumido */}
             <div style={styles.profileHeader}>
               <div style={styles.avatarBox}>
@@ -303,7 +318,7 @@ const Home = () => {
             <p style={styles.menuItemText}>
               ID: {userData?.id ? String(userData.id).padStart(8, '0') : "00000000"}
             </p>
-            
+
             <p style={styles.menuItemText}>
               PONTOS: {dadosAtualizados.pontos}
             </p>
@@ -314,8 +329,8 @@ const Home = () => {
               </div>
             )}
 
-            <p style={{...styles.menuItemText, border: 'none', marginTop: '12px', fontSize: '0.85rem'}}>MODO ANÔNIMO:</p>
-            
+            <p style={{ ...styles.menuItemText, border: 'none', marginTop: '12px', fontSize: '0.85rem' }}>MODO ANÔNIMO:</p>
+
             <div style={{ display: 'flex', gap: '20px', marginTop: '5px' }}>
               <label style={styles.labelStyle}>
                 <input type="radio" name="anonimo" checked={isAnonimo} onChange={toggleAnonimo} /> SIM
@@ -327,20 +342,31 @@ const Home = () => {
           </div>
         </div>
 
-        <h1 style={styles.title}>PONG AR teste<span style={{ color: theme.text }}>(Realidade Aumentada)</span></h1>
+        <h1 style={styles.title}>
+          PONG AR teste<span style={{ color: theme.text }}>(Realidade Aumentada)</span>
+        </h1>
+
+        <button
+          style={styles.tutorialBtn}
+          onClick={() => setShowTutorial(true)}
+          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isDark ? '#1a1f2c' : '#e0f2fe')}
+          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = theme.card)}
+        >
+          ❓ COMO JOGAR
+        </button>
       </header>
 
       <main style={styles.grid}>
         {menuItems.map((item, index) => (
-          <button 
-            key={index} 
+          <button
+            key={index}
             style={styles.button}
             onClick={() => handleMenuClick(item)}
-            onMouseOver={(e) => { 
+            onMouseOver={(e) => {
               e.currentTarget.style.backgroundColor = isDark ? '#1a1f2c' : '#f1f5f9';
               e.currentTarget.style.transform = 'translateY(-2px)';
             }}
-            onMouseOut={(e) => { 
+            onMouseOut={(e) => {
               e.currentTarget.style.backgroundColor = theme.card;
               e.currentTarget.style.transform = 'translateY(0)';
             }}
@@ -350,13 +376,17 @@ const Home = () => {
         ))}
       </main>
 
+      {showTutorial && (
+        <TutorialModal onClose={() => setShowTutorial(false)} />
+      )}
+
       {showExitModal && (
         <div style={styles.modalBackdrop}>
           <div style={styles.modalCard}>
             <p style={styles.modalText}>Gostaria de sair do jogo Pong?</p>
             <div style={styles.modalButtonsDiv}>
-              <button 
-                style={styles.modalBtnYes} 
+              <button
+                style={styles.modalBtnYes}
                 onClick={() => {
                   // 1. Chama a função oficial de logout do contexto
                   if (logoutUser) logoutUser();
@@ -364,20 +394,20 @@ const Home = () => {
                   // 2. Limpa todos os storages de forma preventiva
                   localStorage.clear();
                   sessionStorage.clear();
-                  
+
                   // 3. Fecha o modal
                   setShowExitModal(false);
-                  
+
                   // 4. Força o redirecionamento absoluto para a tela de Login
-                  window.location.href = '/'; 
+                  window.location.href = '/';
                 }}
                 onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
                 onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
               >
                 SIM
               </button>
-              <button 
-                style={styles.modalBtnNo} 
+              <button
+                style={styles.modalBtnNo}
                 onClick={() => setShowExitModal(false)}
                 onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
                 onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
