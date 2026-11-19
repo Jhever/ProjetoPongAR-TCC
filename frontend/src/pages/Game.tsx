@@ -121,8 +121,13 @@ const Game = () => {
 
   const usuarioSalvo = JSON.parse(localStorage.getItem('usuario') || '{}');
   const nomeLocal = usuarioSalvo.usuario || usuarioSalvo.nome || 'Jogador 1';
-  const isLocalAnonimo = usuarioSalvo.is_anonimo === true || nomeLocal.toUpperCase() === 'ANÔNIMO';
-  const isAdversarioAnonimo = adversarioNome.toUpperCase() === 'ANÔNIMO';
+  const isLocalAnonimo =
+    localStorage.getItem('isAnonimo') === 'true' ||
+    usuarioSalvo.is_anonimo === true ||
+    nomeLocal.toUpperCase() === 'ANÔNIMO';
+  const [isAdversarioAnonimo, setIsAdversarioAnonimo] = useState(
+    adversarioNome.toUpperCase() === 'ANÔNIMO'
+  );
   const ocultarCameraAdversario = isLocalAnonimo || isAdversarioAnonimo;
 
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
@@ -249,7 +254,7 @@ const Game = () => {
           setMeusDados(novosMeusDados);
           socket.emit('webrtc_signal', {
             salaId,
-            signal: { type: 'player_stats', stats: novosMeusDados }
+            signal: { type: 'player_stats', stats: novosMeusDados, isAnonimo: isLocalAnonimo }
           });
         }
 
@@ -271,7 +276,7 @@ const Game = () => {
         }
       })
       .catch(() => {});
-  }, [adversarioId, adversarioNome, isPartidaLocalMesmoPC, nomeLocal, salaId, usuarioSalvo?.id, vitoriasIniciais]);
+  }, [adversarioId, adversarioNome, isLocalAnonimo, isPartidaLocalMesmoPC, nomeLocal, salaId, usuarioSalvo?.id, vitoriasIniciais]);
 
   useEffect(() => {
     if (!showVersus) return;
@@ -311,7 +316,7 @@ const Game = () => {
     if (tipoPartida !== 'OFFLINE') {
       socket.emit('webrtc_signal', {
         salaId,
-        signal: { type: 'game_ready', stats: meusDadosRef.current }
+        signal: { type: 'game_ready', stats: meusDadosRef.current, isAnonimo: isLocalAnonimo }
       });
     }
   };
@@ -422,7 +427,7 @@ const Game = () => {
       setTimeout(() => {
         socket.emit('webrtc_signal', {
           salaId,
-          signal: { type: 'player_stats', stats: meusDadosRef.current }
+          signal: { type: 'player_stats', stats: meusDadosRef.current, isAnonimo: isLocalAnonimo }
         });
       }, 600);
     }
@@ -498,7 +503,7 @@ const Game = () => {
       socket.off('vitoriaPorInatividade');
       socket.off('adversarioDesconectou');
     };
-  }, [isHost, navigate, salaId, adversarioNome, tipoPartida, isPartidaLocalMesmoPC]);
+  }, [isHost, navigate, salaId, adversarioNome, tipoPartida, isPartidaLocalMesmoPC, isLocalAnonimo]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -514,6 +519,18 @@ const Game = () => {
       const data = raw_data?.signal || raw_data;
       if (!data?.type) return;
 
+      if (data.isAnonimo === true) {
+        setIsAdversarioAnonimo(true);
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.close();
+          peerConnectionRef.current = null;
+        }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = null;
+        }
+        setRemoteConnected(false);
+      }
+
       if (data.type === 'player_stats' && data.stats) {
         setDadosAdversario(prev => ({
           nome: adversarioNome || data.stats.nome || prev.nome,
@@ -524,7 +541,7 @@ const Game = () => {
         if (isReadyRef.current) {
           socket.emit('webrtc_signal', {
             salaId,
-            signal: { type: 'game_ready', stats: meusDadosRef.current }
+            signal: { type: 'game_ready', stats: meusDadosRef.current, isAnonimo: isLocalAnonimo }
           });
         }
         return;
@@ -931,7 +948,7 @@ const Game = () => {
         remoteVideoRef.current.srcObject = null;
       }
     };
-  }, [isHost, salaId, tipoPartida, adversarioNome, ocultarCameraAdversario]);
+  }, [isHost, salaId, tipoPartida, adversarioNome, ocultarCameraAdversario, isLocalAnonimo]);
 
   const player1Stats: PlayerStats = isHost ? meusDados : dadosAdversario;
   const player2Stats: PlayerStats = isHost ? dadosAdversario : meusDados;
