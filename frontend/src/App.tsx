@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ConfigProvider } from './context/ConfigContext';
+import BackgroundMusic from './components/BackgroundMusic';
 import Home from './pages/Home';
 import Register from './pages/Register';
 import Login from './pages/Login';
@@ -73,6 +74,7 @@ function App() {
     <ConfigProvider>
       <Router>
         <RouteTracker />
+        <BackgroundMusic />
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<Register />} />
