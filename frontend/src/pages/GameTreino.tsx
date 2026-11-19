@@ -1,8 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Vision from "@mediapipe/tasks-vision";
+import { useConfig } from '../context/ConfigContext';
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
+const AVATAR_ANONIMO = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anonimo&backgroundColor=1e293b';
 
 // ==========================================
 // CONFIGURAÇÃO DOS ROBÔS DA IA POR NÍVEL
@@ -125,6 +127,7 @@ const GameTreino = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
+  const { isAnonimo } = useConfig();
 
   const [dificuldade, setDificuldade] = useState('medio');
   const [fps, setFps] = useState(60);
@@ -165,6 +168,11 @@ const GameTreino = () => {
   useEffect(() => { showLandmarksRef.current = showLandmarks; }, [showLandmarks]);
   useEffect(() => { dificuldadeRef.current = dificuldade; }, [dificuldade]);
 
+  // Mantém o nome usado na comemoração do gol sincronizado com o modo anônimo
+  useEffect(() => {
+    nomeJogadorRef.current = isAnonimo ? 'ANÔNIMO' : (dadosJogador.nome || 'JOGADOR');
+  }, [isAnonimo, dadosJogador.nome]);
+
   const dispararEfeitoGol = (texto: string) => {
     mensagemGolRef.current = texto;
     if (golTimeoutRef.current) clearTimeout(golTimeoutRef.current);
@@ -185,8 +193,6 @@ const GameTreino = () => {
       usuarioSalvo?.login || 
       localStorage.getItem('nome_usuario') || 
       'Jogador';
-
-    nomeJogadorRef.current = nomeReal;
 
     const avatarReal = 
       usuarioSalvo?.avatar || 
@@ -219,7 +225,6 @@ const GameTreino = () => {
 
           if (meuRegistro) {
             const nomeFinal = meuRegistro.nome || meuRegistro.usuario || nomeReal;
-            nomeJogadorRef.current = nomeFinal;
 
             // Lendo 'vitoria' (singular da API) com fallback seguro para 'vitorias'
             const vitoriasApi = Number(
@@ -702,6 +707,8 @@ const GameTreino = () => {
   }, []);
 
   const botAtual = PERFIS_IA[dificuldade] || PERFIS_IA.medio;
+  const nomeExibicao = isAnonimo ? 'ANÔNIMO' : (dadosJogador.nome || 'Jogador');
+  const avatarExibicao = isAnonimo ? AVATAR_ANONIMO : dadosJogador.avatar;
 
   return (
     <div style={{
@@ -824,13 +831,13 @@ const GameTreino = () => {
                   backgroundColor: '#1f2937'
                 }}>
                   <img
-                    src={dadosJogador.avatar}
-                    alt={dadosJogador.nome}
+                    src={avatarExibicao}
+                    alt={nomeExibicao}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 </div>
                 <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 12px 0', color: '#fff', textAlign: 'center' }}>
-                  {dadosJogador.nome}
+                  {nomeExibicao}
                 </h3>
                 <div style={{
                   width: '100%',
@@ -949,7 +956,7 @@ const GameTreino = () => {
         )}
 
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#00d4ff', fontWeight: 'bold' }}>
-          {dadosJogador.nome.toUpperCase()} (PLAYER 1)
+          {nomeExibicao.toUpperCase()} (PLAYER 1)
         </div>
         <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #ff0055', padding: '4px 10px', fontSize: '11px', background: 'rgba(0,0,0,0.65)', color: '#ff0055', fontWeight: 'bold' }}>
           {botAtual.nome.toUpperCase()} ({botAtual.nivelLabel})
