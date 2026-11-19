@@ -130,6 +130,11 @@ const Game = () => {
   );
   const ocultarCameraAdversario = isLocalAnonimo || isAdversarioAnonimo;
 
+  const ocultarCameraAdversarioRef = useRef(ocultarCameraAdversario);
+  useEffect(() => {
+    ocultarCameraAdversarioRef.current = ocultarCameraAdversario;
+  }, [ocultarCameraAdversario]);
+
   const isPartidaLocalMesmoPC = tipoPartida.toUpperCase() === 'OFFLINE' || tipoPartida.toUpperCase() === 'LOCAL';
   const [showVersus, setShowVersus] = useState(!isPartidaLocalMesmoPC);
   const [versusCountdown, setVersusCountdown] = useState(4);
@@ -447,11 +452,20 @@ const Game = () => {
     socket.on('placarAtualizado', (novoPlacar: { esquerda: number; direita: number }) => {
       const nomeP1 = (isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
       const nomeP2 = (!isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
+      const isAnonimoAtivo = ocultarCameraAdversarioRef.current;
 
       if (novoPlacar.esquerda > placarRef.current.p1) {
-        dispararEfeitoGol(`GOOOLLLL DO ${nomeP1}!`);
+        if (isAnonimoAtivo) {
+          dispararEfeitoGol(isHost ? 'VOCÊ FEZ GOL!' : 'ADVERSÁRIO FEZ GOL!');
+        } else {
+          dispararEfeitoGol(`GOOOLLLL DO ${nomeP1}!`);
+        }
       } else if (novoPlacar.direita > placarRef.current.p2) {
-        dispararEfeitoGol(`GOOOLLLL DO ${nomeP2}!`);
+        if (isAnonimoAtivo) {
+          dispararEfeitoGol(!isHost ? 'VOCÊ FEZ GOL!' : 'ADVERSÁRIO FEZ GOL!');
+        } else {
+          dispararEfeitoGol(`GOOOLLLL DO ${nomeP2}!`);
+        }
       }
 
       placarRef.current = { p1: novoPlacar.esquerda, p2: novoPlacar.direita };
@@ -460,8 +474,11 @@ const Game = () => {
 
       if (novoPlacar.esquerda >= 10 || novoPlacar.direita >= 10) {
         const venceuP1 = novoPlacar.esquerda >= 10;
+        const voceVenceu = (isHost && venceuP1) || (!isHost && !venceuP1);
         const nomeVencedor = venceuP1 ? nomeP1 : nomeP2;
-        const msg = `${nomeVencedor} VENCEU A PARTIDA!`;
+        const msg = isAnonimoAtivo
+          ? (voceVenceu ? 'VOCÊ VENCEU A PARTIDA!' : 'ADVERSÁRIO VENCEU A PARTIDA!')
+          : `${nomeVencedor} VENCEU A PARTIDA!`;
         finalizarPartidaOnline(msg, novoPlacar.esquerda, novoPlacar.direita);
       }
     });
@@ -782,12 +799,22 @@ const Game = () => {
                   if (game.current.ball.x < 0 && !mensagemGolRef.current) {
                     const nomeP2 = (!isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
                     const novoPlacar = { p1: placarRef.current.p1, p2: placarRef.current.p2 + 1 };
-                    dispararEfeitoGol(`GOOOLLLL DO ${nomeP2}!`);
+                    dispararEfeitoGol(
+                      ocultarCameraAdversarioRef.current
+                        ? (!isHost ? 'VOCÊ FEZ GOL!' : 'ADVERSÁRIO FEZ GOL!')
+                        : `GOOOLLLL DO ${nomeP2}!`
+                    );
                     placarRef.current = novoPlacar;
                     setPlacar(novoPlacar);
 
                     if (novoPlacar.p2 >= 10) {
-                      finalizarPartidaOnline(`${nomeP2} VENCEU!`, novoPlacar.p1, novoPlacar.p2);
+                      finalizarPartidaOnline(
+                        ocultarCameraAdversarioRef.current
+                          ? (!isHost ? 'VOCÊ VENCEU!' : 'ADVERSÁRIO VENCEU!')
+                          : `${nomeP2} VENCEU!`,
+                        novoPlacar.p1,
+                        novoPlacar.p2
+                      );
                     } else {
                       setTimeout(() => {
                         if (!partidaFinalizadaRef.current) {
@@ -798,12 +825,22 @@ const Game = () => {
                   } else if (game.current.ball.x > 800 && !mensagemGolRef.current) {
                     const nomeP1 = (isHost ? meusDadosRef.current.nome : dadosAdversarioRef.current.nome || adversarioNome).toUpperCase();
                     const novoPlacar = { p1: placarRef.current.p1 + 1, p2: placarRef.current.p2 };
-                    dispararEfeitoGol(`GOOOLLLL DO ${nomeP1}!`);
+                    dispararEfeitoGol(
+                      ocultarCameraAdversarioRef.current
+                        ? (isHost ? 'VOCÊ FEZ GOL!' : 'ADVERSÁRIO FEZ GOL!')
+                        : `GOOOLLLL DO ${nomeP1}!`
+                    );
                     placarRef.current = novoPlacar;
                     setPlacar(novoPlacar);
 
                     if (novoPlacar.p1 >= 10) {
-                      finalizarPartidaOnline(`${nomeP1} VENCEU!`, novoPlacar.p1, novoPlacar.p2);
+                      finalizarPartidaOnline(
+                        ocultarCameraAdversarioRef.current
+                          ? (isHost ? 'VOCÊ VENCEU!' : 'ADVERSÁRIO VENCEU!')
+                          : `${nomeP1} VENCEU!`,
+                        novoPlacar.p1,
+                        novoPlacar.p2
+                      );
                     } else {
                       setTimeout(() => {
                         if (!partidaFinalizadaRef.current) {
