@@ -428,6 +428,13 @@ const Game = () => {
 
     socket.emit('entrarSala', { salaId });
 
+    if (!isPartidaLocalMesmoPC && isLocalAnonimo) {
+      socket.emit('webrtc_signal', {
+        salaId,
+        signal: { type: 'anonimo_status', isAnonimo: true }
+      });
+    }
+
     if (!isPartidaLocalMesmoPC) {
       setTimeout(() => {
         socket.emit('webrtc_signal', {
@@ -548,6 +555,8 @@ const Game = () => {
         setRemoteConnected(false);
       }
 
+      if (data.type === 'anonimo_status') return;
+
       if (data.type === 'player_stats' && data.stats) {
         setDadosAdversario(prev => ({
           nome: adversarioNome || data.stats.nome || prev.nome,
@@ -555,6 +564,12 @@ const Game = () => {
           pontos: Number(data.stats.pontos ?? prev.pontos),
           vitorias: Number(data.stats.vitoria ?? data.stats.vitorias ?? 0),
         }));
+        if (isLocalAnonimo) {
+          socket.emit('webrtc_signal', {
+            salaId,
+            signal: { type: 'anonimo_status', isAnonimo: true }
+          });
+        }
         if (isReadyRef.current) {
           socket.emit('webrtc_signal', {
             salaId,
@@ -574,6 +589,14 @@ const Game = () => {
           }));
         }
         setIsAdversarioReady(true);
+        return;
+      }
+
+      if (data.type === 'request_offer' && isLocalAnonimo) {
+        socket.emit('webrtc_signal', {
+          salaId,
+          signal: { type: 'anonimo_status', isAnonimo: true }
+        });
         return;
       }
 
