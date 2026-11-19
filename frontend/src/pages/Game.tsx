@@ -987,8 +987,18 @@ const Game = () => {
     };
   }, [isHost, salaId, tipoPartida, adversarioNome, ocultarCameraAdversario, isLocalAnonimo]);
 
-  const player1Stats: PlayerStats = isHost ? meusDados : dadosAdversario;
-  const player2Stats: PlayerStats = isHost ? dadosAdversario : meusDados;
+  const isP1Anonimo = isHost ? isLocalAnonimo : isAdversarioAnonimo;
+  const isP2Anonimo = !isHost ? isLocalAnonimo : isAdversarioAnonimo;
+
+  const player1Stats: PlayerStats = {
+    ...(isHost ? meusDados : dadosAdversario),
+    nome: isP1Anonimo ? 'ANÔNIMO' : (isHost ? meusDados.nome : dadosAdversario.nome),
+  };
+
+  const player2Stats: PlayerStats = {
+    ...(isHost ? dadosAdversario : meusDados),
+    nome: isP2Anonimo ? 'ANÔNIMO' : (isHost ? dadosAdversario.nome : meusDados.nome),
+  };
 
   const tituloModoVS =
     tipoPartida.toUpperCase() === 'AMISTOSO'
@@ -1230,10 +1240,10 @@ const Game = () => {
         )}
 
         <div style={{ position: 'absolute', top: 12, left: 15, zIndex: 10, border: '1px solid #00d4ff', padding: '3px 8px', fontSize: '11px', background: 'rgba(0,0,0,0.6)', color: '#00d4ff' }}>
-          {isHost ? `${nomeLocal} (P1)` : adversarioNome}
+          {isHost ? `${isP1Anonimo ? 'ANÔNIMO' : nomeLocal} (P1)` : (isP1Anonimo ? 'ANÔNIMO' : adversarioNome)}
         </div>
         <div style={{ position: 'absolute', top: 12, right: 15, zIndex: 10, border: '1px solid #2ecc71', padding: '3px 8px', fontSize: '11px', background: 'rgba(0,0,0,0.6)', color: '#2ecc71' }}>
-          {!isHost ? `${nomeLocal} (P2)` : adversarioNome}
+          {!isHost ? `${isP2Anonimo ? 'ANÔNIMO' : nomeLocal} (P2)` : (isP2Anonimo ? 'ANÔNIMO' : adversarioNome)}
         </div>
 
         {tipoPartida === 'ONLINE' && !ocultarCameraAdversario && (
